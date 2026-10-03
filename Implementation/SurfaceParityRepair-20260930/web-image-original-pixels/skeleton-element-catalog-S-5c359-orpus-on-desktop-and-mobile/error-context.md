@@ -1,0 +1,89 @@
+# Page snapshot
+
+```yaml
+- main [ref=e2]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - article [ref=e6]:
+        - generic [ref=e10]: List row A
+      - article [ref=e11]:
+        - generic [ref=e15]: List row B
+      - article [ref=e16]:
+        - generic [ref=e20]: Static row
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - generic [ref=e23]: "count:"
+        - generic [ref=e25]: "1"
+      - generic [ref=e26]:
+        - generic [ref=e27]: "status:"
+        - generic [ref=e29]: object-rendered
+    - img "Catalog pixel" [ref=e31]
+    - generic [ref=e32]: Skeleton element catalog
+    - generic [ref=e33]:
+      - generic [ref=e34]: Attachment field
+      - group "Attachment field" [ref=e35]:
+        - generic [ref=e36]:
+          - generic [ref=e37]: No file selected
+          - generic [ref=e38]: Choose a file to send it to this cell.
+        - button "Velg fil" [ref=e40] [cursor=pointer]
+    - generic [ref=e41]:
+      - generic [ref=e42]: File upload
+      - group "File upload" [ref=e43]:
+        - generic [ref=e44]:
+          - generic [ref=e45]: No file selected
+          - generic [ref=e46]: Choose a file to send it to this cell.
+        - button "Velg fil" [ref=e48] [cursor=pointer]
+    - textbox "Title" [ref=e50]: Initial title
+    - textbox "Body" [ref=e52]: Initial body
+    - generic [ref=e53]:
+      - generic [ref=e54]: HStack
+      - img "calendar" [ref=e56]
+    - generic [ref=e59]: VStack
+    - generic [ref=e60]:
+      - paragraph [ref=e61]: Reference referenceRows (catalog)
+      - article [ref=e63]:
+        - generic [ref=e67]: Reference row
+    - button "Run" [ref=e68] [cursor=pointer]:
+      - img [ref=e69] [cursor=pointer]
+      - generic [ref=e71] [cursor=pointer]: Run
+    - separator [ref=e72]
+    - generic [ref=e74]: Scrollable content
+    - generic [ref=e75]:
+      - generic [ref=e77]: Header
+      - generic [ref=e79]: Content
+      - generic [ref=e81]: Footer
+    - generic [ref=e82]:
+      - tablist [ref=e83]:
+        - tab "Overview" [selected] [ref=e84] [cursor=pointer]
+        - tab "Details" [ref=e85] [cursor=pointer]
+      - generic [ref=e87]: Overview panel
+    - generic [ref=e88]:
+      - generic [ref=e90]: Layer one
+      - generic [ref=e92]: Layer two
+    - generic [ref=e93]:
+      - article [ref=e94]:
+        - generic [ref=e96]: Grid card A
+      - article [ref=e97]:
+        - generic [ref=e99]: Grid card B
+    - generic [ref=e100]:
+      - checkbox "Enabled" [ref=e101]
+      - generic [ref=e102]: Enabled
+    - generic [ref=e103]:
+      - generic [ref=e104]: Priority
+      - combobox "Priority" [ref=e105]:
+        - option "Normal" [selected]
+        - option "High"
+    - generic [ref=e109]:
+      - generic [ref=e110]:
+        - generic [ref=e111]: Name
+        - generic [ref=e112]: Value
+      - generic [ref=e113]:
+        - generic [ref=e114]: Rendered
+        - generic [ref=e115]: "23"
+    - note [ref=e116]:
+      - generic [ref=e117]: "Unsupported skeleton element: FutureBadge"
+      - generic [ref=e118]: Named diagnostic fixture; not an authored semantic element.
+    - navigation "App navigation" [ref=e119]:
+      - button "Overview" [ref=e120] [cursor=pointer]
+      - button "Chat" [disabled] [ref=e121]
+```

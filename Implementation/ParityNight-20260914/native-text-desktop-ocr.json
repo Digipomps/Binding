@@ -1,0 +1,82 @@
+[
+  {
+    "confidence" : 1,
+    "height" : 0.013888888888888951,
+    "text" : "Text Fixture",
+    "width" : 0.063953488667805994,
+    "x" : 0.020348836952434213,
+    "y" : 0.95722222226858211
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.011873385111490831,
+    "text" : "Basic structure",
+    "width" : 0.077034880320231119,
+    "x" : 0.020348839680000712,
+    "y" : 0.92611111121327327
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.021874049504598037,
+    "text" : "Denne fixture-en holder text, badge, section og divider stabile på tvers av web og Binding.",
+    "width" : 0.45647420247395837,
+    "x" : 0.020300689648472883,
+    "y" : 0.89426763135204801
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.016881548563639326,
+    "text" : "public-safe",
+    "width" : 0.058337338765462245,
+    "x" : 0.024610399842326748,
+    "y" : 0.86365224876728786
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015503875944349543,
+    "text" : "deterministic",
+    "width" : 0.069767436981201178,
+    "x" : 0.023255817265213353,
+    "y" : 0.82364341096193372
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.019560723834567639,
+    "text" : "Dette er en bevisst lang tekstlinje som skal wrappe tydelig og likt nok til at vi ser renderer-avvik tidlig, uten å gjøre payloaden produktspesifikk eller vanskelig å feilsøke.",
+    "width" : 0.84302322387695294,
+    "x" : 0.020348856084779168,
+    "y" : 0.77888888866292472
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.013888888888888951,
+    "text" : "Section with divider",
+    "width" : 0.10174418131510415,
+    "x" : 0.020348840592447896,
+    "y" : 0.75555555573870437
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015581395361158545,
+    "text" : "Bruk denne til à verifisere spacing, heading-hierarki og synlig seksjonsdeling.",
+    "width" : 0.38953488667805986,
+    "x" : 0.020348840599923458,
+    "y" : 0.72666666669047353
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015671834415859509,
+    "text" : "Ingen handlinger kjørt ennå.",
+    "width" : 0.1438953399658203,
+    "x" : 0.018895350874648074,
+    "y" : 0.70155038754462118
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.01356589105394157,
+    "text" : "Acknowledge",
+    "width" : 0.068313954671223961,
+    "x" : 0.029069767704358943,
+    "y" : 0.66666666694880439
+  }
+]

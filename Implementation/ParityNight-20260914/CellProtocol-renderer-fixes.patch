@@ -1,0 +1,570 @@
+--- a/Sources/CellApple/Cells/Porthole/Utility Views/CellGridView.swift
++++ b/Sources/CellApple/Cells/Porthole/Utility Views/CellGridView.swift
+@@ -80,10 +80,22 @@
+         skeletonGrid.keypath?.isEmpty == false
+     }
+ 
++    // Match Text/List: a supplied local context owns relative reads. In
++    // particular, do not try to fetch the same keypath through the global
++    // resolver when the host already supplied the grid's state.
++    private var localItems: ValueTypeList? {
++        guard let context = userInfoValue,
++              let keypath = skeletonGrid.keypath,
++              !keypath.isEmpty, !keypath.hasPrefix("cell://") else { return nil }
++        let value = (keypath == "." || keypath == "$") ? context : context[keypath]
++        guard case .list(let items) = value else { return [] }
++        return items
++    }
++
+     var body: some View {
+         LazyVGrid(columns: resolvedColumns, spacing: CGFloat(skeletonGrid.spacing ?? 8)) {
+             if hasDynamicSource {
+-                ForEach(Array(valueTypeList.enumerated()), id: \.offset) { _, value in
++                ForEach(Array((localItems ?? valueTypeList).enumerated()), id: \.offset) { _, value in
+                     gridItemView(for: value)
+                 }
+             } else {
+@@ -94,7 +106,7 @@
+             }
+         }
+         .task(id: refreshTaskID()) {
+-            guard hasDynamicSource else {
++            guard hasDynamicSource, localItems == nil else {
+                 return
+             }
+             if let items = try? await skeletonGrid.getItems() {
+--- a/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/Suggestion/SkeletonView.swift
++++ b/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/Suggestion/SkeletonView.swift
+@@ -2,6 +2,7 @@
+ // SPDX-FileCopyrightText: Copyright (c) 2026 Stiftelsen Digipomps and HAVEN contributors
+ 
+ import SwiftUI
++import Combine
+ import CellBase
+ #if canImport(UniformTypeIdentifiers)
+ import UniformTypeIdentifiers
+@@ -50,6 +51,109 @@
+     case "leading": return .leading
+     case "trailing": return .trailing
+     default: return .center
++    }
++}
++
++// Native defaults preserve explicit Skeleton styling while keeping controls recognizable.
++private func skeletonHorizontalAlignment(_ value: String?) -> HorizontalAlignment {
++    switch value {
++    case "center": return .center
++    case "trailing": return .trailing
++    default: return .leading
++    }
++}
++
++private func skeletonVerticalAlignment(_ value: String?) -> VerticalAlignment {
++    switch value {
++    case "top": return .top
++    case "bottom": return .bottom
++    default: return .center
++    }
++}
++
++private struct SkeletonDefaultControlChrome: ViewModifier {
++    let modifiers: SkeletonModifiers?
++
++    func body(content: Content) -> some View {
++        if modifiers?.background == nil && modifiers?.borderWidth == nil && modifiers?.borderColor == nil {
++            content
++                .padding(.horizontal, 10)
++                .padding(.vertical, 8)
++                #if os(iOS)
++                .frame(minHeight: 44)
++                #endif
++                .background(Color.primary.opacity(0.035))
++                .clipShape(RoundedRectangle(cornerRadius: 8))
++                .overlay(RoundedRectangle(cornerRadius: 8)
++                    .strokeBorder(Color.primary.opacity(0.25), lineWidth: 1))
++        } else {
++            content
++        }
++    }
++}
++
++private struct SkeletonComposerFocus: Equatable {
++    let fieldID: UUID
++    var groupID: UUID?
++    let revision: Int
++}
++
++private struct SkeletonComposerFocusKey: PreferenceKey {
++    static var defaultValue: SkeletonComposerFocus? { nil }
++    static func reduce(value: inout SkeletonComposerFocus?, nextValue: () -> SkeletonComposerFocus?) {
++        value = nextValue() ?? value
++    }
++}
++
++// Match an editor to the action already declared by its configuration. Only
++// the nearest group containing both is revealed; unrelated form content is not.
++private func skeletonComposerFieldIDs(in elements: SkeletonElementList) -> Set<UUID> {
++    func actions(in element: SkeletonElement) -> [String] {
++        switch element {
++        case .Button(let button): return [button.keypath]
++        case .HStack(let stack): return stack.elements.flatMap { actions(in: $0) }
++        case .VStack(let stack): return stack.elements.flatMap { actions(in: $0) }
++        default: return []
++        }
++    }
++    let actionKeys = Set(elements.flatMap { actions(in: $0) })
++    return Set(elements.compactMap { element -> UUID? in
++        guard case .TextArea(let area) = element,
++              let submit = area.submitActionKeypath, !submit.isEmpty,
++              actionKeys.contains(submit) else { return nil }
++        return area.id
++    })
++}
++
++private struct SkeletonComposerScrollFocus: ViewModifier {
++    let proxy: ScrollViewProxy
++    @State private var focus: SkeletonComposerFocus?
++    @State private var keyboardVisible = false
++
++    func body(content: Content) -> some View {
++        #if os(iOS)
++        content
++            .onPreferenceChange(SkeletonComposerFocusKey.self) { value in
++                focus = value
++                if keyboardVisible { reveal(value) }
++            }
++            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
++                keyboardVisible = true
++                reveal(focus)
++            }
++            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
++                keyboardVisible = false
++            }
++        #else
++        content
++        #endif
++    }
++
++    private func reveal(_ focus: SkeletonComposerFocus?) {
++        guard let groupID = focus?.groupID else { return }
++        withAnimation(.easeOut(duration: 0.18)) {
++            proxy.scrollTo(groupID, anchor: .bottom)
++        }
+     }
+ }
+ 
+@@ -699,7 +803,7 @@
+ }
+ 
+ private extension View {
+-    func applySkeletonModifiers(_ modifiers: SkeletonModifiers?) -> AnyView {
++    func applySkeletonModifiers(_ modifiers: SkeletonModifiers?, defaultAlignment: Alignment = .center) -> AnyView {
+         var view: AnyView = AnyView(self)
+         // padding
+         if let padding = modifiers?.padding {
+@@ -711,12 +815,12 @@
+         let maxW: CGFloat? = modifiers?.maxWidthInfinity == true ? .infinity : nil
+         let maxH: CGFloat? = modifiers?.maxHeightInfinity == true ? .infinity : nil
+         // alignment mapping
+-        func mapH(_ s: String?) -> Alignment { switch (s ?? "") { case "leading": return .leading; case "trailing": return .trailing; default: return .center } }
+-        func mapV(_ s: String?) -> Alignment { switch (s ?? "") { case "top": return .top; case "bottom": return .bottom; default: return .center } }
++        func mapH(_ s: String?) -> Alignment { switch (s ?? "") { case "leading": return .leading; case "trailing": return .trailing; default: return defaultAlignment } }
++        func mapV(_ s: String?) -> Alignment { switch (s ?? "") { case "top": return .top; case "bottom": return .bottom; default: return defaultAlignment } }
+         let alignment = Alignment(horizontal: mapH(modifiers?.hAlignment).horizontal, vertical: mapV(modifiers?.vAlignment).vertical)
+         view = AnyView(view.frame(width: frameWidth, height: frameHeight, alignment: alignment))
+         if maxW != nil || maxH != nil {
+-            view = AnyView(view.frame(maxWidth: maxW ?? .infinity, maxHeight: maxH ?? .infinity, alignment: alignment))
++            view = AnyView(view.frame(maxWidth: maxW, maxHeight: maxH, alignment: alignment))
+         }
+         // background color
+         if let bg = modifiers?.background, let color = Color(hex: bg) {
+@@ -847,24 +951,31 @@
+                 )
+             }
+             return AnyView(
+-                HStack(alignment: .center, spacing: h.spacing.map { CGFloat($0) } ?? 8) {
++                HStack(alignment: skeletonVerticalAlignment(h.modifiers?.vAlignment), spacing: h.spacing.map { CGFloat($0) } ?? 8) {
+                     ForEach(h.elements, id: \.id) { el in
+                         render(el)
+                     }
+                 }
+-                .frame(maxWidth: .infinity, alignment: .center)
+-                .applySkeletonModifiers(h.modifiers)
++                .frame(maxWidth: .infinity, alignment: Alignment(horizontal: skeletonHorizontalAlignment(h.modifiers?.hAlignment), vertical: .center))
++                .applySkeletonModifiers(h.modifiers, defaultAlignment: .leading)
+             )
+         case .VStack(let v):
+             let (navigationBar, restElements) = extractNavigationBar(from: v.elements)
+             let stack = AnyView(
+-                VStack(alignment: .center, spacing: v.spacing.map { CGFloat($0) } ?? 8) {
++                VStack(alignment: skeletonHorizontalAlignment(v.modifiers?.hAlignment), spacing: v.spacing.map { CGFloat($0) } ?? 8) {
+                     ForEach(restElements, id: \.id) { el in
+                         render(el)
+                     }
+                 }
+-                .frame(maxWidth: .infinity, alignment: .center)
+-                .applySkeletonModifiers(v.modifiers)
++                .frame(maxWidth: .infinity, alignment: Alignment(horizontal: skeletonHorizontalAlignment(v.modifiers?.hAlignment), vertical: .top))
++                .applySkeletonModifiers(v.modifiers, defaultAlignment: .topLeading)
++                .id(v.id)
++                .transformPreference(SkeletonComposerFocusKey.self) { focus in
++                    if let fieldID = focus?.fieldID, focus?.groupID == nil,
++                       skeletonComposerFieldIDs(in: v.elements).contains(fieldID) {
++                        focus?.groupID = v.id
++                    }
++                }
+             )
+             guard let navigationBar else { return stack }
+             return AnyView(
+@@ -913,7 +1024,6 @@
+             )
+             return AnyView(
+                 CellActionButtonView(skeletonButton: resolvedButton, userInfoValue: userInfoValue)
+-                    .applySkeletonModifiers(resolvedButton.modifiers)
+                     .environmentObject(viewModel)
+             )
+         case .Divider(let div):
+@@ -938,14 +1048,17 @@
+                 )
+             } else {
+                 scrollContent = AnyView(
+-                    ScrollView(.vertical) {
+-                        VStack {
+-                            ForEach(restElements, id: \.id) { el in
+-                                render(el)
++                    ScrollViewReader { proxy in
++                        ScrollView(.vertical) {
++                            VStack {
++                                ForEach(restElements, id: \.id) { el in
++                                    render(el)
++                                }
+                             }
+                         }
++                        .applySkeletonKeyboardDismissBehavior()
++                        .modifier(SkeletonComposerScrollFocus(proxy: proxy))
+                     }
+-                    .applySkeletonKeyboardDismissBehavior()
+                     .applySkeletonModifiers(sc.modifiers)
+                 )
+             }
+@@ -957,14 +1070,15 @@
+             )
+         case .Section(let sec):
+             return AnyView(
+-                VStack(alignment: .center, spacing: 8) {
+-                    if let header = sec.header { render(header) }
++                VStack(alignment: skeletonHorizontalAlignment(sec.modifiers?.hAlignment), spacing: 8) {
++                    if let header = sec.header { render(header).font(.headline).padding(.bottom, 4) }
+                     ForEach(sec.content, id: \.id) { el in
+                         render(el)
+                     }
+                     if let footer = sec.footer { render(footer) }
+                 }
+-                .applySkeletonModifiers(sec.modifiers)
++                .frame(maxWidth: .infinity, alignment: .leading)
++                .applySkeletonModifiers(sec.modifiers, defaultAlignment: .topLeading)
+             )
+         case .ZStack(let zs):
+             return AnyView(
+@@ -1692,6 +1806,12 @@
+             .applyIf(skeletonText.modifiers?.fontSize != nil) { v in
+                 v.font(.system(size: CGFloat(skeletonText.modifiers?.fontSize ?? 0), weight: weightFrom(skeletonText.modifiers?.fontWeight)))
+             }
++            .applyIf(skeletonText.modifiers?.fontWeight != nil) { v in
++                v.fontWeight(weightFrom(skeletonText.modifiers?.fontWeight))
++            }
++            .applyIf(skeletonText.modifiers?.hAlignment != nil) { v in
++                v.frame(maxWidth: .infinity, alignment: Alignment(horizontal: skeletonHorizontalAlignment(skeletonText.modifiers?.hAlignment), vertical: .center))
++            }
+             .applyIf(skeletonText.modifiers?.lineLimit != nil) { v in
+                 v.lineLimit(skeletonText.modifiers?.lineLimit ?? 0)
+             }
+@@ -1701,7 +1821,6 @@
+             .applyIf(skeletonText.modifiers?.minimumScaleFactor != nil) { v in
+                 v.minimumScaleFactor(skeletonText.modifiers?.minimumScaleFactor ?? 1.0)
+             }
+-            .frame(maxWidth: .infinity, alignment: .center)
+             .task(id: contentTaskID()) {
+                 if let cached = await cachedResolvedText() {
+                     resolvedText = cached
+@@ -1808,6 +1927,9 @@
+                     renderStyledButtonLabel(labelText, modifiers: skeletonButton.modifiers)
+                 }
+             }
++            .modifier(SkeletonDefaultControlChrome(modifiers: skeletonButton.modifiers))
++            .applySkeletonModifiers(skeletonButton.modifiers)
++            .contentShape(RoundedRectangle(cornerRadius: CGFloat(skeletonButton.modifiers?.cornerRadius ?? 8)))
+         }
+         .buttonStyle(.plain)
+         .disabled(executionState == .working)
+@@ -3007,13 +3129,23 @@
+ private struct CellTabsView: View {
+     let skeletonTabs: SkeletonTabs
+     let userInfoValue: ValueType?
+-    @State private var tabRows: ValueTypeList = ValueTypeList()
++    @State private var tabRows: ValueTypeList?
+     @State private var activeTabID: String = ""
+     @EnvironmentObject var viewModel: PortholeViewModel
+ 
++    // A supplied context owns relative reads, including an empty/missing list.
++    // Do not fall back to panels or the resolver when that list has no rows.
++    private func usesLocalContext(_ keypath: String) -> Bool {
++        userInfoValue != nil && !keypath.hasPrefix("cell://")
++    }
++
+     private var rows: ValueTypeList {
+-        if tabRows.isEmpty == false {
+-            return tabRows
++        if let keypath = skeletonTabs.tabsKeypath, !keypath.isEmpty {
++            if usesLocalContext(keypath) {
++                guard case .list(let list) = userInfoValue?[keypath] else { return [] }
++                return list
++            }
++            return tabRows ?? []
+         }
+         return skeletonTabs.panels.enumerated().map { index, panel in
+             .object([
+@@ -3024,47 +3156,60 @@
+         }
+     }
+ 
++    private var localActiveTabID: String? {
++        let keypath = skeletonTabs.activeTabStateKeypath
++        guard usesLocalContext(keypath) else { return nil }
++        return skeletonStringValue(userInfoValue?[keypath])
++    }
++
+     private var resolvedActiveTabID: String {
+         let panelIDs = Set(skeletonTabs.panels.map(\.id))
+-        if panelIDs.contains(activeTabID) {
+-            return activeTabID
+-        }
+-        return skeletonTabs.panels.first?.id ?? ""
++        let rowIDs = Set(rows.map { tabID(for: $0) })
++        for candidate in [activeTabID, localActiveTabID ?? ""] {
++            if panelIDs.contains(candidate) && rowIDs.contains(candidate) { return candidate }
++        }
++        return skeletonTabs.panels.first(where: { rowIDs.contains($0.id) })?.id ?? ""
+     }
+ 
+     var body: some View {
+         VStack(alignment: .leading, spacing: 12) {
+-            ScrollView(.horizontal, showsIndicators: false) {
+-                HStack(spacing: 8) {
+-                    ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+-                        let id = tabID(for: row)
+-                        Button {
+-                            Task {
+-                                await select(row: row, id: id, index: index)
++            if !rows.isEmpty {
++                ScrollView(.horizontal, showsIndicators: false) {
++                    HStack(spacing: 8) {
++                        ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
++                            let id = tabID(for: row)
++                            Button {
++                                Task {
++                                    await select(row: row, id: id, index: index)
++                                }
++                            } label: {
++                                Text(tabLabel(for: row, fallback: id))
++                                    .font(.headline)
++                                    .padding(.horizontal, 12)
++                                    .padding(.vertical, 8)
++                                    .background(id == resolvedActiveTabID ? Color.accentColor.opacity(0.16) : Color.clear)
++                                    .cornerRadius(8)
+                             }
+-                        } label: {
+-                            Text(tabLabel(for: row, fallback: id))
+-                                .font(.headline)
+-                                .padding(.horizontal, 12)
+-                                .padding(.vertical, 8)
+-                                .background(id == resolvedActiveTabID ? Color.accentColor.opacity(0.16) : Color.clear)
+-                                .cornerRadius(8)
++                            .buttonStyle(.plain)
++                            .accessibilityValue(id == resolvedActiveTabID ? "Selected" : "")
+                         }
+-                        .buttonStyle(.plain)
+-                        .accessibilityValue(id == resolvedActiveTabID ? "Selected" : "")
+                     }
+                 }
+             }
+ 
+-            if let panel = skeletonTabs.panels.first(where: { $0.id == resolvedActiveTabID }) {
++            if !rows.isEmpty, let panel = skeletonTabs.panels.first(where: { $0.id == resolvedActiveTabID }) {
+                 VStack(alignment: .leading, spacing: 10) {
+                     ForEach(panel.content, id: \.id) { element in
+-                        SkeletonView(element: element, userInfoValue: userInfoValue)
++                        // The enclosing SkeletonView owns the keyboard toolbar.
++                        SkeletonView(element: element, userInfoValue: userInfoValue, showsKeyboardToolbar: false)
+                             .environmentObject(viewModel)
+                     }
+                 }
+                 .applySkeletonModifiers(panel.modifiers)
+             }
++        }
++        .onChange(of: localActiveTabID) { _ in
++            activeTabID = ""
+         }
+         .task(id: refreshTaskID()) {
+             await loadTabs()
+@@ -3102,6 +3247,7 @@
+         guard let tabsKeypath = skeletonTabs.tabsKeypath, tabsKeypath.isEmpty == false,
+               let value = try? await fetchValue(at: tabsKeypath),
+               case let .list(list) = value else {
++            tabRows = nil
+             return
+         }
+         await MainActor.run {
+@@ -3149,6 +3295,9 @@
+     }
+ 
+     private func fetchValue(at keypath: String) async throws -> ValueType {
++        if usesLocalContext(keypath) {
++            return userInfoValue?[keypath] ?? .null
++        }
+         guard let resolver = CellBase.defaultCellResolver,
+               let requester = await viewModel.executionRequesterIdentity() else {
+             throw CellBaseError.noIdentity
+@@ -3329,6 +3478,8 @@
+         VStack(alignment: .leading, spacing: 4) {
+             SwiftUI.TextField(viewModel.localization.text(skeletonTextField.modifiers?.localization?["placeholder"],
+                 fallback: skeletonTextField.placeholder ?? "", item: userInfoValue, contextValue: userInfoValue), text: binding())
++                .textFieldStyle(.plain)
++                .modifier(SkeletonDefaultControlChrome(modifiers: skeletonTextField.modifiers))
+                 .focused($isFocused)
+                 .applyIf(skeletonTextField.modifiers?.foregroundColor != nil && Color(hex: skeletonTextField.modifiers?.foregroundColor ?? "") != nil) { v in
+                     v.foregroundColor(Color(hex: skeletonTextField.modifiers?.foregroundColor ?? "")!)
+@@ -3435,6 +3586,10 @@
+ 
+     private func refreshTaskID() -> String {
+         let source = skeletonTextField.sourceKeypath ?? "__static__"
++        if let context = userInfoValue, !source.hasPrefix("cell://") {
++            let signature = (try? context[source]?.jsonString()) ?? "__nil__"
++            return "\(source)::\(signature)"
++        }
+         return "\(source)::\(viewModel.localMutationVersion)"
+     }
+ 
+@@ -3631,11 +3786,13 @@
+     }
+ 
+     private func loadInitial() async {
+-        // seed from userInfoValue if available
+-        if text.isEmpty, let key = skeletonTextField.sourceKeypath, let v = userInfoValue?[key] {
+-            if let editable = skeletonEditableStringValue(v) {
+-                text = editable
+-            }
++        if let context = userInfoValue, let key = skeletonTextField.sourceKeypath,
++           !key.hasPrefix("cell://") {
++            text = skeletonEditableStringValue(context[key]) ?? ""
++            return
++        }
++        if text.isEmpty, skeletonTextField.sourceKeypath == nil {
++            text = skeletonTextField.text ?? ""
+         }
+         // then try to fetch from remote
+         guard let resolver = CellBase.defaultCellResolver,
+@@ -3730,6 +3887,7 @@
+     let skeletonTextArea: SkeletonTextArea
+     let userInfoValue: ValueType?
+     @State private var text: String = ""
++    @FocusState private var isFocused: Bool
+     @State private var persistTask: Task<Void, Never>?
+     @State private var lastLocalEditAt: Date?
+     @StateObject private var richMarkdownController = RichMarkdownEditorController()
+@@ -3742,8 +3900,11 @@
+ 
+     var body: some View {
+         editorBody
+-        .frame(maxWidth: .infinity, alignment: .center)
++        .modifier(SkeletonDefaultControlChrome(modifiers: skeletonTextArea.modifiers))
++        .frame(maxWidth: .infinity, alignment: .leading)
+         .task(id: refreshTaskID()) { await loadInitial() }
++        .preference(key: SkeletonComposerFocusKey.self,
++                    value: isFocused ? SkeletonComposerFocus(fieldID: skeletonTextArea.id, revision: text.hashValue) : nil)
+     }
+ 
+     @ViewBuilder
+@@ -3785,27 +3946,44 @@
+         #endif
+     }
+ 
++    private var editorFont: Font {
++        if let size = skeletonTextArea.modifiers?.fontSize {
++            return .system(size: CGFloat(size), weight: weightFrom(skeletonTextArea.modifiers?.fontWeight))
++        }
++        return fontFromStyle(skeletonTextArea.modifiers?.fontStyle ?? "body")
++    }
++
+     private var plainEditorBody: some View {
+-        ZStack(alignment: .topLeading) {
+-            if text.isEmpty, !localizedPlaceholder.isEmpty {
+-                Text(localizedPlaceholder)
+-                    .foregroundColor(.secondary)
+-                    .padding(.horizontal, 6)
+-                    .padding(.vertical, 8)
+-            }
+-
+-            TextEditor(text: binding())
+-                .applyIf(skeletonTextArea.modifiers?.foregroundColor != nil && Color(hex: skeletonTextArea.modifiers?.foregroundColor ?? "") != nil) { v in
+-                    v.foregroundColor(Color(hex: skeletonTextArea.modifiers?.foregroundColor ?? "")!)
+-                }
+-                .applyIf(skeletonTextArea.modifiers?.fontStyle != nil) { v in
+-                    v.font(fontFromStyle(skeletonTextArea.modifiers?.fontStyle ?? ""))
+-                }
+-                .applyIf(skeletonTextArea.modifiers?.fontSize != nil) { v in
+-                    v.font(.system(size: CGFloat(skeletonTextArea.modifiers?.fontSize ?? 0), weight: weightFrom(skeletonTextArea.modifiers?.fontWeight)))
+-                }
+-                .frame(minHeight: minHeight(), maxHeight: maxHeight())
+-        }
++        // The measuring text sets the viewport, while TextEditor retains editing,
++        // selection and scrolling. A short draft no longer fills all spare height.
++        Text(text.isEmpty ? " " : text)
++            .font(editorFont)
++            .lineLimit(skeletonTextArea.maxLines.map { max(1, $0) })
++            .padding(.horizontal, 6)
++            .padding(.vertical, 8)
++            .frame(maxWidth: .infinity, alignment: .topLeading)
++            .frame(minHeight: minHeight(), maxHeight: maxHeight(), alignment: .topLeading)
++            .fixedSize(horizontal: false, vertical: true)
++            .hidden()
++            .overlay(alignment: .topLeading) {
++                ZStack(alignment: .topLeading) {
++                    if text.isEmpty, !localizedPlaceholder.isEmpty {
++                        Text(localizedPlaceholder)
++                            .font(editorFont)
++                            .foregroundColor(.secondary)
++                            .padding(.horizontal, 6)
++                            .padding(.vertical, 8)
++                            .allowsHitTesting(false)
++                    }
++                    TextEditor(text: binding())
++                        .focused($isFocused)
++                        .font(editorFont)
++                        .scrollContentBackground(.hidden)
++                        .applyIf(skeletonTextArea.modifiers?.foregroundColor != nil && Color(hex: skeletonTextArea.modifiers?.foregroundColor ?? "") != nil) { v in
++                            v.foregroundColor(Color(hex: skeletonTextArea.modifiers?.foregroundColor ?? "")!)
++                        }
++                }
++            }
+     }
+ 
+     #if os(macOS)
+@@ -3922,10 +4100,13 @@
+             }
+         }
+ 
+-        if text.isEmpty, let key = skeletonTextArea.sourceKeypath, let v = userInfoValue?[key] {
+-            if let editable = skeletonEditableStringValue(v) {
+-                text = editable
+-            }
++        if let context = userInfoValue, let key = skeletonTextArea.sourceKeypath,
++           !key.hasPrefix("cell://") {
++            text = skeletonEditableStringValue(context[key]) ?? ""
++            return
++        }
++        if text.isEmpty, skeletonTextArea.sourceKeypath == nil {
++            text = skeletonTextArea.text ?? ""
+         }
+ 
+         guard let resolver = CellBase.defaultCellResolver,

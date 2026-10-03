@@ -1,0 +1,12 @@
+PerspectiveCell init. Owner: 2A034FD3-8CAE-4043-8285-84BDE86C9710
+Loading perspectiveJsonData failed with error: Error Domain=NSCocoaErrorDomain Code=260 "The file “Perspective.json” couldn’t be opened because there is no such file." UserInfo={NSFilePath=/Users/kjetil/Library/Developer/CoreSimulator/Devices/60A4509A-5AD0-42B9-A1D0-7CEBA044F514/data/Containers/Data/Application/72721243-35AA-4DAC-9DC0-A69EDC9B845E/Library/Application Support/Binding/CellDocumentRoot/CellsContainer/F5BC9A09-9E3E-4C35-AE64-F5EC0D3DC014/Perspective.json, NSURL=file:///Users/kjetil/Library/Developer/CoreSimulator/Devices/60A4509A-5AD0-42B9-A1D0-7CEBA044F514/data/Containers/Data/Application/72721243-35AA-4DAC-9DC0-A69EDC9B845E/Library/Application%20Support/Binding/CellDocumentRoot/CellsContainer/F5BC9A09-9E3E-4C35-AE64-F5EC0D3DC014/Perspective.json, NSUnderlyingError=0x6000000bcab0 {Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"}}
+*************** Init Porthole view model! **********************
+PortholeBindingViewModel initialized
+Attaching resolverEmitter to Porthole with status: connected
+******** Got outward list (3) ********
+Initing Location Event Emitter
+******** Got history list (0) ********
+******** Got history list (0) ********
+Initing Entity Anchor (Apple) cell for owner: 2A034FD3-8CAE-4043-8285-84BDE86C9710
+*********** Finished setup keys in Entity Anchor ***********
+org.digipomps.haven: 76867

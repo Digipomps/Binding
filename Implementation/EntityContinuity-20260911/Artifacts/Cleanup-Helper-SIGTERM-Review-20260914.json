@@ -1,0 +1,12 @@
+{
+  "date": "2026-09-14",
+  "reviewedRevision": "7215052835c310d5d69197780d63b8bafb615fde",
+  "function": "scripts/native_person_tls_cleanup.py:run_bounded",
+  "helperExitCode": -15,
+  "ownedChildStillRunningAfterHelperSIGTERM": true,
+  "testChildSleepSeconds": 15,
+  "helperCommandTimeoutSeconds": 10,
+  "sudoTrustNetworkOrBuildUsed": false,
+  "cleanup": "SIGKILL sent only to exact newly created stub group; helper reaped",
+  "result": "reproduced unresolved signal-interruption cleanup gap"
+}

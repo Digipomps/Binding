@@ -1,0 +1,84 @@
++ xcodebuild build -project Binding.xcodeproj -scheme HAVEN -configuration Debug -destination 'generic/platform=visionOS Simulator' -derivedDataPath /tmp/HavenVisionCompileDD CODE_SIGNING_ALLOWED=NO
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild build -project Binding.xcodeproj -scheme HAVEN -configuration Debug -destination "generic/platform=visionOS Simulator" -derivedDataPath /tmp/HavenVisionCompileDD CODE_SIGNING_ALLOWED=NO
+
+Build settings from command line:
+    CODE_SIGNING_ALLOWED = NO
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  swift-certificates: https://github.com/apple/swift-certificates.git @ 1.18.0
+  CryptoSwift: https://github.com/krzyzanowskim/CryptoSwift.git @ 1.9.0
+  CellProtocol: /Users/kjetil/Build/Digipomps/HAVEN/CellProtocol @ local
+  swift-nio-ssl: https://github.com/apple/swift-nio-ssl @ 2.36.1
+  swift-metrics: https://github.com/apple/swift-metrics.git @ 2.8.0
+  swift-http-structured-headers: https://github.com/apple/swift-http-structured-headers.git @ 1.6.0
+  swift-service-context: https://github.com/apple/swift-service-context.git @ 1.3.0
+  swift-configuration: https://github.com/apple/swift-configuration.git @ 1.2.0
+  swift-crypto: https://github.com/apple/swift-crypto.git @ 3.15.1
+  routing-kit: https://github.com/vapor/routing-kit.git @ 4.9.3
+  swift-algorithms: https://github.com/apple/swift-algorithms.git @ 1.2.1
+  random-swift: https://github.com/GiacomoLeopizzi/random-swift @ 1.0.0
+  console-kit: https://github.com/vapor/console-kit.git @ 4.15.2
+  BigInt: https://github.com/attaswift/BigInt.git @ 5.7.0
+  swift-atomics: https://github.com/apple/swift-atomics.git @ 1.3.0
+  swift-log: https://github.com/apple/swift-log.git @ 1.10.1
+  async-kit: https://github.com/vapor/async-kit.git @ 1.22.0
+  multipart-kit: https://github.com/vapor/multipart-kit.git @ 4.7.1
+  OpenCombine: https://github.com/OpenCombine/OpenCombine.git @ 0.14.0
+  CFileUtils: https://github.com/Digipomps/FileUtils-c.git @ main (26f365c)
+  websocket-kit: https://github.com/vapor/websocket-kit.git @ 2.16.1
+  swift-nio: https://github.com/apple/swift-nio @ 2.96.0
+  swift-distributed-tracing: https://github.com/apple/swift-distributed-tracing.git @ 1.4.1
+  swift-system: https://github.com/apple/swift-system.git @ 1.6.4
+  swift-nio-extras: https://github.com/apple/swift-nio-extras.git @ 1.33.0
+  swift-numerics: https://github.com/apple/swift-numerics.git @ 1.1.1
+  swift-nio-http2: https://github.com/apple/swift-nio-http2.git @ 1.41.0
+  swift-collections: https://github.com/apple/swift-collections.git @ 1.4.1
+  swift-asn1: https://github.com/apple/swift-asn1.git @ 1.6.0
+  swift-http-types: https://github.com/apple/swift-http-types.git @ 1.5.1
+  vapor: https://github.com/vapor/vapor.git @ 4.121.3
+  swift-nio-transport-services: https://github.com/apple/swift-nio-transport-services.git @ 1.26.0
+  async-http-client: https://github.com/swift-server/async-http-client.git @ 1.32.1
+  swift-service-lifecycle: https://github.com/swift-server/swift-service-lifecycle.git @ 2.10.1
+  swift-async-algorithms: https://github.com/apple/swift-async-algorithms.git @ 1.1.3
+
+2026-08-19 19:52:29.398 xcodebuild[32884:5301796] Writing error result bundle to /var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/ResultBundle_2026-19-08_19-52-0029.xcresult
+xcodebuild: error: Unable to find a destination matching the provided destination specifier:
+		{ generic:1, platform:visionOS Simulator }
+
+	Available destinations for the "HAVEN" scheme:
+		{ platform:macOS, arch:arm64, id:00008142-001411C11A22401C, name:My Mac }
+		{ platform:macOS, arch:x86_64, id:00008142-001411C11A22401C, name:My Mac }
+		{ platform:iOS, arch:arm64, id:00008150-00050C200ED8401C, name:iKjetil17 Pro }
+		{ platform:iOS, arch:arm64, id:00008103-00197991227B001E, name:Kjetil Hustveit’s iPad Air2 }
+		{ platform:iOS, id:dvtdevice-DVTiPhonePlaceholder-iphoneos:placeholder, name:Any iOS Device }
+		{ platform:iOS Simulator, id:dvtdevice-DVTiOSDeviceSimulatorPlaceholder-iphonesimulator:placeholder, name:Any iOS Simulator Device }
+		{ platform:macOS, name:Any Mac }
+		{ platform:iOS Simulator, arch:arm64, id:79894E03-6AAD-4B37-A1CA-6ACD0F29BF22, OS:26.2, name:HAVEN App Store iPad Pro 12.9 }
+		{ platform:iOS Simulator, arch:x86_64, id:79894E03-6AAD-4B37-A1CA-6ACD0F29BF22, OS:26.2, name:HAVEN App Store iPad Pro 12.9 }
+		{ platform:iOS Simulator, arch:arm64, id:48BF5EF4-2751-46ED-8BE9-15E4931C3A3F, OS:26.2, name:HAVEN App Store iPhone 11 Pro Max }
+		{ platform:iOS Simulator, arch:x86_64, id:48BF5EF4-2751-46ED-8BE9-15E4931C3A3F, OS:26.2, name:HAVEN App Store iPhone 11 Pro Max }
+		{ platform:iOS Simulator, arch:arm64, id:857FD938-F7C2-4C4D-88A9-7CC0ABA81A3D, OS:26.1, name:iPad (A16) }
+		{ platform:iOS Simulator, arch:x86_64, id:857FD938-F7C2-4C4D-88A9-7CC0ABA81A3D, OS:26.1, name:iPad (A16) }
+		{ platform:iOS Simulator, arch:arm64, id:E69A98E9-FA1F-4CDF-829F-F5EE039A3359, OS:26.2, name:iPad Pro 13-inch (M5) }
+		{ platform:iOS Simulator, arch:x86_64, id:E69A98E9-FA1F-4CDF-829F-F5EE039A3359, OS:26.2, name:iPad Pro 13-inch (M5) }
+		{ platform:iOS Simulator, arch:arm64, id:94C455A9-1753-4935-A3D2-FA61A534AEA8, OS:26.2, name:iPad mini (A17 Pro) }
+		{ platform:iOS Simulator, arch:x86_64, id:94C455A9-1753-4935-A3D2-FA61A534AEA8, OS:26.2, name:iPad mini (A17 Pro) }
+		{ platform:iOS Simulator, arch:arm64, id:1F9CB294-13BC-4D49-B8C7-E969D4BFFA11, OS:26.2, name:iPhone 16e }
+		{ platform:iOS Simulator, arch:x86_64, id:1F9CB294-13BC-4D49-B8C7-E969D4BFFA11, OS:26.2, name:iPhone 16e }
+		{ platform:iOS Simulator, arch:arm64, id:9B9102F8-D0F4-4F0A-B18B-CF5A79410C72, OS:26.2, name:iPhone 17 }
+		{ platform:iOS Simulator, arch:x86_64, id:9B9102F8-D0F4-4F0A-B18B-CF5A79410C72, OS:26.2, name:iPhone 17 }
+		{ platform:iOS Simulator, arch:arm64, id:73E861E6-E45E-4288-BEE7-B9AC472FDAFE, OS:26.2, name:iPhone 17 Pro }
+		{ platform:iOS Simulator, arch:x86_64, id:73E861E6-E45E-4288-BEE7-B9AC472FDAFE, OS:26.2, name:iPhone 17 Pro }
+		{ platform:iOS Simulator, arch:arm64, id:D4B751DA-F9C6-4F7B-A5A9-B80E63A4135B, OS:26.2, name:iPhone 17 Pro Max }
+		{ platform:iOS Simulator, arch:x86_64, id:D4B751DA-F9C6-4F7B-A5A9-B80E63A4135B, OS:26.2, name:iPhone 17 Pro Max }
+		{ platform:iOS Simulator, arch:arm64, id:B5EE2556-6B7E-408E-8976-6F010795DA29, OS:26.2, name:iPhone Air }
+		{ platform:iOS Simulator, arch:x86_64, id:B5EE2556-6B7E-408E-8976-6F010795DA29, OS:26.2, name:iPhone Air }
+
+	Ineligible destinations for the "HAVEN" scheme:
+		{ platform:visionOS, id:dvtdevice-DVTiOSDevicePlaceholder-xros:placeholder, name:Any visionOS Device, error:visionOS 26.2 is not installed. Please download and install the platform from Xcode > Settings > Components. }
++ echo RC=70
+RC=70

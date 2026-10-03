@@ -3,6 +3,10 @@
 This repository hosts the HAVEN app and integrates the CellProtocol ecosystem.
 
 ## Architecture notes
+
+- [Praktisk personkobling: signert kandidat, QR, nærhet og avbruddstester](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/Personal_Entity_Link_Test_Runbook_2026-09-11.md)
+- [Astra-handoff for personens data på flere scaffolds](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/Entity_Fabric_Astra_Handoff_2026-09-11.md)
+- [Telefonen som trygg utvidelse av entiteten: QR, nærhet og sammenslåing (forslag 2026-09-10)](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/Phone_Entity_Extension_QR_Nearby_Proposal_2026-09-10.md)
 - [SkeletonPortabilityRequirement.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/SkeletonPortabilityRequirement.md)
 - [SkeletonParitySuite.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/SkeletonParitySuite.md)
 - [BindingStandaloneSeparationPlan-2026-04-16.md](/Users/kjetil/Build/Digipomps/HAVEN/Binding/Documentation/BindingStandaloneSeparationPlan-2026-04-16.md)

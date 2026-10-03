@@ -287,7 +287,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     case publishPublicProfile = "Publish Public Profile"
     case publicProfileDirectory = "Public Profile Directory"
     case matches = "Matches"
-    case inviteChat = "Co-Pilot"
+    case inviteChat = "Butler Chat"
     case relations = "Relasjoner"
     case extendEntity = "Utvid entiteten"
     case agendaContext = "Agenda Context"
@@ -299,13 +299,14 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     case appleIntelligence = "Apple Intelligence"
     case entityScanner = "Entity Scanner"
     case workflowStudio = "Workflow Studio"
+    case palazzoConcierge = "Palazzo Concierge"
 
     var id: String { rawValue }
     var title: String { rawValue }
 
     var phoneTab: BindingPersonalCopilotPhoneTab {
         switch self {
-        case .personalHome, .agendaContext, .butterpopStudio, .meetingIntent, .appleIntelligence, .entityScanner, .workflowStudio:
+        case .personalHome, .agendaContext, .butterpopStudio, .meetingIntent, .appleIntelligence, .entityScanner, .workflowStudio, .palazzoConcierge:
             return .home
         case .publicProfileDirectory, .matches, .relations:
             return .matches
@@ -326,7 +327,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
             return "Personal"
         case .publicProfileDirectory, .matches, .inviteChat, .meetingIntent, .relations:
             return "Network"
-        case .agendaContext, .butterpopStudio, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio:
+        case .agendaContext, .butterpopStudio, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio, .palazzoConcierge:
             return "Workspace"
         }
     }
@@ -371,6 +372,8 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
             return ConfigurationCatalogCell.entityScannerForPersonalCopilotConfiguration()
         case .workflowStudio:
             return ConfigurationCatalogCell.workflowStudioForPersonalCopilotConfiguration()
+        case .palazzoConcierge:
+            return ConfigurationCatalogCell.palazzoConciergeMenuConfiguration()
         }
     }
 
@@ -385,14 +388,20 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
             // configuration list for ten days and in no sidebar — a surface
             // nobody can open is a surface that does not exist.
             ("Network", [.relations, .matches, .publicProfileDirectory, .inviteChat, .meetingIntent]),
-            ("Workspace", [.agendaContext, .butterpopStudio, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio])
+            ("Workspace", [.agendaContext, .butterpopStudio, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio, .palazzoConcierge])
         ]
     }
 
     static func matching(configurationName: String?) -> BindingPersonalCopilotDestination? {
         guard let configurationName else { return nil }
         let normalized = configurationName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if normalized == "invite chat" || normalized == "co-pilot chat" {
+        // Historiske navn på samme flate. Oppslaget matcher på eksakt navn, så
+        // en rename uten aliaser her gir en bom som koster full katalogresolve.
+        if normalized == "invite chat"
+            || normalized == "co-pilot chat"
+            || normalized == "co-pilot"
+            || normalized == "copilot"
+            || normalized == "butler chat" {
             return .inviteChat
         }
         if normalized == "relations" || normalized == "relasjoner" || normalized == "relations workbench" {
@@ -538,7 +547,6 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     private static let stagingHost = "staging.haven.digipomps.org"
     private static let defaultRemoteWebSocketPath = "bridgehead"
-    private static let stagingRemoteWebSocketPath = "bridgehead"
     private static let portholeEndpoint = "cell:///Porthole"
     private static let defaultConferenceSponsorOrganizationID = "sponsor-ai-digital-independence"
     private static let defaultConferenceParticipantPreviewID = "preview-demo"
@@ -707,16 +715,6 @@ struct ContentView: View {
     @State private var personalCopilotDestination: BindingPersonalCopilotDestination = .personalHome
     @State private var personalCopilotPhoneTab: BindingPersonalCopilotPhoneTab = .home
 
-    private static let defaultRemoteRoute = RemoteCellHostRoute(
-        websocketEndpoint: Self.defaultRemoteWebSocketPath,
-        schemePreference: .automatic
-    )
-    private static let stagingRemoteRoute = RemoteCellHostRoute(
-        websocketEndpoint: Self.stagingRemoteWebSocketPath,
-        schemePreference: .wss,
-        pathLayout: .endpointThenPublisherUUID
-    )
-
     var body: some View {
         shellRoot
         .gesture(rotationHideShowGesture)
@@ -882,6 +880,10 @@ struct ContentView: View {
         }
         .onChange(of: activeConfiguration?.uuid) { _, _ in
             refreshDiagnosticsValidation()
+            if let activeConfiguration { legacyPortholeViewModel.configureLocalization(for: activeConfiguration) }
+        }
+        .onChange(of: activeConfiguration?.localization) { _, _ in
+            if let activeConfiguration { legacyPortholeViewModel.configureLocalization(for: activeConfiguration) }
         }
         .onChange(of: activeConfiguration?.name) { _, nextName in
             guard let destination = BindingPersonalCopilotDestination.matching(configurationName: nextName) else {
@@ -1366,7 +1368,8 @@ struct ContentView: View {
     ) -> some View {
         let configuration = personalCopilotVisibleConfiguration(for: destination)
         let metadata = BindingPersonalCopilotSurfaceMetadata(configuration: configuration)
-        let showsSurfaceHeader = shouldShowPersonalCopilotSurfaceHeader(configuration: configuration)
+        let isNearbyScanner = configuration.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "entity scanner"
+        let showsSurfaceHeader = !isNearbyScanner && shouldShowPersonalCopilotSurfaceHeader(configuration: configuration)
 
         return ZStack {
             personalCopilotShellBackground
@@ -1390,7 +1393,7 @@ struct ContentView: View {
                 .frame(maxWidth: personalCopilotContentMaxWidth(for: metadata), maxHeight: .infinity, alignment: .top)
                 .frame(maxWidth: .infinity, alignment: .center)
 
-                if showInspector {
+                if showInspector && !isNearbyScanner {
                     personalCopilotInspector(metadata: metadata)
                         .frame(width: 220)
                 }
@@ -2057,16 +2060,11 @@ struct ContentView: View {
                 return
             }
 
-            if BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
-                guard await BindingLocalCellRegistration.shared.ensureLocallyRegistered() else {
-                    loadErrorMessage = "Kunne ikke klargjøre den lokale HAVEN-runtime-en."
-                    return
-                }
-            } else {
-                await AppInitializer.initialize()
-            }
-            guard await BindingLocalCellRegistration.shared.ensureRegistered() else {
-                loadErrorMessage = "Kunne ikke validere HAVEN-runtime etter autentisering. Prøv igjen."
+            let outcome = await BindingRuntimeBootstrap.requestAuthenticatedRuntime(retryAfterFailure: true)
+            guard outcome == .ready, !Task.isCancelled else {
+                loadErrorMessage = outcome == .authenticationUnavailable
+                    ? "Autentisering ble ikke fullført. Åpne flaten på nytt for å prøve igjen."
+                    : "Kunne ikke validere HAVEN-runtime. Prøv igjen."
                 return
             }
             await repairPersistedConferencePortalIfNeeded()
@@ -2187,6 +2185,9 @@ struct ContentView: View {
 
     @MainActor
     private func refreshMenusFromCatalogIfAvailable() async {
+        // Background menu refresh can keep the compiled local entries. Only
+        // an explicit protected-surface load may request vault authentication.
+        guard BindingRuntimeBootstrap.authenticatedRuntimeIsReady else { return }
         guard await BindingLocalCellRegistration.shared.ensureRegistered() else {
             diagnosticsStore.record(
                 severity: .error,
@@ -2373,18 +2374,21 @@ struct ContentView: View {
                 host: host,
                 port: components.port,
                 route: route,
-                websocketScheme: CellBase.allowsInsecureWebSockets ? "ws" : "wss",
+                websocketScheme: RemoteEndpointAccessSupport.websocketScheme(forHost: host),
                 useDirectWebSocketForLocalReferences: false
             )
         case "ws", "wss":
             let routePath = inferredWebsocketRoutePath(fromCatalogEndpointPath: components.path)
-            let schemePreference: RemoteCellHostRoute.SchemePreference = scheme == "ws" ? .ws : .wss
+            // Cleartext is honoured only for loopback; a public host is upgraded rather
+            // than left to fail as an ATS violation at connect time.
+            let honoursCleartext = scheme == "ws" && RemoteEndpointAccessSupport.isLoopbackHost(host)
+            let schemePreference: RemoteCellHostRoute.SchemePreference = honoursCleartext ? .ws : .wss
             let route = RemoteCellHostRoute(websocketEndpoint: routePath, schemePreference: schemePreference)
             return CatalogOrigin(
                 host: host,
                 port: components.port,
                 route: route,
-                websocketScheme: scheme,
+                websocketScheme: honoursCleartext ? "ws" : "wss",
                 useDirectWebSocketForLocalReferences: host.lowercased() == "localhost"
             )
         default:
@@ -4182,6 +4186,7 @@ struct ContentView: View {
     @MainActor
     private func rebuildLegacyPortholeViewModel(reason: String) {
         legacyPortholeViewModel = PortholeViewModel()
+        if let activeConfiguration { legacyPortholeViewModel.configureLocalization(for: activeConfiguration) }
         diagnosticsStore.record(
             domain: "binding.porthole",
             message: "Kobler opp legacy Porthole-binder på nytt etter \(reason)."
@@ -4216,19 +4221,30 @@ struct ContentView: View {
         return storedConfiguration
     }
 
+    /// Endepunktet er flatens identitet. Visningsnavnet er det ikke.
+    ///
+    /// Denne flaten har allerede hett "Co-Pilot", "Co-Pilot Chat" og
+    /// "Butler Chat". Da oppfriskningen var noeklet paa navnet, sluttet den
+    /// aa virke ved omdoepingen - uten at noe feilet. Ingen unntak, ingen
+    /// logg: lagrede oppsett ble bare aldri mer friskmeldt til gjeldende
+    /// factory-skjelett, som er hele grunnen til at mekanismen finnes.
+    /// Neste omdoeping skal ikke kunne gjoere det igjen.
+    static let personalCopilotChatHubEndpoint = "cell:///PersonalChatHub"
+
+    private static func isPersonalCopilotSurface(_ configuration: CellConfiguration) -> Bool {
+        configuration.cellReferences?.contains {
+            $0.label == "chatHub" && $0.endpoint == personalCopilotChatHubEndpoint
+        } ?? false
+    }
+
     static func shouldRefreshStoredDemoStartConfiguration(
         _ storedConfiguration: CellConfiguration,
         defaultConfiguration: CellConfiguration = defaultDemoStartConfiguration()
     ) -> Bool {
-        let storedName = storedConfiguration.name
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        let defaultName = defaultConfiguration.name
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-
-        guard storedName == defaultName else { return false }
-        return defaultName == "co-pilot" || defaultName == "co-pilot chat"
+        // Gjelder bare naar produktmodus faktisk serverer co-pilot-flaten.
+        // Conference-launcheren har ingen chatHub-referanse og skal ikke roeres.
+        guard isPersonalCopilotSurface(defaultConfiguration) else { return false }
+        return isPersonalCopilotSurface(storedConfiguration)
     }
 
     @MainActor
@@ -5365,43 +5381,15 @@ struct ContentView: View {
             "Venter på autentisering og runtime-bootstrap for \(configurationName)…",
             requestID: requestID
         )
-        await BindingRuntimeBootstrap.ensureBaseline()
-        if !BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
-            await AppInitializer.initialize()
-        }
-        await BindingRuntimeBootstrap.ensureBaseline()
-        let initiallyRegistered = await BindingLocalCellRegistration.shared.ensureRegistered()
-        if runtimeBootstrapIsReady, initiallyRegistered {
+        let outcome = await BindingRuntimeBootstrap.requestAuthenticatedRuntime(retryAfterFailure: true)
+        guard !Task.isCancelled, activeLoadingRequestID == requestID else { return false }
+        if outcome == .ready {
             return true
         }
-        if runtimeBootstrapIsReady, !initiallyRegistered {
+        if outcome == .registrationUnavailable {
             return reportRuntimeRegistrationFailure(configurationName: configurationName)
         }
-
-        let maxAttempts = 60
-        let retryDelayNanoseconds: UInt64 = 250_000_000
-
-        for attempt in 1...maxAttempts {
-            guard !Task.isCancelled else { return false }
-            if runtimeBootstrapIsReady {
-                guard await BindingLocalCellRegistration.shared.ensureRegistered() else {
-                    return reportRuntimeRegistrationFailure(configurationName: configurationName)
-                }
-                return true
-            }
-            if attempt == 1 || attempt.isMultiple(of: 10) {
-                await BindingRuntimeBootstrap.ensureBaseline()
-            }
-            if attempt < maxAttempts {
-                updateLoadingStatus(
-                    "Venter på autentisering og runtime-bootstrap for \(configurationName)… (\(attempt)/\(maxAttempts))",
-                    requestID: requestID
-                )
-                try? await Task.sleep(nanoseconds: retryDelayNanoseconds)
-            }
-        }
-
-        let message = "Runtime ble ikke klar i tide. Bekreft autentisering og prøv igjen."
+        let message = "Autentisering ble ikke fullført. Lastingen er stoppet. Åpne flaten på nytt for å prøve igjen."
         loadErrorMessage = message
         diagnosticsStore.record(
             severity: .error,
@@ -5892,6 +5880,7 @@ struct ContentView: View {
 
         await MainActor.run {
             legacyPortholeViewModel.rememberRequesterIdentity(loadRequester)
+            legacyPortholeViewModel.configureLocalization(for: configuration)
         }
         viewModel.cellReferences = configuration.cellReferences ?? []
         viewModel.currentSkeleton = loadingPlaceholderSkeleton(for: configuration)
@@ -6024,6 +6013,10 @@ struct ContentView: View {
                 )
             }
             let failureSummary = summarizeBindingFailuresForUser(failures)
+            CellBase.diagnosticLog(
+                "Root binding probe failed for \(configuration.name): \(summarizeBindingFailures(failures))",
+                domain: .skeleton
+            )
             let message = "Kunne ikke laste støttede data for \(configuration.name). \(failureSummary)"
             diagnosticsStore.record(
                 severity: .error,
@@ -6674,10 +6667,7 @@ struct ContentView: View {
     }
 
     private func remoteRoute(forHost host: String) -> RemoteCellHostRoute {
-        if host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == Self.stagingHost {
-            return Self.stagingRemoteRoute
-        }
-        return Self.defaultRemoteRoute
+        RemoteEndpointAccessSupport.route(forHost: host)
     }
 
     func preferredRequesterDescriptor(for configuration: CellConfiguration) -> RemoteRequesterDescriptor? {
@@ -7492,12 +7482,7 @@ struct ContentView: View {
             return false
         }
 
-        let canonicalRoute = RemoteCellHostRoute(
-            websocketEndpoint: Self.stagingRemoteWebSocketPath,
-            schemePreference: .wss,
-            pathLayout: .endpointThenPublisherUUID
-        )
-        registerRemoteHostIfNeeded(host, route: canonicalRoute, resolver: resolver)
+        registerRemoteHostIfNeeded(host, route: RemoteEndpointAccessSupport.route(forHost: host), resolver: resolver)
         do {
             _ = try await probeRemoteEndpoint(
                 endpoint: endpoint,
@@ -8541,7 +8526,9 @@ private struct PortholeCanvas: View {
                 onSelect: onSelectPath
             )
         } else {
-            if let mode = nativeNearbyRadarMode {
+            if activeConfigurationName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "entity scanner" {
+                NearbyScannerSurfaceView()
+            } else if let mode = nativeNearbyRadarMode {
                 nativeNearbyRadarCanvas(mode: mode)
             } else {
                 BindingSkeletonView(element: skeleton)

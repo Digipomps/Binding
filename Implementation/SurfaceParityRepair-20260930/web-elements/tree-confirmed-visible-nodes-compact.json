@@ -1,0 +1,33 @@
+{
+  "name": "tree-confirmed-visible-nodes-compact",
+  "host": "porthole-webo.css light baseline",
+  "viewport": {
+    "width": 390,
+    "height": 1000
+  },
+  "deviceScaleFactor": 2,
+  "materialized": false,
+  "styleNormalizationApplied": false,
+  "content": "▸\nRoot\nOther",
+  "fieldValues": [],
+  "missingExpectedText": [],
+  "errors": [],
+  "geometry": {
+    "box": {
+      "x": 16,
+      "y": 16,
+      "width": 358,
+      "height": 64,
+      "top": 16,
+      "right": 374,
+      "bottom": 80,
+      "left": 16
+    },
+    "scrollWidth": 358,
+    "clientWidth": 358
+  },
+  "assetHashes": {
+    "/css/porthole-webo.css": "2ffbe93e27c08ad5a18a2a8ea8597994c806a6991e212aee0c3058fbbae15c04",
+    "/js/skeleton-runtime.js": "6e50944c90325717ed8bbbde8c17d3bc67fb12c4900d5b19a9cf4d95f12d0da1"
+  }
+}

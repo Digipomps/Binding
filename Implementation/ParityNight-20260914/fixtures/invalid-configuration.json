@@ -1,0 +1,5 @@
+{
+  "code" : "intentional_invalid_fixture",
+  "error" : true,
+  "reason" : "This fixture intentionally returns no decodable CellConfiguration. Clients should fail loudly instead of silently degrading."
+}

@@ -1,0 +1,35 @@
+{
+  "name": "list-static-and-bound-wide",
+  "host": "porthole-webo.css light baseline",
+  "viewport": {
+    "width": 1280,
+    "height": 1000
+  },
+  "deviceScaleFactor": 2,
+  "materialized": false,
+  "styleNormalizationApplied": false,
+  "content": "List row A\nList row B",
+  "fieldValues": [],
+  "missingExpectedText": [
+    "Static row"
+  ],
+  "errors": [],
+  "geometry": {
+    "box": {
+      "x": 50,
+      "y": 16,
+      "width": 1180,
+      "height": 44,
+      "top": 16,
+      "right": 1230,
+      "bottom": 60,
+      "left": 50
+    },
+    "scrollWidth": 1180,
+    "clientWidth": 1180
+  },
+  "assetHashes": {
+    "/css/porthole-webo.css": "2ffbe93e27c08ad5a18a2a8ea8597994c806a6991e212aee0c3058fbbae15c04",
+    "/js/skeleton-runtime.js": "6e50944c90325717ed8bbbde8c17d3bc67fb12c4900d5b19a9cf4d95f12d0da1"
+  }
+}

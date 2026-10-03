@@ -1,0 +1,9 @@
+ok: liten literal (8) passerer
+ok: stor literal (25) stoppes
+ok: baseline dekker registrert stoerrelse
+ok: vekst utover baseline stoppes
+ok: kommentar og streng teller ikke
+ok: indre literal over grensen fanges
+
+ValueType-literaler over 20 oppfoeringer: 22 | dekket av baseline: 22
+OK: ingen ValueType-literal er stor nok til aa velte typesjekkeren.

@@ -1,0 +1,26 @@
+{
+  "date": "2026-09-28",
+  "baseCommit": "8ce634f6533f5e63386229639c69c43aac25c31f",
+  "cellProtocolPin": "79497e85ef2f3fb02db0d6df5b601c5f1bc76391",
+  "branch": "codex/entity-extension-security-20260928",
+  "worktree": "/Users/kjetil/.codex/worktrees/entity-extension-security-20260928/Binding",
+  "tests": {
+    "identityLink": 12,
+    "notificationEnrollmentAndCallback": 34,
+    "legacySecurity": 3,
+    "existingResidencyRanker": 8,
+    "policyPrototype": 13,
+    "syntheticNativeUI": 1
+  },
+  "deployed": false,
+  "physicalAPNSVerified": false,
+  "browserPushImplemented": false,
+  "allScaffoldsLinked": false,
+  "sha256": {
+    "Cells/EntityScaffoldExtensionCell.swift": "a66041d13df08c5cf9f004e41283a17304e5b237ac5dd3562f6a075b2f7ce269",
+    "BindingTests/EntityScaffoldExtensionSecurityTests.swift": "67f0d5a504bdba1f570332f507b61693a8755aaa965b9fc12a2baa83c0b63845",
+    "Binding.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved": "e562872a51ef2c8597d3ab85a4cc1e1b1e4fc095c80c188deb79b3e92b4a7b07"
+  },
+  "securityCommit": "811c3e53",
+  "proposalCommit": "2fcd350f"
+}

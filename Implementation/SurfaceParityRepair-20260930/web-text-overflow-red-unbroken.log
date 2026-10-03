@@ -1,0 +1,166 @@
+
+Running 4 tests using 1 worker
+
+(node:63012) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:63012) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside VStack at 390px (267ms)
+(node:63029) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:63029) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside HStack at 390px (140ms)
+(node:63040) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:63040) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  3 playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside VStack at 1180px (152ms)
+(node:63047) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:63047) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  4 playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside HStack at 1180px (154ms)
+
+
+  1) playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside VStack at 390px 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBeLessThanOrEqual[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected: <= [32m358[39m
+    Received:    [31m3007[39m
+
+      47 |         };
+      48 |       });
+    > 49 |       expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
+         |                                    ^
+      50 |       expect(geometry.wrappedHeight).toBeGreaterThan(geometry.limitedHeight);
+      51 |       expect(geometry.lineClamp).toBe("1");
+      52 |       expect(geometry.whiteSpace).toBe("pre-wrap");
+        at /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/playwright/skeleton-text-overflow.spec.js:49:36
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-8a057-tays-inside-VStack-at-390px/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-8a057-tays-inside-VStack-at-390px/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-8a057-tays-inside-VStack-at-390px/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-8a057-tays-inside-VStack-at-390px/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-8a057-tays-inside-VStack-at-390px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside HStack at 390px 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBeLessThanOrEqual[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected: <= [32m358[39m
+    Received:    [31m3052[39m
+
+      47 |         };
+      48 |       });
+    > 49 |       expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
+         |                                    ^
+      50 |       expect(geometry.wrappedHeight).toBeGreaterThan(geometry.limitedHeight);
+      51 |       expect(geometry.lineClamp).toBe("1");
+      52 |       expect(geometry.whiteSpace).toBe("pre-wrap");
+        at /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/playwright/skeleton-text-overflow.spec.js:49:36
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-a708e-tays-inside-HStack-at-390px/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-a708e-tays-inside-HStack-at-390px/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-a708e-tays-inside-HStack-at-390px/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-a708e-tays-inside-HStack-at-390px/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-a708e-tays-inside-HStack-at-390px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside VStack at 1180px 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBeLessThanOrEqual[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected: <= [32m1148[39m
+    Received:    [31m3007[39m
+
+      47 |         };
+      48 |       });
+    > 49 |       expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
+         |                                    ^
+      50 |       expect(geometry.wrappedHeight).toBeGreaterThan(geometry.limitedHeight);
+      51 |       expect(geometry.lineClamp).toBe("1");
+      52 |       expect(geometry.whiteSpace).toBe("pre-wrap");
+        at /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/playwright/skeleton-text-overflow.spec.js:49:36
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-d86cb-ays-inside-VStack-at-1180px/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-d86cb-ays-inside-VStack-at-1180px/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-d86cb-ays-inside-VStack-at-1180px/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-d86cb-ays-inside-VStack-at-1180px/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-d86cb-ays-inside-VStack-at-1180px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside HStack at 1180px 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBeLessThanOrEqual[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected: <= [32m1148[39m
+    Received:    [31m3052[39m
+
+      47 |         };
+      48 |       });
+    > 49 |       expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
+         |                                    ^
+      50 |       expect(geometry.wrappedHeight).toBeGreaterThan(geometry.limitedHeight);
+      51 |       expect(geometry.lineClamp).toBe("1");
+      52 |       expect(geometry.whiteSpace).toBe("pre-wrap");
+        at /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/playwright/skeleton-text-overflow.spec.js:49:36
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-3fb09-ays-inside-HStack-at-1180px/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-3fb09-ays-inside-HStack-at-1180px/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-3fb09-ays-inside-HStack-at-1180px/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-3fb09-ays-inside-HStack-at-1180px/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../web-text-overflow-red-unbroken/skeleton-text-overflow-lon-3fb09-ays-inside-HStack-at-1180px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4 failed
+    playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside VStack at 390px ─
+    playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside HStack at 390px ─
+    playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside VStack at 1180px 
+    playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside HStack at 1180px 

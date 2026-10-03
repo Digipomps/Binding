@@ -1,0 +1,82 @@
+[
+  {
+    "confidence" : 1,
+    "height" : 0.01174418555365675,
+    "text" : "Text Fixture",
+    "width" : 0.059593022664387985,
+    "x" : 0.47093023359876535,
+    "y" : 0.63166666680136585
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.013888888888888951,
+    "text" : "Basic structure",
+    "width" : 0.077034880320231092,
+    "x" : 0.46220930498886692,
+    "y" : 0.60444444462801117
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.01746770011054144,
+    "text" : "Denne fixture-en holder text, badge, section og divider stabile på tvers av web og Binding.",
+    "width" : 0.45494186401367193,
+    "x" : 0.27325581535266014,
+    "y" : 0.57555555564911121
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.018288038041856525,
+    "text" : "public-safe",
+    "width" : 0.05972910563151046,
+    "x" : 0.46940870264812096,
+    "y" : 0.54027458547990048
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.011627907223171641,
+    "text" : "deterministic",
+    "width" : 0.066860466003417995,
+    "x" : 0.46656976766689562,
+    "y" : 0.50581395344267777
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.019521963331434522,
+    "text" : "Dette er en bevisst lang tekstlinje som skal wrappe tydelig og likt nok til at vi ser renderer-avvik tidlig, uten å gjøre payloaden produktspesifikk eller vanskelig å feilsøke.",
+    "width" : 0.84593022664388018,
+    "x" : 0.077034897252187498,
+    "y" : 0.45722222256722067
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.01388888888888884,
+    "text" : "Section with divider",
+    "width" : 0.10174418131510421,
+    "x" : 0.44912790764671151,
+    "y" : 0.43388888863181174
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.017480619748433512,
+    "text" : "Bruk denne til å verifisere spacing, heading-hierarki og synlig seksjonsdeling.",
+    "width" : 0.39098836263020831,
+    "x" : 0.30523256775829688,
+    "y" : 0.40500000013428117
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.01571059438917366,
+    "text" : "Ingen handlinger kjørt ennå.",
+    "width" : 0.14244185129801434,
+    "x" : 0.42877907257046954,
+    "y" : 0.37984496120418199
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015691253874036915,
+    "text" : "Acknowledge",
+    "width" : 0.068337726593017623,
+    "x" : 0.46655788173780288,
+    "y" : 0.35261948908598006
+  }
+]

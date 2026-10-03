@@ -206,7 +206,7 @@ enum BindingPersonalCopilotV1Policy {
 
     nonisolated static func metadataHints(
         policyCategory: String,
-        ageRatingHint: String = "12+",
+        ageRatingHint: String = "13+",
         requiresLogin: Bool,
         requiresUserGeneratedContentModeration: Bool,
         nativePermissionRequests: [String] = [],
@@ -1975,6 +1975,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             guard await self.validateAccess("rw--", at: "matching.runPrompt", for: requester) else { return .string("denied") }
             return await self.runMatchingPrompt(payload, requester: requester)
         }
+
         // Read-only relevance lookup for the butler: which surfaces answer this
         // sentence. Nothing in the catalog moves — no suggestion list, no flow.
         await registerSet(key: "matching.query", owner: owner) { [weak self] requester, payload in
@@ -7683,7 +7684,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
     nonisolated static func entityScannerWorkbenchConfiguration() -> CellConfiguration {
         entityScannerToolConfiguration(
             name: "Entity Scanner",
-            description: "Judged-proximity scanner for relevant nearby entities, signed identity exchange, saved relations, encounter proofs and JSON export.",
+            description: "Radar med søk, grupperte treff og formål og interesser som andre selv har valgt å dele.",
             title: "Entity Scanner",
             subtitle: "Start scanning explicitly, inspect only relevant nearby entities, then invite, exchange signed identities and hand off to chat after relation persistence.",
             checklist: [
@@ -7945,7 +7946,8 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             personalCopilotCatalogMenuConfiguration(),
             appleIntelligenceLandingForPersonalCopilotConfiguration(),
             entityScannerForPersonalCopilotConfiguration(),
-            workflowStudioForPersonalCopilotConfiguration()
+            workflowStudioForPersonalCopilotConfiguration(),
+            palazzoConciergeMenuConfiguration()
         ]
 
         if BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled {
@@ -8717,7 +8719,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
     nonisolated static func personalInviteChatMenuConfiguration(
         chatHubEndpoint: String = "cell:///PersonalChatHub"
     ) -> CellConfiguration {
-        var configuration = CellConfiguration(name: "Co-Pilot")
+        var configuration = CellConfiguration(name: "Butler Chat")
         configuration.description = "Chat-first arbeidsflate. Skriv naturlig hva du vil oppnaa, finn forslag, og apne bare de hjelperne du ber om. Alle sideeffekter krever eget trykk."
         configuration.addReference(CellReference(endpoint: chatHubEndpoint, label: "chatHub"))
         configuration.addReference(CellReference(endpoint: "cell:///Perspective", subscribeFeed: false, label: "perspective"))
@@ -9070,6 +9072,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         promptSpeaker.modifiers?.fontWeight = "semibold"
         promptSpeaker.modifiers?.fontSize = 12
         var promptBody = personalBoundText("body", lineLimit: 6)
+        promptBody.modifiers?.lineLimit = nil
         promptBody.modifiers?.fontSize = 14
         var promptStatus = personalBoundText("statusText", lineLimit: 1)
         promptStatus.modifiers?.foregroundColor = BindingPersonalCopilotDesignSystem.textTertiary
@@ -9139,7 +9142,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         var moduleRow = SkeletonVStack(elements: [
             .Text(personalBoundText("title", lineLimit: 1)),
             .Text(personalBoundText("kind", lineLimit: 1)),
-            .Text(personalBoundText("status", lineLimit: 1))
+            .Text(personalBoundText("statusText", lineLimit: 2))
         ], spacing: 4)
         moduleRow.modifiers = BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-list-row")
         var workbenchModules = SkeletonList(topic: nil, keypath: "chatHub.state.workbench.modules", flowElementSkeleton: moduleRow)
@@ -9395,7 +9398,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 .TextArea(workItemCurrentField),
                 .TextArea(workItemExpectedField),
                 .HStack(SkeletonHStack(elements: [
-                    .Button(button("chatHub.workItem.capture", "Registrer feil")),
+                    .Button(button("chatHub.workItem.capture", "Legg til utkast")),
                     .Button(button("chatHub.ui.minimizeComponentSurface", "Skjul", style: .secondary))
                 ], spacing: 8))
             ]
@@ -9407,7 +9410,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 .TextField(todoTitleField),
                 .TextArea(todoNoteField),
                 .TextField(todoDueField),
-                .Button(button("chatHub.todo.create", "Opprett oppgave"))
+                .Button(button("chatHub.todo.create", "Legg til utkast"))
             ]
         )
 
@@ -9416,7 +9419,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             content: [
                 .TextField(projectTitleField),
                 .TextArea(projectDescriptionField),
-                .Button(button("chatHub.project.create", "Opprett ide"))
+                .Button(button("chatHub.project.create", "Legg til utkast"))
             ]
         )
 
@@ -9425,7 +9428,8 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             content: [
                 .TextField(reminderTitleField),
                 .TextField(reminderTimeField),
-                .Button(button("chatHub.reminder.create", "Lagre paaminnelse"))
+                .Text(SkeletonText(text: "Utkastet sender ikke varsler.")),
+                .Button(button("chatHub.reminder.create", "Legg til utkast"))
             ]
         )
 
@@ -9434,7 +9438,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             content: [
                 .TextField(meetingTitleField),
                 .TextField(meetingTimesField),
-                .Button(button("chatHub.meeting.schedule", "Foresla mote"))
+                .Button(button("chatHub.meeting.schedule", "Legg til utkast"))
             ]
         )
 
@@ -9520,15 +9524,16 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         primaryActionHint.modifiers?.fontSize = 12
 
         let primaryPromptButton = button(
-            "chatHub.ui.openSuggestedHelper",
+            "chatHub.prompt.submit",
             "↑",
             style: .iconPrimary
         )
-        var primaryActionStack = SkeletonVStack(
+        var primaryActionStack = SkeletonHStack(
             elements: [
+                .Button(button("chatHub.ui.openSuggestedHelper", "Åpne forslag", style: .secondary)),
                 .Button(primaryPromptButton)
             ],
-            spacing: 0
+            spacing: 8
         )
         primaryActionStack.modifiers = modifier {
             $0.hAlignment = "trailing"
@@ -9536,7 +9541,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         }
         var composerStack = SkeletonVStack(elements: [
             .TextArea(composer),
-            .VStack(primaryActionStack)
+            .HStack(primaryActionStack)
         ], spacing: 10)
         composerStack.modifiers = modifier {
             $0.maxWidthInfinity = true
@@ -11647,6 +11652,25 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         )
         configuration.addReference(chatSnapshotReference)
 
+        var beaconConsentToggle = SkeletonToggle(
+            label: "Jeg forstår at tokenene kan gjettes og ikke er kryptert",
+            keypath: "nearbyRadar.beaconConsentAcknowledged",
+            isOn: false
+        )
+        beaconConsentToggle.modifiers = modifier {
+            $0.foregroundColor = "#F4D58D"
+            $0.padding = 8
+        }
+        var beaconCandidateRows = SkeletonList(
+            topic: nil,
+            keypath: "nearbyRadar.state.beaconConsentCandidates",
+            flowElementSkeleton: SkeletonVStack(elements: [bindingConferencePortalActionConnectionCardSkeleton()])
+        )
+        beaconCandidateRows.modifiers = modifier {
+            $0.maxWidthInfinity = true
+            $0.wrap = true
+        }
+
         var root = SkeletonVStack(elements: [
             bindingConferencePortalCardSection(
                 "Conference Nearby Radar",
@@ -11734,6 +11758,26 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                             bindingConferencePortalBadgeKeyText("nearbyRadar.state.precisionBadge"),
                             bindingConferencePortalBadgeKeyText("nearbyRadar.state.statusBadge")
                         ])
+                    )
+                ]
+            ),
+            bindingConferencePortalCardSection(
+                "Beacon-samtykke",
+                content: [
+                    bindingConferencePortalStaticText(
+                        "Beacon er av som standard. Velg hvert aktivt formål eller hver interesse eksplisitt. Det som sendes er korte, usaltede hash-token som kan brute-forces fra et offentlig vokabular: obfuskering mot tilfeldig sniffing, ikke konfidensialitet eller kryptering.",
+                        fontSize: 12,
+                        foregroundColor: "#F4D58D",
+                        lineLimit: 7
+                    ),
+                    bindingConferencePortalKeyText("nearbyRadar.state.disclosurePolicySummary", fontSize: 12, foregroundColor: "#B9FBC0", lineLimit: 3),
+                    bindingConferencePortalKeyText("nearbyRadar.state.beaconConsentSummary", fontSize: 11, foregroundColor: "#D7E7F2", lineLimit: 3),
+                    .Toggle(beaconConsentToggle),
+                    .List(beaconCandidateRows),
+                    bindingConferencePortalActionButton(
+                        "nearbyRadar",
+                        actionKeypath: "approveBeacon",
+                        label: "Godkjenn valgt beacon i 8 timer"
                     )
                 ]
             ),
@@ -13989,6 +14033,10 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         var section = SkeletonSection(content: [
             bindingConferencePortalKeyText("title", fontSize: 15, fontWeight: "bold", foregroundColor: "#F5FBFF", lineLimit: 2),
             bindingConferencePortalKeyText("subtitle", fontSize: 12, foregroundColor: "#8DE1DA", lineLimit: 1),
+            bindingConferencePortalKeyText("entityKindLabel", fontSize: 11, fontWeight: "bold", foregroundColor: "#7FD6D0", lineLimit: 1),
+            bindingConferencePortalKeyText("beaconOverlapBadge", fontSize: 11, fontWeight: "bold", foregroundColor: "#F4D58D", lineLimit: 1),
+            bindingConferencePortalKeyText("matchVerificationLabel", fontSize: 10, fontWeight: "bold", foregroundColor: "#88A2B1", lineLimit: 1),
+            bindingConferencePortalBeaconTokenList(),
             bindingConferencePortalKeyText("distanceText", fontSize: 12, fontWeight: "bold", foregroundColor: "#D5E4ED", lineLimit: 1),
             bindingConferencePortalKeyText("directionConfidence", fontSize: 11, foregroundColor: "#88A2B1", lineLimit: 1),
             bindingConferencePortalKeyText("relevanceBadge", fontSize: 11, fontWeight: "bold", foregroundColor: "#B9FBC0", lineLimit: 1),
@@ -14004,9 +14052,35 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             $0.cornerRadius = 12
             $0.borderWidth = 1
             $0.borderColor = "#244457"
-            $0.height = 260
+            $0.height = 340
         }
         return .Section(section)
+    }
+
+    nonisolated private static func bindingConferencePortalBeaconTokenList() -> SkeletonElement {
+        var chip = SkeletonSection(content: [
+            bindingConferencePortalKeyText("token", fontSize: 10, fontWeight: "semibold", foregroundColor: "#F4D58D", lineLimit: 1)
+        ])
+        chip.modifiers = modifier {
+            $0.padding = 5
+            $0.background = "#2B2517"
+            $0.cornerRadius = 8
+            $0.borderWidth = 1
+            $0.borderColor = "#6F5A2A"
+        }
+        var item = SkeletonVStack(elements: [.Section(chip)])
+        item.modifiers = modifier { $0.padding = 2 }
+        var list = SkeletonList(
+            topic: nil,
+            keypath: "overlapTokens",
+            flowElementSkeleton: item
+        )
+        list.modifiers = modifier {
+            $0.wrap = true
+            $0.maxWidthInfinity = true
+            $0.hAlignment = "leading"
+        }
+        return .List(list)
     }
 
     nonisolated private static func bindingConferencePortalNearbyFocusPanelSection(scannerReferenceLabel: String) -> SkeletonElement {
@@ -15779,15 +15853,55 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         configuration.description = description
 
         var scannerReference = CellReference(endpoint: "cell:///EntityScanner", label: "scanner")
-        scannerReference.addKeyAndValue(KeyValue(key: "start", value: .bool(true)))
+        if name != "Entity Scanner" {
+            scannerReference.addKeyAndValue(KeyValue(key: "start", value: .bool(true)))
+        }
         configuration.addReference(scannerReference)
         var nearbyRadarReference = CellReference(endpoint: "cell:///ConferenceNearbyRadar", label: "nearbyRadar")
-        nearbyRadarReference.addKeyAndValue(KeyValue(key: "start"))
+        nearbyRadarReference.addKeyAndValue(KeyValue(key: "state"))
         configuration.addReference(nearbyRadarReference)
         configuration.addReference(CellReference(endpoint: "cell:///Perspective", label: "perspective"))
         configuration.addReference(CellReference(endpoint: "cell:///EntityAnchor", label: "entity"))
         configuration.addReference(CellReference(endpoint: "cell:///Vault", label: "vault"))
 
+        if name == "Entity Scanner" {
+            // Keep the portable surface small as well. Native sharing controls use
+            // the same scanner and shared radar renderer; diagnostic helpers retain
+            // the longer workbench below.
+            let radar = SkeletonVisualization(kind: "radar", keypath: "scanner.radar", actionKeypath: "scanner.select")
+            configuration.skeleton = .VStack(SkeletonVStack(elements: [
+                .Text(SkeletonText(text: "I nærheten")),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(SkeletonButton(keypath: "scanner.start", label: "Start", payload: .bool(true))),
+                    .Button(SkeletonButton(keypath: "scanner.stop", label: "Stopp", payload: .bool(true)))
+                ])),
+                .Visualization(radar)
+            ]))
+            return configuration
+        }
+
+        return entityScannerDiagnosticConfiguration(
+            configuration: configuration,
+            title: title,
+            subtitle: subtitle,
+            checklist: checklist,
+            includePerspectiveSection: includePerspectiveSection
+        )
+    }
+
+    // Keep the diagnostic workbench's large value-type temporaries out of the
+    // normal radar factory's stack frame. A Debug build reserves that frame on
+    // entry, even when the small Entity Scanner branch returns early. On iPad
+    // this exhausted the UI thread stack before the radar could open.
+    @inline(never)
+    nonisolated private static func entityScannerDiagnosticConfiguration(
+        configuration initialConfiguration: CellConfiguration,
+        title: String,
+        subtitle: String,
+        checklist: [String],
+        includePerspectiveSection: Bool
+    ) -> CellConfiguration {
+        var configuration = initialConfiguration
         let card = conferenceCardModifier(
             padding: 10,
             background: ConferenceSurfacePalette.shellMuted,

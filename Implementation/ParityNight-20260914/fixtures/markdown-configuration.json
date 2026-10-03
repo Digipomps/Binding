@@ -1,0 +1,82 @@
+{
+  "cellReferences" : [
+    {
+      "endpoint" : "cell:\/\/\/SkeletonParityMarkdownFixture",
+      "label" : "fixture",
+      "setKeysAndValues" : [
+        {
+          "key" : "state"
+        }
+      ],
+      "subscribeFeed" : true,
+      "subscriptions" : [
+
+      ]
+    }
+  ],
+  "description" : "Markdown source and rendered HTML.",
+  "discovery" : {
+    "interests" : [
+      "skeleton",
+      "parity",
+      "markdown"
+    ],
+    "menuSlots" : [
+
+    ],
+    "purpose" : "Skeleton Parity Markdown Fixture",
+    "purposeDescription" : "Markdown source and rendered HTML.",
+    "sourceCellEndpoint" : "cell:\/\/\/SkeletonParityMarkdownFixture",
+    "sourceCellName" : "SkeletonParityMarkdownFixture"
+  },
+  "name" : "Skeleton Parity Markdown Fixture",
+  "skeleton" : {
+    "VStack" : [
+      {
+        "Section" : {
+          "content" : [
+            {
+              "Text" : {
+                "keypath" : "fixture.state.headline"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.status"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.source"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.renderedHTML",
+                "modifiers" : {
+                  "styleRole" : "rendered-html"
+                }
+              }
+            },
+            {
+              "Button" : {
+                "keypath" : "dispatchAction",
+                "label" : "Toggle mode",
+                "payload" : {
+                  "keypath" : "toggleMode",
+                  "payload" : true
+                }
+              }
+            }
+          ],
+          "header" : {
+            "Text" : {
+              "text" : "Markdown Fixture"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "uuid" : "FA5E0EF1-24EF-4E1D-A72E-F100E6C17624"
+}

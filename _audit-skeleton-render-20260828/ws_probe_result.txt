@@ -1,0 +1,10 @@
+staging.haven.digipomps.org      native-porthole UTEN kontrakt              HTTP/1.1 101 Switching Protocols -> LUKKET etter 0.00s
+                                                                            CLOSE: kode=1008 
+staging.haven.digipomps.org      native-porthole, ikke-tillatt publisher    HTTP/1.1 101 Switching Protocols -> LUKKET etter 0.00s
+                                                                            CLOSE: kode=1008 
+staging.haven.digipomps.org      generell bro                               HTTP/1.1 404 Not Found     -> ingen oppgradering
+haven.digipomps.org              native-porthole UTEN kontrakt              HTTP/1.1 101 Switching Protocols -> LUKKET etter 0.00s
+                                                                            CLOSE: kode=1008 
+haven.digipomps.org              native-porthole, ikke-tillatt publisher    HTTP/1.1 101 Switching Protocols -> LUKKET etter 0.00s
+                                                                            CLOSE: kode=1008 
+haven.digipomps.org              generell bro                               HTTP/1.1 404 Not Found     -> ingen oppgradering

@@ -1,0 +1,80 @@
+{
+  "name": "image-data-url-compact",
+  "host": "porthole-webo.css light baseline",
+  "viewport": {
+    "width": 390,
+    "height": 1000
+  },
+  "deviceScaleFactor": 2,
+  "navigationBaseURL": "http://skeleton-parity.test/",
+  "materialized": false,
+  "styleNormalizationApplied": false,
+  "content": "",
+  "fieldValues": [],
+  "expectedTextCount": 0,
+  "missingExpectedText": [],
+  "errors": [],
+  "geometry": {
+    "box": {
+      "x": 16,
+      "y": 16,
+      "width": 358,
+      "height": 32,
+      "top": 16,
+      "right": 374,
+      "bottom": 48,
+      "left": 16
+    },
+    "scrollWidth": 358,
+    "clientWidth": 358
+  },
+  "controls": [],
+  "images": [
+    {
+      "naturalWidth": 32,
+      "naturalHeight": 32,
+      "box": {
+        "x": 16,
+        "y": 16,
+        "width": 32,
+        "height": 32,
+        "top": 16,
+        "right": 48,
+        "bottom": 48,
+        "left": 16
+      },
+      "decodeError": null,
+      "sampledRGBA": [
+        [
+          220,
+          40,
+          40,
+          255
+        ],
+        [
+          20,
+          170,
+          70,
+          255
+        ],
+        [
+          30,
+          90,
+          220,
+          255
+        ],
+        [
+          245,
+          195,
+          20,
+          255
+        ]
+      ]
+    }
+  ],
+  "selectedTexts": [],
+  "assetHashes": {
+    "/css/porthole-webo.css": "07845ea4e7d0d0b71ce95bd042ace835fd98df5ec2ca69e1fd6d7f9247aca525",
+    "/js/skeleton-runtime.js": "4f957ac8206f6777b7845d3cc41eec10c94bfb7ca8ca572f77c95cff6735b508"
+  }
+}

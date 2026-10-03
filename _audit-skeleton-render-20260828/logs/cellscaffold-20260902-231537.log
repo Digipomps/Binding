@@ -1,0 +1,63 @@
+START 21:15:37Z
+[4589/4603] Compiling App PortholeOwnerMappingRecovery.swift
+
+
+
+[4590/4603] Compiling App ProductionRuntimeAdmissionMiddleware.swift
+
+
+
+[4591/4603] Compiling App PurposeDecomposition.swift
+
+
+
+[4592/4603] Compiling App PurposeKnowledgeBase.swift
+
+
+
+[4593/4603] Compiling App SecureRuntimeIdentityManifestFile.swift
+
+
+
+[4594/4603] Compiling App SkeletonRuntimeDecoder.swift
+
+
+
+[4595/4603] Compiling App StrictIdentityVaultReadinessMonitor.swift
+
+
+
+[4596/4603] Compiling App UsageMeterContracts.swift
+
+
+
+[4597/4603] Compiling App UsageMeterEventStore.swift
+
+
+
+[4598/4603] Compiling App WorkbenchSeedSupport.swift
+
+
+
+[4599/4603] Compiling App Sequence+sorted.swift
+
+
+
+[4600/4603] Compiling App ValueTypeHelpers.swift
+
+
+
+[4601/4603] Compiling App configure.swift
+
+
+
+[4602/4603] Compiling App routes.swift
+
+
+
+[4603/4603] Compiling App resource_bundle_accessor.swift
+
+
+
+BUILD_EXIT=1
+DONE 21:19:11Z

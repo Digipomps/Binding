@@ -1,0 +1,4 @@
+Isolated HOME: /var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/cellscaffold-test-home.W3exgYCORb
+Bounded SwiftPM entrypoint: /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/scripts/run_swift_bounded.sh
+Build capacity: 55.6 GiB free (5%); reserving 10 GiB leaves 45.6 GiB (4%).
+ERROR: build blocked: projected free space must remain at or above 40 GiB and 5%.

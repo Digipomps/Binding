@@ -1,0 +1,200 @@
+{
+  "cellReferences" : [
+    {
+      "endpoint" : "cell:\/\/\/PersonalMatchmaking",
+      "label" : "matchmaking",
+      "setKeysAndValues" : [
+
+      ],
+      "subscribeFeed" : false,
+      "subscriptions" : [
+
+      ]
+    }
+  ],
+  "description" : "Gi match-forslag basert på publiserte profiler og eksplisitte preferanser. Chat starter aldri automatisk.",
+  "discovery" : {
+    "interests" : [
+      "ageRatingHint=12+",
+      "appStoreScope=personal-copilot-v1",
+      "consent",
+      "executionScope=cloud",
+      "matchmaking",
+      "nativePermissionRequests=none",
+      "personal",
+      "policyCategory=matching",
+      "presentationClass=list",
+      "purpose=mutual-consent-no-auto-chat",
+      "recommendations",
+      "requiresLogin=true",
+      "requiresUserGeneratedContentModeration=true",
+      "reviewSummary=Consent-based matching; chat remains gated by explicit mutual approval.",
+      "social",
+      "surfaceFamily=relationship",
+      "universalLink=https:\/\/staging.haven.digipomps.org\/app\/personal\/matches",
+      "visibleAction=acceptMatchConsent",
+      "visibleAction=clearMatchSuggestion",
+      "visibleAction=declineMatchConsent",
+      "visibleAction=editPreferences",
+      "visibleAction=refreshSuggestions",
+      "visibleAction=requestMatchConsent"
+    ],
+    "menuSlots" : [
+      "upperLeft",
+      "lowerMid"
+    ],
+    "purpose" : "Consent-based matching",
+    "purposeDescription" : "Gi match-forslag basert på publiserte profiler og eksplisitte preferanser. Chat starter aldri automatisk.",
+    "sourceCellEndpoint" : "cell:\/\/\/PersonalMatchmaking",
+    "sourceCellName" : "PersonalMatchmakingCell"
+  },
+  "name" : "Matches",
+  "skeleton" : {
+    "VStack" : {
+      "elements" : [
+        {
+          "Text" : {
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            },
+            "text" : "Matches"
+          }
+        },
+        {
+          "Text" : {
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            },
+            "text" : "Forslag kan be om samtykke, men starter aldri chat automatisk."
+          }
+        },
+        {
+          "Text" : {
+            "keypath" : "matchmaking.state.requiresMutualApprovalForChat",
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            }
+          }
+        },
+        {
+          "TextField" : {
+            "placeholder" : "Preferences, comma separated",
+            "sourceKeypath" : "matchmaking.state.preferencesText",
+            "targetKeypath" : "matchmaking.preferencesText"
+          }
+        },
+        {
+          "HStack" : {
+            "elements" : [
+              {
+                "Button" : {
+                  "keypath" : "matchmaking.refreshSuggestions",
+                  "label" : "Refresh suggestions",
+                  "payload" : {
+
+                  }
+                }
+              },
+              {
+                "Button" : {
+                  "keypath" : "matchmaking.requestMatchConsent",
+                  "label" : "Request consent",
+                  "payload" : {
+
+                  }
+                }
+              },
+              {
+                "Button" : {
+                  "keypath" : "matchmaking.acceptMatchConsent",
+                  "label" : "Accept match",
+                  "payload" : {
+
+                  }
+                }
+              },
+              {
+                "Button" : {
+                  "keypath" : "matchmaking.declineMatchConsent",
+                  "label" : "Decline match",
+                  "payload" : {
+
+                  }
+                }
+              },
+              {
+                "Button" : {
+                  "keypath" : "matchmaking.clearMatchSuggestion",
+                  "label" : "Clear suggestion",
+                  "payload" : {
+
+                  }
+                }
+              }
+            ],
+            "spacing" : 8
+          }
+        },
+        {
+          "List" : {
+            "elements" : [
+
+            ],
+            "flowElementSkeleton" : {
+              "VStack" : {
+                "elements" : [
+                  {
+                    "Text" : {
+                      "keypath" : "profile.displayName",
+                      "modifiers" : {
+                        "foregroundColor" : "#172033"
+                      }
+                    }
+                  },
+                  {
+                    "Text" : {
+                      "keypath" : "profile.headline",
+                      "modifiers" : {
+                        "foregroundColor" : "#172033"
+                      }
+                    }
+                  },
+                  {
+                    "Text" : {
+                      "keypath" : "reasons",
+                      "modifiers" : {
+                        "foregroundColor" : "#172033"
+                      }
+                    }
+                  },
+                  {
+                    "Text" : {
+                      "keypath" : "chatEligible",
+                      "modifiers" : {
+                        "foregroundColor" : "#172033"
+                      }
+                    }
+                  }
+                ],
+                "spacing" : 4
+              }
+            },
+            "keypath" : "matchmaking.state.matchSuggestions",
+            "selectionMode" : "single",
+            "selectionValueKeypath" : "profile.id"
+          }
+        },
+        {
+          "Text" : {
+            "keypath" : "matchmaking.state.matchConsentStatus",
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            }
+          }
+        }
+      ],
+      "spacing" : 10
+    }
+  },
+  "uuid" : "E1836E58-E477-4CC8-A2F9-7B970FA3A183"
+}

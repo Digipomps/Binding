@@ -1,0 +1,293 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "C61BF1EA-5C80-4DB4-92A2-D0D5E05E621F.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Debug description for `\"skeleton.button.1F124D87-9132-46F9-8547-23B8EDCA117E\" Button`_0_D3833672-0FDD-47A5-B72C-DAE90FC91C0C.txt",
+        "timestamp" : 1789442058.015
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "E66EBDDD-CDCD-470F-A893-4BB0CDC5B959",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "UI Snapshot 2026-09-15 at 05.14.18 am",
+        "timestamp" : 1789442058.015
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "8CE4E0CF-EA75-4D01-B64C-D412274308F4",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "UI Snapshot 2026-09-15 at 05.14.17 am",
+        "timestamp" : 1789442057.959
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "DDFA1C1F-71D9-4E7E-B98E-4AAC64E84F6B.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Debug description for `\"skeleton.button.1F124D87-9132-46F9-8547-23B8EDCA117E\" Button`_0_47802E81-50D4-4C3A-BE08-5D7B207E2DFF.txt",
+        "timestamp" : 1789442057.067
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "F0A70AD8-3CFC-47F8-8D48-FF1BEE4A1779",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "UI Snapshot 2026-09-15 at 05.14.17 am",
+        "timestamp" : 1789442057.067
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "E18C2DAE-2241-4B88-8504-74C145897A0D",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "UI Snapshot 2026-09-15 at 05.14.17 am",
+        "timestamp" : 1789442057.012
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "FF6CB2A6-613C-4942-808A-31FD75FADE54.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Debug description for `\"skeleton.button.1F124D87-9132-46F9-8547-23B8EDCA117E\" Button`_0_7B5F5A40-D2AB-444A-9D0F-9E8A7E749E6C.txt",
+        "timestamp" : 1789442056.043
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "9B323B52-E1E8-41B2-A74D-E8FE587818B7",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "UI Snapshot 2026-09-15 at 05.14.16 am",
+        "timestamp" : 1789442056.043
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "FAB7F503-5235-41DD-ACE4-ADAD0C2CD3BE",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "UI Snapshot 2026-09-15 at 05.14.15 am",
+        "timestamp" : 1789442055.985
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "FC9D0E6B-534F-46AE-B37B-10C016953594.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Debug description for `\"skeleton.button.1F124D87-9132-46F9-8547-23B8EDCA117E\" Button`_0_AA020B1A-A954-4E7E-A910-2937EEA64C8F.txt",
+        "timestamp" : 1789442055.015
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "1FF31BF9-A354-4547-AB23-374C56EF0F5D",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "UI Snapshot 2026-09-15 at 05.14.15 am",
+        "timestamp" : 1789442055.015
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "CB846137-C458-4F4E-8343-3AFB0BA98FD5",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "UI Snapshot 2026-09-15 at 05.14.14 am",
+        "timestamp" : 1789442054.959
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "F535C076-90CE-4236-AC71-9D3B06F4ECC7.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Debug description for `\"skeleton.button.1F124D87-9132-46F9-8547-23B8EDCA117E\" Button`_0_D89E29C0-1CB8-46C1-A599-FEC7492AE2F2.txt",
+        "timestamp" : 1789442054.087
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "8C176DBC-3724-4532-8853-2AD39547A623",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "UI Snapshot 2026-09-15 at 05.14.14 am",
+        "timestamp" : 1789442054.087
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "3727190C-A5B2-4D35-9263-9C51A023A1CE",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "UI Snapshot 2026-09-15 at 05.14.14 am",
+        "timestamp" : 1789442054.027
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "D6331E9A-73E5-4689-BB3B-BADAE9DAEA18",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "UI Snapshot 2026-09-15 at 05.14.12 am",
+        "timestamp" : 1789442052.616
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "CEC96FF4-19C0-4AEA-A1F7-E27590720D2D",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Synthesized Event 2026-09-15 at 05.14.12 am",
+        "timestamp" : 1789442052.941
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "D0936F67-F85A-4F62-B6E1-72D325EB1981.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "form-edit-with-keyboard_0_0B25A74B-6A2B-403F-AE79-52888D9D98E9.png",
+        "timestamp" : 1789442052.552
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "FD81A315-24A9-40B8-851D-F69403F3B8DB",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "UI Snapshot 2026-09-15 at 05.14.11 am",
+        "timestamp" : 1789442051.954
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "AAF4B28E-67D0-4F61-8089-5F9D123AD6D5",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Synthesized Event 2026-09-15 at 05.14.12 am",
+        "timestamp" : 1789442052.47
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "0285E5B3-65E7-4489-B944-D285DEF64023",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "UI Snapshot 2026-09-15 at 05.14.11 am",
+        "timestamp" : 1789442051.639
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "7D20814C-DD17-4591-9B41-9A82B4089FDE",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Synthesized Event 2026-09-15 at 05.14.11 am",
+        "timestamp" : 1789442051.921
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "1DF660CB-8802-4FCF-9B85-8CB03A408664",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "UI Snapshot 2026-09-15 at 05.14.11 am",
+        "timestamp" : 1789442051.281
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "A86C2AE5-2A2D-4026-9460-033BC9EF0DC6",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Synthesized Event 2026-09-15 at 05.14.11 am",
+        "timestamp" : 1789442051.598
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "FCEAC6EF-432F-4CE7-9346-7053F7087DD5",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "UI Snapshot 2026-09-15 at 05.14.10 am",
+        "timestamp" : 1789442050.101
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "B1A8CA8D-0FBF-46FF-B6B2-27A5E488D2B1",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Synthesized Event 2026-09-15 at 05.14.10 am",
+        "timestamp" : 1789442050.491
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "251B0732-7C39-4EAB-846D-7635DA594FD0.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "form-controls-before-edit_0_35E42F8B-755C-4202-86CE-B46318E87525.png",
+        "timestamp" : 1789442050.078
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "6152E0DB-0C5B-4090-895F-F5624E85EBE6.mp4",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Screen Recording 2026-09-15 at 05.14.04 am.mp4",
+        "timestamp" : 1789442044.073
+      }
+    ],
+    "testIdentifier" : "ParityNightUITests/testFormFieldsAreEditableAndButtonPaddingReceivesTap()",
+    "testIdentifierURL" : "test://com.apple.xcode/Binding/BindingUITests/ParityNightUITests/testFormFieldsAreEditableAndButtonPaddingReceivesTap"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "844A6C61-38BF-43AC-A855-250474707A08.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "library-closed-with-two-auth-attempts_0_BB002B74-6B36-4E81-BCB2-B3366C641478.png",
+        "timestamp" : 1789442066.475
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "ADD8988E-6D6B-4F8B-8F57-B31050CBF694.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "library-auth-stopped-after-retry_0_B8001288-2509-4DF5-83A5-1238FA94268C.png",
+        "timestamp" : 1789442064.606
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "C904F91F-7830-4204-B65F-E57969F1F04C.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "library-auth-stopped-initial_0_BEB9126A-1A3F-4A08-888E-AFEB31EF6C7F.png",
+        "timestamp" : 1789442062.819
+      }
+    ],
+    "testIdentifier" : "ParityNightUITests/testLibraryAuthenticationFailureCanRetryAndClose()",
+    "testIdentifierURL" : "test://com.apple.xcode/Binding/BindingUITests/ParityNightUITests/testLibraryAuthenticationFailureCanRetryAndClose"
+  }
+]

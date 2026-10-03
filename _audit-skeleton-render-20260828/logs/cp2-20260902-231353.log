@@ -1,0 +1,51 @@
+== A: en test som fantes fra før (isolerer om harnessen i det hele tatt kjører) ==
+Building for debugging...
+[0/6] Write sources
+[1/6] Write swift-version--58304C5D6DBC2206.txt
+[3/6] Emitting module CellBaseTests
+[4/6] Compiling CellBaseTests BridgeTests.swift
+[5/8] Emitting module CellProtocolPackageTests
+[6/8] Compiling CellProtocolPackageTests runner.swift
+[6/8] Write Objects.LinkFileList
+[7/8] Linking CellProtocolPackageTests
+Build complete! (25.46s)
+Test Suite 'Selected tests' started at 2026-09-02 23:14:25.717.
+Test Suite 'CellProtocolPackageTests.xctest' started at 2026-09-02 23:14:25.718.
+Test Suite 'BridgeTests' started at 2026-09-02 23:14:25.718.
+Test Case '-[CellBaseTests.BridgeTests testBridgeCommandRoundTripStringPayload]' started.
+Test Case '-[CellBaseTests.BridgeTests testBridgeCommandRoundTripStringPayload]' passed (0.002 seconds).
+Test Suite 'BridgeTests' passed at 2026-09-02 23:14:25.719.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'CellProtocolPackageTests.xctest' passed at 2026-09-02 23:14:25.719.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'Selected tests' passed at 2026-09-02 23:14:25.719.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+􀟈  Test run started.
+􀄵  Testing Library Version: 1501
+􀄵  Target Platform: arm64e-apple-macos14.0
+􁁛  Test run with 0 tests in 0 suites passed after 0.001 seconds.
+A_EXIT=0
+
+== B: mine to nye tester ==
+Building for debugging...
+[0/4] Write swift-version--58304C5D6DBC2206.txt
+Build complete! (0.26s)
+Test Suite 'Selected tests' started at 2026-09-02 23:14:26.463.
+Test Suite 'CellProtocolPackageTests.xctest' started at 2026-09-02 23:14:26.464.
+Test Suite 'BridgeTests' started at 2026-09-02 23:14:26.464.
+Test Case '-[CellBaseTests.BridgeTests testDedicatedBridgeConnectionURLCarriesProvidedQueryItems]' started.
+Test Case '-[CellBaseTests.BridgeTests testDedicatedBridgeConnectionURLCarriesProvidedQueryItems]' passed (0.002 seconds).
+Test Case '-[CellBaseTests.BridgeTests testDedicatedBridgeConnectionURLHasNoQueryWithoutProvider]' started.
+Test Case '-[CellBaseTests.BridgeTests testDedicatedBridgeConnectionURLHasNoQueryWithoutProvider]' passed (0.000 seconds).
+Test Suite 'BridgeTests' passed at 2026-09-02 23:14:26.466.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'CellProtocolPackageTests.xctest' passed at 2026-09-02 23:14:26.466.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'Selected tests' passed at 2026-09-02 23:14:26.466.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+􀟈  Test run started.
+􀄵  Testing Library Version: 1501
+􀄵  Target Platform: arm64e-apple-macos14.0
+􁁛  Test run with 0 tests in 0 suites passed after 0.001 seconds.
+B_EXIT=0
+DONE 21:14:26Z

@@ -1,0 +1,381 @@
+diff --git a/Documentation/PersonalCopilotV1_CloudCells.md b/Documentation/PersonalCopilotV1_CloudCells.md
+index 5b9c493e..b9a9abec 100644
+--- a/Documentation/PersonalCopilotV1_CloudCells.md
++++ b/Documentation/PersonalCopilotV1_CloudCells.md
+@@ -238,6 +238,21 @@ Alle fixture-ruter ligger under:
+ - `GET /personal-copilot-v1/catalog/api/configuration`
+ - `GET /personal-copilot-v1/catalog/api/state`
+ 
++De fire `/api/catalog`-rutene og alle `/<surface>/api/configuration`-rutene
++leser bare statiske konfigurasjoner og metadata gjennom
++`PersonalCopilotPublicConfigurationCell` og Resolver. Denne lesemodellen er
++`scaffoldUnique` og `ephemeral`, med eksplisitte `r---`-stier og en egen
++ephemeral leseridentitet. Den oppretter ikke sentral vault-binding, personlig
++celle eller brukersesjon. Persona-headere og query-parametre påvirker ikke
++disse offentlige svarene. Manglende Resolver gir fortsatt feil; rutene går
++ikke utenom Resolver eller gir tilgang til private tilstands-/handlingsstier.
++
++Dette er nødvendig i strict runtime, der `VaporIdentityVault` med vilje nekter
++å opprette nye sentrale `personal-copilot-v1:<session>`-identiteter. En
++katalog-500 skal ikke repareres ved å åpne vaulten eller falle tilbake til en
++privat eier. `PersonalCopilotV1Tests` har regresjoner for sentral create-nekt,
++fravær av sentral vault, falske persona-hint og eksakt offentlig lesepolicy.
++
+ ### Profile Publisher
+ 
+ - `GET /personal-copilot-v1/profile/api/configuration`
+@@ -324,7 +339,8 @@ den inviterer aldri, sender aldri melding og oppretter aldri poll alene.
+ 
+ ### Persona-resolution
+ 
+-Fixture-rutene kan bindes til en persona paa tre maater:
++De requester-avhengige fixture-rutene kan bindes til en persona paa tre maater
++(dette gjelder ikke offentlig katalog eller configuration-GET):
+ 
+ - header `X-Personal-Copilot-User`
+ - query `persona`
+diff --git a/Sources/App/Cells/PersonalCopilot/PersonalCopilotCells.swift b/Sources/App/Cells/PersonalCopilot/PersonalCopilotCells.swift
+index b99a7692..c860a85f 100644
+--- a/Sources/App/Cells/PersonalCopilot/PersonalCopilotCells.swift
++++ b/Sources/App/Cells/PersonalCopilot/PersonalCopilotCells.swift
+@@ -61,6 +61,11 @@ enum PersonalCopilotPublicConfigurationContract {
+         "configuration.catalog": PersonalCopilotAppStoreV1Contract.catalogEndpoint
+     ]
+ 
++    // Exact public read paths: these contain static descriptors, never requester state.
++    static let catalogKeypaths = [
++        "catalog", "catalog.entries.allowed", "catalog.entries.unavailable", "catalog.policySummary"
++    ]
++
+     static var configurationKeypaths: [String] {
+         endpointByKeypath.keys.sorted()
+     }
+@@ -103,6 +108,31 @@ final class PersonalCopilotPublicConfigurationCell: GeneralCell {
+                 return PersonalCopilotCellSupport.configurationValue(endpoint: endpoint)
+             }
+         }
++        for keypath in PersonalCopilotPublicConfigurationContract.catalogKeypaths {
++            agreementTemplate.addGrant("r---", for: keypath)
++            await registerGet(key: keypath, owner: owner) { requester in
++                guard await self.validateAccess("r---", at: keypath, for: requester) else {
++                    return .string("denied")
++                }
++                switch keypath {
++                case "catalog":
++                    return .object([
++                        "state": PersonalCopilotCatalogReadModel.state(),
++                        "entries": .list(PersonalCopilotConfigurationFactory.catalogEntryObjects().map { .object($0) }),
++                        "configurations": .list(PersonalCopilotConfigurationFactory.catalogConfigurations().map { .cellConfiguration($0) }),
++                        "policySummary": PersonalCopilotCatalogReadModel.policySummary()
++                    ])
++                case "catalog.entries.allowed":
++                    return .list(PersonalCopilotConfigurationFactory.catalogEntryObjects().map { .object($0) })
++                case "catalog.entries.unavailable":
++                    return .list([])
++                case "catalog.policySummary":
++                    return PersonalCopilotCatalogReadModel.policySummary()
++                default:
++                    return .string("denied")
++                }
++            }
++        }
+     }
+ 
+     override func validateCellSpecificAccess(
+@@ -111,7 +141,8 @@ final class PersonalCopilotPublicConfigurationCell: GeneralCell {
+         for identity: Identity
+     ) async -> Bool {
+         requestedAccess == "r---"
+-            && PersonalCopilotPublicConfigurationContract.endpoint(for: keypath) != nil
++            && (PersonalCopilotPublicConfigurationContract.endpoint(for: keypath) != nil
++                || PersonalCopilotPublicConfigurationContract.catalogKeypaths.contains(keypath))
+     }
+ }
+ 
+@@ -1929,6 +1960,36 @@ final class PersonalMeetingCoordinatorCell: GeneralCell {
+     }
+ }
+ 
++/// Static catalog metadata shared by the private catalog Cell and its public read model.
++/// This helper must not resolve requester Cells, identities or persisted personal data.
++enum PersonalCopilotCatalogReadModel {
++    static func state() -> ValueType {
++        let configs = PersonalCopilotConfigurationFactory.catalogConfigurations()
++        let entries = PersonalCopilotConfigurationFactory.catalogEntryObjects()
++        return .object([
++            "appStoreScope": .string(PersonalCopilotAppStoreV1Contract.appStoreScope),
++            "configurationCount": .integer(configs.count),
++            "conferenceExposed": .bool(configs.contains { $0.name.hasPrefix("Conference") }),
++            "blockedCategories": .list(["conference", "demo", "admin", "sponsor", "control-tower", "payment", "storekit"].map(ValueType.string)),
++            "executionScopes": .list(Array(Set(entries.compactMap { object in
++                if case let .string(scope)? = object["executionScope"] { return scope }
++                return nil
++            })).sorted().map(ValueType.string)),
++            "policySummary": .string("Only personal-copilot-v1 entries are returned; remote entries never request native permissions.")
++        ])
++    }
++
++    static func policySummary() -> ValueType {
++        return .object([
++            "appStoreScope": .string(PersonalCopilotAppStoreV1Contract.appStoreScope),
++            "conferenceExposed": .bool(false),
++            "remoteNativePermissionRequests": .list([]),
++            "blockedCategories": .list(["conference", "demo", "admin", "sponsor", "control-tower", "payment", "storekit"].map(ValueType.string)),
++            "summary": .string("Personal Co-Pilot V1 exposes only approved personal, local, device, hybrid and cloud surfaces.")
++        ])
++    }
++}
++
+ final class PersonalCopilotConfigurationCatalogCell: GeneralCell {
+     required init(owner: Identity) async {
+         await super.init(owner: owner)
+@@ -1955,19 +2016,7 @@ final class PersonalCopilotConfigurationCatalogCell: GeneralCell {
+ 
+         await registerGet(key: PersonalCopilotAppStoreV1Contract.catalogStateKeypath, owner: owner) { requester in
+             guard await self.validateAccess("r---", at: PersonalCopilotAppStoreV1Contract.catalogStateKeypath, for: requester) else { return .string("denied") }
+-            let configs = PersonalCopilotConfigurationFactory.catalogConfigurations()
+-            let entries = PersonalCopilotConfigurationFactory.catalogEntryObjects()
+-            return .object([
+-                "appStoreScope": .string(PersonalCopilotAppStoreV1Contract.appStoreScope),
+-                "configurationCount": .integer(configs.count),
+-                "conferenceExposed": .bool(configs.contains { $0.name.hasPrefix("Conference") }),
+-                "blockedCategories": .list(["conference", "demo", "admin", "sponsor", "control-tower", "payment", "storekit"].map(ValueType.string)),
+-                "executionScopes": .list(Array(Set(entries.compactMap { object in
+-                    if case let .string(scope)? = object["executionScope"] { return scope }
+-                    return nil
+-                })).sorted().map(ValueType.string)),
+-                "policySummary": .string("Only personal-copilot-v1 entries are returned; remote entries never request native permissions.")
+-            ])
++            return PersonalCopilotCatalogReadModel.state()
+         }
+         await registerGet(key: PersonalCopilotAppStoreV1Contract.catalogConfigurationsKeypath, owner: owner) { requester in
+             guard await self.validateAccess("r---", at: PersonalCopilotAppStoreV1Contract.catalogConfigurationsKeypath, for: requester) else { return .string("denied") }
+@@ -1992,13 +2041,7 @@ final class PersonalCopilotConfigurationCatalogCell: GeneralCell {
+         }
+         await registerGet(key: "policySummary", owner: owner) { requester in
+             guard await self.validateAccess("r---", at: "policySummary", for: requester) else { return .string("denied") }
+-            return .object([
+-                "appStoreScope": .string(PersonalCopilotAppStoreV1Contract.appStoreScope),
+-                "conferenceExposed": .bool(false),
+-                "remoteNativePermissionRequests": .list([]),
+-                "blockedCategories": .list(["conference", "demo", "admin", "sponsor", "control-tower", "payment", "storekit"].map(ValueType.string)),
+-                "summary": .string("Personal Co-Pilot V1 exposes only approved personal, local, device, hybrid and cloud surfaces.")
+-            ])
++            return PersonalCopilotCatalogReadModel.policySummary()
+         }
+         await registerGet(key: "purposeGoal", owner: owner) { requester in
+             guard await self.validateAccess("r---", at: "purposeGoal", for: requester) else { return .string("denied") }
+diff --git a/Sources/App/Controllers/VaporPersonalCopilot.swift b/Sources/App/Controllers/VaporPersonalCopilot.swift
+index c2d3cdc3..061b71ea 100644
+--- a/Sources/App/Controllers/VaporPersonalCopilot.swift
++++ b/Sources/App/Controllers/VaporPersonalCopilot.swift
+@@ -263,29 +263,17 @@ struct VaporPersonalCopilot: RouteCollection {
+             }
+         }
+ 
+-        suite.get("api", "catalog") { req async throws -> Response in
+-            let entries = try await read(endpoint: Surface.catalog.endpoint, keypath: PersonalCopilotAppStoreV1Contract.catalogEntriesKeypath, req: req)
+-            let configs = try await read(endpoint: Surface.catalog.endpoint, keypath: PersonalCopilotAppStoreV1Contract.catalogConfigurationsKeypath, req: req)
+-            let state = try await read(endpoint: Surface.catalog.endpoint, keypath: PersonalCopilotAppStoreV1Contract.catalogStateKeypath, req: req)
+-            let policySummary = try await read(endpoint: Surface.catalog.endpoint, keypath: "policySummary", req: req)
+-            return try jsonResponse(from: .object([
+-                "state": state,
+-                "entries": entries,
+-                "configurations": configs,
+-                "policySummary": policySummary
+-            ]))
+-        }
+-        suite.get("api", "catalog", "allowed") { req async throws -> Response in
+-            let value = try await read(endpoint: Surface.catalog.endpoint, keypath: "entries.allowed", req: req)
+-            return try jsonResponse(from: value)
++        suite.get("api", "catalog") { _ async throws -> Response in
++            try jsonResponse(from: await readAnonymousConfiguration(keypath: "catalog"))
+         }
+-        suite.get("api", "catalog", "unavailable") { req async throws -> Response in
+-            let value = try await read(endpoint: Surface.catalog.endpoint, keypath: "entries.unavailable", req: req)
+-            return try jsonResponse(from: value)
++        suite.get("api", "catalog", "allowed") { _ async throws -> Response in
++            try jsonResponse(from: await readAnonymousConfiguration(keypath: "catalog.entries.allowed"))
+         }
+-        suite.get("api", "catalog", "policy-summary") { req async throws -> Response in
+-            let value = try await read(endpoint: Surface.catalog.endpoint, keypath: "policySummary", req: req)
+-            return try jsonResponse(from: value)
++        suite.get("api", "catalog", "unavailable") { _ async throws -> Response in
++            try jsonResponse(from: await readAnonymousConfiguration(keypath: "catalog.entries.unavailable"))
++        }
++        suite.get("api", "catalog", "policy-summary") { _ async throws -> Response in
++            try jsonResponse(from: await readAnonymousConfiguration(keypath: "catalog.policySummary"))
+         }
+ 
+         for surface in Surface.allCases {
+diff --git a/Tests/AppTests/PersonalCopilotV1Tests.swift b/Tests/AppTests/PersonalCopilotV1Tests.swift
+index fb1480a0..50e97670 100644
+--- a/Tests/AppTests/PersonalCopilotV1Tests.swift
++++ b/Tests/AppTests/PersonalCopilotV1Tests.swift
+@@ -4725,6 +4725,122 @@ final class PersonalCopilotV1Tests: IsolatedCellTestCase {
+         }
+     }
+ 
++    func testAnonymousCatalogGETsStayPublicWhenCentralIdentityCreationIsUnavailable() async throws {
++        let app = try await Application.make(.testing)
++        do {
++            try await configure(app)
++            let configuredVault = CellBase.defaultIdentityVault
++            let configuredResolver = CellBase.defaultCellResolver
++            let configuredDebugAccess = CellBase.debugValidateAccessForEverything
++            defer {
++                CellBase.defaultIdentityVault = configuredVault
++                CellBase.defaultCellResolver = configuredResolver
++                CellBase.debugValidateAccessForEverything = configuredDebugAccess
++            }
++            let centralVault = RecordingIdentityVault(allowCreation: false)
++            CellBase.defaultIdentityVault = centralVault
++            CellBase.debugValidateAccessForEverything = false
++            let resolver = try XCTUnwrap(configuredResolver)
++            let before = await resolver.resolverRegistrySnapshot(requester: Identity())
++            let beforeIdentityInstances = try canonicalBytes(before.identityNamedInstances)
++            let routes = [
++                "/personal-copilot-v1/api/catalog",
++                "/personal-copilot-v1/api/catalog/allowed",
++                "/personal-copilot-v1/api/catalog/unavailable",
++                "/personal-copilot-v1/api/catalog/policy-summary"
++            ]
++            for route in routes {
++                var baseline = Data()
++                try await app.test(.GET, route) { response async throws in
++                    XCTAssertEqual(response.status, .ok, route)
++                    let value = try response.content.decode(ValueType.self)
++                    baseline = try publicCatalogBytes(value)
++                    if route.hasSuffix("/allowed") {
++                        XCTAssertEqual(asList(value)?.count, PersonalCopilotConfigurationFactory.catalogEntryObjects().count)
++                    } else if route.hasSuffix("/unavailable") {
++                        XCTAssertEqual(asList(value)?.count, 0)
++                    } else if route.hasSuffix("/policy-summary") {
++                        let policy = try XCTUnwrap(asObject(value))
++                        XCTAssertEqual(asBool(policy["conferenceExposed"]), false)
++                        XCTAssertEqual(asList(policy["remoteNativePermissionRequests"])?.count, 0)
++                    } else {
++                        XCTAssertEqual(Set(try XCTUnwrap(asObject(value)).keys),
++                                       Set(["state", "entries", "configurations", "policySummary"]))
++                    }
++                    XCTAssertNil(response.headers.first(name: .setCookie),
++                                 "Static catalog reads must not allocate a requester session.")
++                }
++                try await app.test(
++                    .GET, route + "?persona=forged-owner&user=other-owner",
++                    beforeRequest: { req async in
++                        req.headers.replaceOrAdd(name: "X-Personal-Copilot-User", value: "forged-header-owner")
++                    },
++                    afterResponse: { response async throws in
++                        XCTAssertEqual(response.status, .ok, route)
++                        XCTAssertEqual(try publicCatalogBytes(response.content.decode(ValueType.self)), baseline,
++                                       "Untrusted persona hints must not select private catalog data.")
++                    }
++                )
++            }
++            let after = await resolver.resolverRegistrySnapshot(requester: Identity())
++            XCTAssertEqual(try canonicalBytes(after.identityNamedInstances), beforeIdentityInstances)
++            let mutations = await centralVault.mutationOperations()
++            XCTAssertEqual(mutations, [], "Catalog discovery must never create central identity bindings.")
++
++            // No central vault is needed for the static public read model at all.
++            CellBase.defaultIdentityVault = nil
++            try await app.test(.GET, routes[0]) { response async throws in
++                XCTAssertEqual(response.status, .ok)
++                let catalog = try response.content.decode(ValueType.self)
++                let object = try XCTUnwrap(asObject(catalog))
++                XCTAssertEqual(asList(object["entries"])?.count, PersonalCopilotConfigurationFactory.catalogEntryObjects().count)
++                // ValueType emits configurations as plain JSON objects on HTTP.
++                let configurations = try XCTUnwrap(asList(object["configurations"]))
++                let decoded = try configurations.map {
++                    try JSONDecoder().decode(CellConfiguration.self, from: JSONEncoder().encode($0))
++                }
++                XCTAssertEqual(Set(decoded.map(\.name)),
++                               Set(PersonalCopilotConfigurationFactory.catalogConfigurations().map(\.name)))
++            }
++            // Still require Resolver admission; no direct HTTP factory fallback.
++            CellBase.defaultCellResolver = nil
++            try await app.test(.GET, routes[0]) { response async in
++                XCTAssertEqual(response.status, .internalServerError)
++            }
++            CellBase.defaultCellResolver = configuredResolver
++            try await app.asyncShutdown()
++        } catch {
++            try? await app.asyncShutdown()
++            throw error
++        }
++    }
++
++    func testPublicCatalogPolicyAllowsOnlyExactStaticReadPaths() async throws {
++        CellBase.debugValidateAccessForEverything = false
++        let owner = try await testIdentity("public-catalog-owner", displayName: "Owner")
++        let outsider = try await testIdentity("public-catalog-outsider", displayName: "Outsider")
++        let cell = await PersonalCopilotPublicConfigurationCell(owner: owner)
++        for path in PersonalCopilotPublicConfigurationContract.catalogKeypaths {
++            let allowed = await cell.validateCellSpecificAccess("r---", at: path, for: outsider)
++            XCTAssertTrue(allowed, path)
++            for access in ["rw--", "--x-", "r--s", "rwxs"] {
++                let denied = await cell.validateCellSpecificAccess(access, at: path, for: outsider)
++                XCTAssertFalse(denied, "\(access) \(path)")
++            }
++        }
++        for path in ["", "state", "catalog.state", "catalog.private", "catalog.entries.allowed.secret", "chat.state", "profileStatus"] {
++            let allowed = await cell.validateCellSpecificAccess("r---", at: path, for: outsider)
++            XCTAssertFalse(allowed, path)
++        }
++        let value = try await cell.get(keypath: "catalog", requester: outsider)
++        let catalog = try XCTUnwrap(asObject(value))
++        XCTAssertEqual(Set(catalog.keys), Set(["state", "entries", "configurations", "policySummary"]))
++        let privateCatalog = await PersonalCopilotConfigurationCatalogCell(owner: owner)
++        let publicState = try XCTUnwrap(catalog["state"])
++        let ownerState = try await privateCatalog.get(keypath: PersonalCopilotAppStoreV1Contract.catalogStateKeypath, requester: owner)
++        XCTAssertEqual(try canonicalBytes(publicState), try canonicalBytes(ownerState))
++    }
++
+     func testPersonalCopilotHTTPFixturesReturnPersonalCatalogAndConfigurationOnly() async throws {
+         let app = try await Application.make(.testing)
+         do {
+@@ -5002,6 +5118,23 @@ final class PersonalCopilotV1Tests: IsolatedCellTestCase {
+         return String(decoding: data, as: UTF8.self)
+     }
+ 
++    private func publicCatalogBytes(_ value: ValueType) throws -> Data {
++        // Configuration/skeleton constructors allocate transient Swift UUIDs.
++        // Ignore only UUID-shaped id/uuid fields; compare every other field.
++        func normalize(_ value: Any) -> Any {
++            if let object = value as? [String: Any] {
++                return object.mapValues { normalize($0) }.filter { key, value in
++                    guard key == "uuid" || key == "id", let string = value as? String else { return true }
++                    return UUID(uuidString: string) == nil
++                }
++            }
++            if let list = value as? [Any] { return list.map(normalize) }
++            return value
++        }
++        let object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(value), options: [.fragmentsAllowed])
++        return try JSONSerialization.data(withJSONObject: normalize(object), options: [.sortedKeys, .fragmentsAllowed])
++    }
++
+     private func canonicalBytes<T: Encodable>(_ value: T) throws -> Data {
+         let encoder = JSONEncoder()
+         encoder.outputFormatting = [.sortedKeys]
+@@ -5311,6 +5444,11 @@ final class PersonalCopilotV1Tests: IsolatedCellTestCase {
+ private actor RecordingIdentityVault: IdentityVaultProtocol {
+     private let underlying = EphemeralIdentityVault()
+     private var mutations: [String] = []
++    private let allowCreation: Bool
++
++    init(allowCreation: Bool = true) {
++        self.allowCreation = allowCreation
++    }
+ 
+     func identityVaultReference() async -> String? {
+         await underlying.identityVaultReference()
+@@ -5328,6 +5466,7 @@ private actor RecordingIdentityVault: IdentityVaultProtocol {
+     func identity(for identityContext: String, makeNewIfNotFound: Bool) async -> Identity? {
+         if makeNewIfNotFound {
+             mutations.append("create:\(identityContext)")
++            guard allowCreation else { return nil }
+         }
+         return await underlying.identity(for: identityContext, makeNewIfNotFound: makeNewIfNotFound)
+     }

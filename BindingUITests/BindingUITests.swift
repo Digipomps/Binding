@@ -41,7 +41,7 @@ final class BindingUITests: XCTestCase {
             NSPredicate(format: "label BEGINSWITH %@", "Butterpop Studio,")
         ).firstMatch
         XCTAssertTrue(studioEntry.waitForExistence(timeout: 20), "Butterpop Studio mangler i HAVEN-menyen")
-        studioEntry.click()
+        studioEntry.activateForTesting()
 
         let launchButton = app.buttons["Åpne Butterpop Studio"].firstMatch
         XCTAssertTrue(launchButton.waitForExistence(timeout: 15), "Butterpop-launcheren ble ikke rendret")
@@ -52,7 +52,7 @@ final class BindingUITests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
 
-        launchButton.click()
+        launchButton.activateForTesting()
         XCTAssertNotEqual(app.state, .notRunning, "HAVEN krasjet etter Butterpop-navigasjon")
     }
 
@@ -68,11 +68,11 @@ final class BindingUITests: XCTestCase {
         let plainEntry = app.buttons["Co-Pilot"].firstMatch
         let copilotEntry = labeledEntry.waitForExistence(timeout: 20) ? labeledEntry : plainEntry
         XCTAssertTrue(copilotEntry.waitForExistence(timeout: 10), "Co-Pilot mangler i HAVEN-menyen")
-        copilotEntry.click()
+        copilotEntry.activateForTesting()
 
         let composer = app.textViews.firstMatch
         XCTAssertTrue(composer.waitForExistence(timeout: 20), "Co-Pilot-komponisten ble ikke rendret")
-        composer.click()
+        composer.activateForTesting()
         composer.typeText("Hva skjer på arendalsuka?\n")
 
         let participantProgram = app.staticTexts["Arendalsuka Participant Program"].firstMatch
@@ -94,5 +94,15 @@ final class BindingUITests: XCTestCase {
         measure(metrics: [XCTApplicationLaunchMetric()]) {
             XCUIApplication().launch()
         }
+    }
+}
+
+private extension XCUIElement {
+    func activateForTesting() {
+#if os(iOS)
+        tap()
+#else
+        click()
+#endif
     }
 }

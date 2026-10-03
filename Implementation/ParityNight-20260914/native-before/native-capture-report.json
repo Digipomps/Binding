@@ -1,0 +1,164 @@
+[
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-text-desktop.png",
+    "height" : 900,
+    "outcome" : "captured",
+    "pngBytes" : 156632,
+    "slug" : "text",
+    "width" : 1200
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-text-compact.png",
+    "height" : 844,
+    "outcome" : "captured",
+    "pngBytes" : 111905,
+    "slug" : "text",
+    "width" : 390
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-list-desktop.png",
+    "height" : 900,
+    "outcome" : "captured",
+    "pngBytes" : 199208,
+    "slug" : "list",
+    "width" : 1200
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-list-compact.png",
+    "height" : 844,
+    "outcome" : "captured",
+    "pngBytes" : 133950,
+    "slug" : "list",
+    "width" : 390
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-grid-desktop.png",
+    "height" : 900,
+    "outcome" : "captured",
+    "pngBytes" : 101327,
+    "slug" : "grid",
+    "width" : 1200
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-grid-compact.png",
+    "height" : 844,
+    "outcome" : "captured",
+    "pngBytes" : 47556,
+    "slug" : "grid",
+    "width" : 390
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-form-desktop.png",
+    "height" : 900,
+    "outcome" : "captured",
+    "pngBytes" : 134136,
+    "slug" : "form",
+    "width" : 1200
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-form-compact.png",
+    "height" : 844,
+    "outcome" : "captured",
+    "pngBytes" : 78470,
+    "slug" : "form",
+    "width" : 390
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-markdown-desktop.png",
+    "height" : 900,
+    "outcome" : "captured",
+    "pngBytes" : 142758,
+    "slug" : "markdown",
+    "width" : 1200
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-markdown-compact.png",
+    "height" : 844,
+    "outcome" : "captured",
+    "pngBytes" : 95268,
+    "slug" : "markdown",
+    "width" : 390
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-relative-keypath-desktop.png",
+    "height" : 900,
+    "outcome" : "captured",
+    "pngBytes" : 151288,
+    "slug" : "relative-keypath",
+    "width" : 1200
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-relative-keypath-compact.png",
+    "height" : 844,
+    "outcome" : "captured",
+    "pngBytes" : 91113,
+    "slug" : "relative-keypath",
+    "width" : 390
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-nested-reference-desktop.png",
+    "height" : 900,
+    "outcome" : "captured",
+    "pngBytes" : 133098,
+    "slug" : "nested-reference",
+    "width" : 1200
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-nested-reference-compact.png",
+    "height" : 844,
+    "outcome" : "captured",
+    "pngBytes" : 74382,
+    "slug" : "nested-reference",
+    "width" : 390
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-remote-bridge-desktop.png",
+    "height" : 900,
+    "outcome" : "captured",
+    "pngBytes" : 152783,
+    "slug" : "remote-bridge",
+    "width" : 1200
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-remote-bridge-compact.png",
+    "height" : 844,
+    "outcome" : "captured",
+    "pngBytes" : 101194,
+    "slug" : "remote-bridge",
+    "width" : 390
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-unavailable-desktop.png",
+    "height" : 900,
+    "outcome" : "captured",
+    "pngBytes" : 115022,
+    "slug" : "unavailable",
+    "width" : 1200
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-unavailable-compact.png",
+    "height" : 844,
+    "outcome" : "captured",
+    "pngBytes" : 57609,
+    "slug" : "unavailable",
+    "width" : 390
+  }
+]

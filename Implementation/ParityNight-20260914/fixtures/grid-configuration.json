@@ -1,0 +1,115 @@
+{
+  "cellReferences" : [
+    {
+      "endpoint" : "cell:\/\/\/SkeletonParityGridFixture",
+      "label" : "fixture",
+      "setKeysAndValues" : [
+        {
+          "key" : "state"
+        }
+      ],
+      "subscribeFeed" : true,
+      "subscriptions" : [
+
+      ]
+    }
+  ],
+  "description" : "Adaptive grid fixture for card rendering.",
+  "discovery" : {
+    "interests" : [
+      "skeleton",
+      "parity",
+      "grid"
+    ],
+    "menuSlots" : [
+
+    ],
+    "purpose" : "Skeleton Parity Grid Fixture",
+    "purposeDescription" : "Adaptive grid fixture for card rendering.",
+    "sourceCellEndpoint" : "cell:\/\/\/SkeletonParityGridFixture",
+    "sourceCellName" : "SkeletonParityGridFixture"
+  },
+  "name" : "Skeleton Parity Grid Fixture",
+  "skeleton" : {
+    "VStack" : [
+      {
+        "Section" : {
+          "content" : [
+            {
+              "Text" : {
+                "keypath" : "fixture.state.headline"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.status"
+              }
+            },
+            {
+              "Grid" : {
+                "columns" : [
+                  {
+                    "max" : 240,
+                    "min" : 180,
+                    "type" : "adaptive"
+                  }
+                ],
+                "elements" : [
+
+                ],
+                "itemSkeleton" : {
+                  "VStack" : [
+                    {
+                      "Text" : {
+                        "keypath" : "title"
+                      }
+                    },
+                    {
+                      "Text" : {
+                        "keypath" : "badge",
+                        "modifiers" : {
+                          "background" : "#20313B",
+                          "cornerRadius" : 8,
+                          "foregroundColor" : "#D9FBFF",
+                          "padding" : 6
+                        }
+                      }
+                    },
+                    {
+                      "Text" : {
+                        "keypath" : "metric"
+                      }
+                    },
+                    {
+                      "Text" : {
+                        "keypath" : "detail"
+                      }
+                    }
+                  ]
+                },
+                "keypath" : "fixture.state.cards",
+                "spacing" : 12
+              }
+            },
+            {
+              "Button" : {
+                "keypath" : "dispatchAction",
+                "label" : "Ack grid",
+                "payload" : {
+                  "keypath" : "acknowledge",
+                  "payload" : true
+                }
+              }
+            }
+          ],
+          "header" : {
+            "Text" : {
+              "text" : "Grid Fixture"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "uuid" : "7013D5D8-5E0F-4C14-82C4-A2E9EA8A5E3F"
+}

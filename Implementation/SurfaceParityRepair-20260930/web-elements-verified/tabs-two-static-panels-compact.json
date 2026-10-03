@@ -1,0 +1,79 @@
+{
+  "name": "tabs-two-static-panels-compact",
+  "host": "porthole-webo.css light baseline",
+  "viewport": {
+    "width": 390,
+    "height": 1000
+  },
+  "deviceScaleFactor": 2,
+  "materialized": false,
+  "styleNormalizationApplied": false,
+  "content": "OverviewDetails\nOverview panel",
+  "fieldValues": [],
+  "expectedTextCount": 1,
+  "missingExpectedText": [],
+  "errors": [],
+  "geometry": {
+    "box": {
+      "x": 16,
+      "y": 16,
+      "width": 358,
+      "height": 39,
+      "top": 16,
+      "right": 374,
+      "bottom": 55,
+      "left": 16
+    },
+    "scrollWidth": 358,
+    "clientWidth": 358
+  },
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "Overview",
+      "box": {
+        "x": 16,
+        "y": 16,
+        "width": 71.5625,
+        "height": 21,
+        "top": 16,
+        "right": 87.5625,
+        "bottom": 37,
+        "left": 16
+      },
+      "font": "13.3333px Arial",
+      "color": "rgb(0, 0, 0)",
+      "background": "rgb(239, 239, 239) none repeat scroll 0% 0% / auto padding-box border-box",
+      "padding": "1px 6px",
+      "border": "2px outset rgb(0, 0, 0)",
+      "borderRadius": "0px",
+      "boxSizing": "border-box"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Details",
+      "box": {
+        "x": 87.5625,
+        "y": 16,
+        "width": 56.75,
+        "height": 21,
+        "top": 16,
+        "right": 144.3125,
+        "bottom": 37,
+        "left": 87.5625
+      },
+      "font": "13.3333px Arial",
+      "color": "rgb(0, 0, 0)",
+      "background": "rgb(239, 239, 239) none repeat scroll 0% 0% / auto padding-box border-box",
+      "padding": "1px 6px",
+      "border": "2px outset rgb(0, 0, 0)",
+      "borderRadius": "0px",
+      "boxSizing": "border-box"
+    }
+  ],
+  "images": [],
+  "assetHashes": {
+    "/css/porthole-webo.css": "2ffbe93e27c08ad5a18a2a8ea8597994c806a6991e212aee0c3058fbbae15c04",
+    "/js/skeleton-runtime.js": "4f957ac8206f6777b7845d3cc41eec10c94bfb7ca8ca572f77c95cff6735b508"
+  }
+}

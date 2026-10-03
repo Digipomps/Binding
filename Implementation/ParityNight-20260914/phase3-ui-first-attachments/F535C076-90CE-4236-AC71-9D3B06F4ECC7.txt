@@ -1,0 +1,30 @@
+Attributes: Button, 0x105e31cd0, {{16.0, 366.3}, {97.7, 44.0}}, identifier: 'skeleton.button.1F124D87-9132-46F9-8547-23B8EDCA117E', label: 'Save draft', value: Idle
+Element subtree:
+ →Button, 0x105e31cd0, {{16.0, 366.3}, {97.7, 44.0}}, identifier: 'skeleton.button.1F124D87-9132-46F9-8547-23B8EDCA117E', label: 'Save draft', value: Idle
+Path to element:
+ →Application, 0x105e354c0, pid: 77259, label: 'HAVEN'
+  ↳Window, 0x105e355e0, {{0.0, 0.0}, {390.0, 844.0}}
+   ↳Other, 0x105e34820, {{0.0, 0.0}, {390.0, 844.0}}
+    ↳Other, 0x105e34940, {{0.0, 0.0}, {390.0, 844.0}}
+     ↳Other, 0x105e31a90, {{0.0, 0.0}, {390.0, 844.0}}
+      ↳Other, 0x105e31bb0, {{0.0, 0.0}, {390.0, 844.0}}
+       ↳Button, 0x105e31cd0, {{16.0, 366.3}, {97.7, 44.0}}, identifier: 'skeleton.button.1F124D87-9132-46F9-8547-23B8EDCA117E', label: 'Save draft', value: Idle
+Query chain:
+ →Find: Target Application 'org.digipomps.haven.parity-night-test'
+  Output: {
+    Application, 0x105e48160, pid: 77259, label: 'HAVEN'
+  }
+  ↪︎Find: Descendants matching type Button
+    Output: {
+      Button, 0x105b43060, {{16.0, 366.3}, {97.7, 44.0}}, identifier: 'skeleton.button.1F124D87-9132-46F9-8547-23B8EDCA117E', label: 'Save draft', value: Idle
+      Button, 0x105b433f0, {{121.7, 366.3}, {104.3, 44.0}}, identifier: 'skeleton.button.4C1FD304-1BFF-4FE4-A296-93E1174C0F88', label: 'Reset draft', value: Idle
+      Button, 0x105b43750, {{234.0, 366.3}, {100.0, 44.0}}, identifier: 'skeleton.button.0A301FCD-087E-40C3-BE51-9E3A27CE6EC5', label: 'Hard reset', value: Idle
+    }
+    ↪︎Find: Elements matching predicate '"Save draft" IN identifiers'
+      Output: {
+        Button, 0x105e44950, {{16.0, 366.3}, {97.7, 44.0}}, identifier: 'skeleton.button.1F124D87-9132-46F9-8547-23B8EDCA117E', label: 'Save draft', value: Idle
+      }
+      ↪︎Find: First Match
+        Output: {
+          Button, 0x105e419d0, {{16.0, 366.3}, {97.7, 44.0}}, identifier: 'skeleton.button.1F124D87-9132-46F9-8547-23B8EDCA117E', label: 'Save draft', value: Idle
+        }

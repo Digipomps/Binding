@@ -1,0 +1,20 @@
+{
+  "configurations": [{"id": "BF3F71D8-0D5A-4F97-A538-E643E92D71B5", "name": "Default", "options": {}}],
+  "defaultOptions": {
+    "targetForVariableExpansion": {
+      "containerPath": "container:Binding.xcodeproj",
+      "identifier": "24D800142EF195A000021B5A",
+      "name": "HAVEN"
+    }
+  },
+  "testTargets": [{
+    "parallelizable": false,
+    "selectedTests": ["NearbyScannerNavigationUITests", "ButlerConversationUITests"],
+    "target": {
+      "containerPath": "container:Binding.xcodeproj",
+      "identifier": "24D8002B2EF195A200021B5A",
+      "name": "BindingUITests"
+    }
+  }],
+  "version": 1
+}

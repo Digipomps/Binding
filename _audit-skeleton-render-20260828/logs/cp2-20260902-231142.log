@@ -1,0 +1,49 @@
+== A: en test som fantes fra før (isolerer om harnessen i det hele tatt kjører) ==
+[5/16] Compiling CellBaseTests CellAccessGraphContractsTests.swift
+[6/16] Compiling CellBaseTests AppleIntelligenceCellContractTests.swift
+[7/16] Compiling CellBaseTests AppleRuntimeStorageTests.swift
+[8/16] Compiling CellBaseTests AppleBridgeTransportTests.swift
+[9/16] Compiling CellBaseTests AppleIdentityVaultKeyStorageTests.swift
+[10/16] Compiling CellBaseTests AdmissionAndCatalogContractModelsTests.swift
+[11/16] Compiling CellBaseTests AgreementCodingTests.swift
+[12/16] Compiling CellBaseTests CellBaseTests.swift
+[13/16] Compiling CellBaseTests CalendarContractTests.swift
+[14/16] Compiling CellBaseTests BridgeTests.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/_wt-bridge-credential-20260830/Tests/CellBaseTests/BridgeTests.swift:187:24: error: 'CellResolver' initializer is inaccessible due to 'private' protection level
+
+CellBase.CellResolver.init:2:9: note: 'init()' declared here
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/_wt-bridge-credential-20260830/Tests/CellBaseTests/BridgeTests.swift:213:25: error: generic parameter 'T' could not be inferred
+
+XCTest.XCTUnwrap:1:13: note: in call to function 'XCTUnwrap(_:_:file:line:)'
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/_wt-bridge-credential-20260830/Tests/CellBaseTests/BridgeTests.swift:214:34: error: cannot infer key path type from context; consider explicitly specifying a root type
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/_wt-bridge-credential-20260830/Tests/CellBaseTests/BridgeTests.swift:222:24: error: 'CellResolver' initializer is inaccessible due to 'private' protection level
+
+CellBase.CellResolver.init:2:9: note: 'init()' declared here
+[15/17] Compiling CellBaseTests CellLifecycleTests.swift
+error: fatalError
+A_EXIT=1
+
+== B: mine to nye tester ==
+Building for debugging...
+[0/5] Write swift-version--58304C5D6DBC2206.txt
+[2/5] Compiling CellBaseTests BridgeTests.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/_wt-bridge-credential-20260830/Tests/CellBaseTests/BridgeTests.swift:187:24: error: 'CellResolver' initializer is inaccessible due to 'private' protection level
+
+CellBase.CellResolver.init:2:9: note: 'init()' declared here
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/_wt-bridge-credential-20260830/Tests/CellBaseTests/BridgeTests.swift:213:25: error: generic parameter 'T' could not be inferred
+
+XCTest.XCTUnwrap:1:13: note: in call to function 'XCTUnwrap(_:_:file:line:)'
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/_wt-bridge-credential-20260830/Tests/CellBaseTests/BridgeTests.swift:214:34: error: cannot infer key path type from context; consider explicitly specifying a root type
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/_wt-bridge-credential-20260830/Tests/CellBaseTests/BridgeTests.swift:222:24: error: 'CellResolver' initializer is inaccessible due to 'private' protection level
+
+CellBase.CellResolver.init:2:9: note: 'init()' declared here
+[3/5] Emitting module CellBaseTests
+error: fatalError
+B_EXIT=1
+DONE 21:12:01Z

@@ -1,0 +1,95 @@
+warning: 'bigint': /private/tmp/HAVEN-RendererRepair-20260930-build/checkouts/BigInt/Package.swift:18:19: warning: 'v4' is deprecated: watchOS 9.0 is the oldest supported version [#DeprecatedDeclaration]
+16 |         .iOS(.v12),
+17 |         .tvOS(.v12),
+18 |         .watchOS(.v4),
+   |                   `- warning: 'v4' is deprecated: watchOS 9.0 is the oldest supported version [#DeprecatedDeclaration]
+19 |         .macCatalyst(.v13),
+20 |         .visionOS(.v1),
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+warning: 'cellprotocol': found 3 file(s) which are unhandled; explicitly declare them as resources or exclude from the target
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell-Design.md
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/Architecture.md
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/ChatLog.md
+Building for debugging...
+[Computing dependencies]
+[Provisioning 131 / 169]
+[Using on-disk description]
+[1 / 9] OpenCombineFoundation
+[1 / 9] Random
+[1 / 11] Instrumentation
+[2 / 6] CellBaseTests-product
+[4 / 9] CellBaseTests-product
+[5 / 9] CellBaseTests-product
+[11 / 13] CellBaseTests-product
+[13 / 13] CellBaseTests-product
+Build complete! (5,60 sek)
+Test Suite 'Selected tests' started at 2026-09-30 02:13:50.090.
+Test Suite 'HavenCommonsTests.xctest' started at 2026-09-30 02:13:50.092.
+Test Suite 'HavenCommonsTests.xctest' passed at 2026-09-30 02:13:50.092.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 02:13:50.092.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.002) seconds
+Test Suite 'Selected tests' started at 2026-09-30 02:13:50.160.
+Test Suite 'CellNearbyTests.xctest' started at 2026-09-30 02:13:50.161.
+Test Suite 'CellNearbyTests.xctest' passed at 2026-09-30 02:13:50.161.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 02:13:50.161.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'Selected tests' started at 2026-09-30 02:13:50.231.
+Test Suite 'CellBaseTests.xctest' started at 2026-09-30 02:13:50.231.
+Test Suite 'SkeletonNativeSurfaceParityRepairTests' started at 2026-09-30 02:13:50.231.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceOnlyFallsBackToFilteredFlowWhenLocalValueIsAbsent]' started.
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:99: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceOnlyFallsBackToFilteredFlowWhenLocalValueIsAbsent] : XCTAssertEqual failed: ("true") is not equal to ("false") - catalog
+Flow reference
+Flow root
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:100: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceOnlyFallsBackToFilteredFlowWhenLocalValueIsAbsent] : XCTAssertEqual failed: ("true") is not equal to ("false") - catalog
+Flow reference
+Flow root
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:99: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceOnlyFallsBackToFilteredFlowWhenLocalValueIsAbsent] : XCTAssertEqual failed: ("true") is not equal to ("false") - catalog
+Flow reference
+Flow root
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:100: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceOnlyFallsBackToFilteredFlowWhenLocalValueIsAbsent] : XCTAssertEqual failed: ("true") is not equal to ("false") - catalog
+Flow reference
+Flow root
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:99: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceOnlyFallsBackToFilteredFlowWhenLocalValueIsAbsent] : XCTAssertEqual failed: ("true") is not equal to ("false") - catalog
+Flow reference
+Flow root
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:100: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceOnlyFallsBackToFilteredFlowWhenLocalValueIsAbsent] : XCTAssertEqual failed: ("true") is not equal to ("false") - catalog
+Flow reference
+Flow root
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceOnlyFallsBackToFilteredFlowWhenLocalValueIsAbsent]' failed (4.542 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceRendersLocalRowsWithItemAndRootContext]' started.
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:71: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceRendersLocalRowsWithItemAndRootContext] : XCTAssertTrue failed - Missing Reference row: 
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:71: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceRendersLocalRowsWithItemAndRootContext] : XCTAssertTrue failed - Missing Second reference: 
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:71: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceRendersLocalRowsWithItemAndRootContext] : XCTAssertTrue failed - Missing Shared reference root: 
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceRendersLocalRowsWithItemAndRootContext]' failed (0.366 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testVisualizationTableUsesColumnKeysRatherThanDisplayLabels]' started.
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:121: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testVisualizationTableUsesColumnKeysRatherThanDisplayLabels] : XCTAssertTrue failed - Name
+Value
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:122: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testVisualizationTableUsesColumnKeysRatherThanDisplayLabels] : XCTAssertTrue failed - Name
+Value
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testVisualizationTableUsesColumnKeysRatherThanDisplayLabels]' failed (1.145 seconds).
+Test Suite 'SkeletonNativeSurfaceParityRepairTests' failed at 2026-09-30 02:13:56.286.
+	 Executed 3 tests, with 11 failures (0 unexpected) in 6.053 (6.054) seconds
+Test Suite 'SkeletonReachabilityAuditTests' started at 2026-09-30 02:13:56.286.
+Test Case '-[CellBaseTests.SkeletonReachabilityAuditTests testMissingAndRejectedNavigationTargetsStillHaveMissingRequiredAction]' started.
+Test Case '-[CellBaseTests.SkeletonReachabilityAuditTests testMissingAndRejectedNavigationTargetsStillHaveMissingRequiredAction]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.SkeletonReachabilityAuditTests testURLNavigationButtonDoesNotRequireACellActionKeypath]' started.
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonReachabilityAuditTests.swift:90: error: -[CellBaseTests.SkeletonReachabilityAuditTests testURLNavigationButtonDoesNotRequireACellActionKeypath] : XCTAssertTrue failed - /butterpop
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonReachabilityAuditTests.swift:90: error: -[CellBaseTests.SkeletonReachabilityAuditTests testURLNavigationButtonDoesNotRequireACellActionKeypath] : XCTAssertTrue failed - https://example.com/surface
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonReachabilityAuditTests.swift:90: error: -[CellBaseTests.SkeletonReachabilityAuditTests testURLNavigationButtonDoesNotRequireACellActionKeypath] : XCTAssertTrue failed - http://localhost:8080/surface
+Test Case '-[CellBaseTests.SkeletonReachabilityAuditTests testURLNavigationButtonDoesNotRequireACellActionKeypath]' failed (0.001 seconds).
+Test Suite 'SkeletonReachabilityAuditTests' failed at 2026-09-30 02:13:56.289.
+	 Executed 2 tests, with 3 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'CellBaseTests.xctest' failed at 2026-09-30 02:13:56.289.
+	 Executed 5 tests, with 14 failures (0 unexpected) in 6.056 (6.057) seconds
+Test Suite 'Selected tests' failed at 2026-09-30 02:13:56.289.
+	 Executed 5 tests, with 14 failures (0 unexpected) in 6.056 (6.058) seconds
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+Note: Some test targets reported failures:
+  - CellBaseTests (XCTest)

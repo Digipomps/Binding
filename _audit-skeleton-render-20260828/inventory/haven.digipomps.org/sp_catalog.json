@@ -1,0 +1,95 @@
+{
+  "fixtures" : [
+    {
+      "configurationRoute" : "\/skeleton-parity\/text\/api\/configuration",
+      "endpoint" : "cell:\/\/\/SkeletonParityTextFixture",
+      "httpRoute" : "\/skeleton-parity\/text",
+      "slug" : "text",
+      "stateRoute" : "\/skeleton-parity\/text\/api\/state",
+      "subtitle" : "Basic structure, text wrapping, badges, sections, and dividers.",
+      "title" : "Skeleton Parity · Text Fixture"
+    },
+    {
+      "configurationRoute" : "\/skeleton-parity\/list\/api\/configuration",
+      "endpoint" : "cell:\/\/\/SkeletonParityListFixture",
+      "httpRoute" : "\/skeleton-parity\/list",
+      "slug" : "list",
+      "stateRoute" : "\/skeleton-parity\/list\/api\/state",
+      "subtitle" : "Repeated content via SkeletonList and row-level relative keypaths.",
+      "title" : "Skeleton Parity · List Fixture"
+    },
+    {
+      "configurationRoute" : "\/skeleton-parity\/grid\/api\/configuration",
+      "endpoint" : "cell:\/\/\/SkeletonParityGridFixture",
+      "httpRoute" : "\/skeleton-parity\/grid",
+      "slug" : "grid",
+      "stateRoute" : "\/skeleton-parity\/grid\/api\/state",
+      "subtitle" : "Adaptive grid cards with stable metric and badge rendering.",
+      "title" : "Skeleton Parity · Grid Fixture"
+    },
+    {
+      "configurationRoute" : "\/skeleton-parity\/form\/api\/configuration",
+      "endpoint" : "cell:\/\/\/SkeletonParityFormFixture",
+      "httpRoute" : "\/skeleton-parity\/form",
+      "slug" : "form",
+      "stateRoute" : "\/skeleton-parity\/form\/api\/state",
+      "subtitle" : "Deterministic button responses plus text field and text area bindings.",
+      "title" : "Skeleton Parity · Form Fixture"
+    },
+    {
+      "configurationRoute" : "\/skeleton-parity\/markdown\/api\/configuration",
+      "endpoint" : "cell:\/\/\/SkeletonParityMarkdownFixture",
+      "httpRoute" : "\/skeleton-parity\/markdown",
+      "slug" : "markdown",
+      "stateRoute" : "\/skeleton-parity\/markdown\/api\/state",
+      "subtitle" : "Raw markdown plus rendered HTML payload for renderer parity.",
+      "title" : "Skeleton Parity · Markdown Fixture"
+    },
+    {
+      "configurationRoute" : "\/skeleton-parity\/relative-keypath\/api\/configuration",
+      "endpoint" : "cell:\/\/\/SkeletonParityRelativeKeypathFixture",
+      "httpRoute" : "\/skeleton-parity\/relative-keypath",
+      "slug" : "relative-keypath",
+      "stateRoute" : "\/skeleton-parity\/relative-keypath\/api\/state",
+      "subtitle" : "Absolute and relative keypaths in the same fixture.",
+      "title" : "Skeleton Parity · Relative Keypath Fixture"
+    },
+    {
+      "configurationRoute" : "\/skeleton-parity\/nested-reference\/api\/configuration",
+      "endpoint" : "cell:\/\/\/SkeletonParityNestedReferenceFixture",
+      "httpRoute" : "\/skeleton-parity\/nested-reference",
+      "slug" : "nested-reference",
+      "stateRoute" : "\/skeleton-parity\/nested-reference\/api\/state",
+      "subtitle" : "Two labeled references with nested object fields from the same remote cell.",
+      "title" : "Skeleton Parity · Nested Reference Fixture"
+    },
+    {
+      "configurationRoute" : "\/skeleton-parity\/remote-bridge\/api\/configuration",
+      "endpoint" : "cell:\/\/\/SkeletonParityRemoteBridgeFixture",
+      "httpRoute" : "\/skeleton-parity\/remote-bridge",
+      "slug" : "remote-bridge",
+      "stateRoute" : "\/skeleton-parity\/remote-bridge\/api\/state",
+      "subtitle" : "Bridge-safe fixture metadata for cell:\/\/ and websocket based remote loading.",
+      "title" : "Skeleton Parity · Remote Bridge Fixture"
+    },
+    {
+      "configurationRoute" : "\/skeleton-parity\/unavailable\/api\/configuration",
+      "endpoint" : "cell:\/\/\/SkeletonParityUnavailableFixture",
+      "httpRoute" : "\/skeleton-parity\/unavailable",
+      "slug" : "unavailable",
+      "stateRoute" : "\/skeleton-parity\/unavailable\/api\/state",
+      "subtitle" : "Loading, unavailable, and empty placeholders with clear copy.",
+      "title" : "Skeleton Parity · Unavailable Fixture"
+    },
+    {
+      "configurationRoute" : "\/skeleton-parity\/invalid\/api\/configuration",
+      "endpoint" : "cell:\/\/\/SkeletonParityInvalidFixture",
+      "httpRoute" : "\/skeleton-parity\/invalid",
+      "slug" : "invalid",
+      "stateRoute" : "\/skeleton-parity\/invalid\/api\/state",
+      "subtitle" : "Intentional failure contract with explicit diagnostics.",
+      "title" : "Skeleton Parity · Invalid Fixture"
+    }
+  ],
+  "headline" : "Skeleton Parity Suite"
+}

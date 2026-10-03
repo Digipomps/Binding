@@ -1,0 +1,79 @@
+[CellBase][resolver] Adding resolve: PersonalChatHub
+[CellBase][resolver] Adding resolve: AppleIntelligence
+[CellBase][resolver] Adding resolve: LocalLLM
+[CellBase][resolver] Adding resolve: ContactEndpoint
+[CellBase][resolver] Adding resolve: Vault
+[CellBase][resolver] Adding resolve: GraphIndex
+[CellBase][resolver] Adding resolve: BindingRuntimeSurfaceLaunchAdapter
+[CellBase][resolver] Adding resolve: EntityScanner
+[CellBase][resolver] Adding resolve: GeneralCell
+[CellBase][resolver] Adding resolve: GeneralCellTemplate
+[CellBase][resolver] Adding resolve: CloudBridge
+[CellBase][resolver] Adding resolve: EntityAnchor
+[CellBase][resolver] Adding resolve: ShoppingHandler
+[CellBase][resolver] Adding resolve: FileCrypto
+[CellBase][resolver] Adding resolve: CommonsResolver
+[CellBase][resolver] Adding resolve: CommonsTaxonomy
+[CellBase][resolver] Adding resolve: EntityAtlas
+[CellBase][resolver] Adding resolve: FlowProbe
+[CellBase][resolver] Adding resolve: StateSnapshot
+[CellBase][resolver] Adding resolve: TrustedIssuers
+[CellBase][resolver] Adding resolve: Chat
+[CellBase][resolver] Adding resolve: Identities
+[CellBase][resolver] Adding resolve: EventEmitter
+[CellBase][resolver] Adding resolve: FolderWatch
+[CellBase][resolver] Adding resolve: ConfigurationCatalog
+[CellBase][resolver] Adding resolve: Porthole
+[CellBase][resolver] Adding resolve: Perspective
+[CellBase][resolver] Adding resolve: PersonalAgendaContext
+[CellBase][resolver] Adding resolve: CalendarStore
+[CellBase][resolver] Adding resolve: CalendarImportExport
+[CellBase][resolver] Adding resolve: NativeCalendarBridge
+[CellBase][resolver] Adding resolve: PersonalIdentity
+[CellBase][resolver] Adding resolve: PersonalProfileDraft
+[CellBase][resolver] Adding resolve: PersonalProfilePublisher
+[CellBase][resolver] Adding resolve: PublicProfileDirectory
+[CellBase][resolver] Adding resolve: PersonalMatchmaking
+[CellBase][resolver] Adding resolve: PersonalChatClient
+[CellBase][resolver] Adding resolve: PersonalMeetingIntent
+[CellBase][resolver] Adding resolve: PersonalMeetingCoordinator
+[CellBase][resolver] Adding resolve: PersonalCopilotConfigurationCatalog
+[CellBase][resolver] Adding resolve: PersonalPrivacyAudit
+[CellBase][resolver] Adding resolve: PersonalUsageQuota
+[CellBase][resolver] Adding resolve: PersonalCopilotNavigator
+[CellBase][resolver] Adding resolve: ConferenceParticipantPreviewShell
+[CellBase][resolver] Adding resolve: ConferenceAdminPreviewShell
+[CellBase][resolver] Adding resolve: ConferencePublicShellFixture
+[CellBase][resolver] Adding resolve: ConferenceSponsorShellFixture
+[CellBase][resolver] Adding resolve: ConferenceNearbyRadar
+[CellBase][resolver] Adding resolve: ConferenceParticipantAgendaSnapshot
+[CellBase][resolver] Adding resolve: ConferenceParticipantDiscoverySnapshot
+[CellBase][resolver] Adding resolve: ConferenceParticipantMatchmakingSnapshot
+[CellBase][resolver] Adding resolve: ConferenceParticipantChatSnapshot
+[CellBase][resolver] Adding resolve: ConferenceChatLaunch
+[CellBase][resolver] Adding resolve: ConferenceIdentityLinkIntake
+[CellBase][resolver] Adding resolve: ConferenceAIAssistantGatewayProxy
+[CellBase][resolver] Adding resolve: ConferenceDemoLauncher
+[CellBase][resolver] Adding resolve: ConferenceConfigurationNavigator
+[CellBase][resolver] Adding resolve: WorkflowStudio
+[CellBase][resolver] Adding resolve: Lobby
+[CellBase][resolver] registerPersonalReference endpoint=Porthole identity=4B44EFFB-4FD1-43BE-8F0F-E8D107CD2898 cell=3F5AAFF7-02C5-4DAB-A290-0EAF1E0B8A87
+PerspectiveCell init. Owner: 4B44EFFB-4FD1-43BE-8F0F-E8D107CD2898
+Loading perspectiveJsonData failed with error: Error Domain=NSCocoaErrorDomain Code=260 "The file “Perspective.json” couldn’t be opened because there is no such file." UserInfo={NSFilePath=/Users/kjetil/Library/Developer/CoreSimulator/Devices/60A4509A-5AD0-42B9-A1D0-7CEBA044F514/data/Containers/Data/Application/D68B9DFA-9F4B-4311-A655-FD3AEA4E2603/Library/Application Support/Binding/CellDocumentRoot/CellsContainer/96F4568C-F22A-4FE1-A627-5DF5F002738D/Perspective.json, NSURL=file:///Users/kjetil/Library/Developer/CoreSimulator/Devices/60A4509A-5AD0-42B9-A1D0-7CEBA044F514/data/Containers/Data/Application/D68B9DFA-9F4B-4311-A655-FD3AEA4E2603/Library/Application%20Support/Binding/CellDocumentRoot/CellsContainer/96F4568C-F22A-4FE1-A627-5DF5F002738D/Perspective.json, NSUnderlyingError=0x600002fc2490 {Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"}}
+[CellBase][resolver] registerPersonalReference endpoint=Perspective identity=4B44EFFB-4FD1-43BE-8F0F-E8D107CD2898 cell=96F4568C-F22A-4FE1-A627-5DF5F002738D
+[CellBase][flow] INTR:get:configurations:source:3E348F59-47EF-4C5D-8158-D63DDDBF8374:4B44EFFB-4FD1-43BE-8F0F-E8D107CD2898:1787220802.391072
+[CellBase][flow] get intercept key=configurations keypath=configurations
+[CellBase][resolver] registerPersonalReference endpoint=BindingRuntimeSurfaceLaunchAdapter identity=4B44EFFB-4FD1-43BE-8F0F-E8D107CD2898 cell=CEE23FC0-9AAE-4AF4-AF5A-BC9741E76D3F
+[CellBase][resolver] registerPersonalReference endpoint=PersonalCopilotNavigator identity=4B44EFFB-4FD1-43BE-8F0F-E8D107CD2898 cell=D4A84702-B19D-49A9-98F6-7D8BB8B70B10
+[CellBase][flow] INTR:get:state:source:D4A84702-B19D-49A9-98F6-7D8BB8B70B10:4B44EFFB-4FD1-43BE-8F0F-E8D107CD2898:1787220802.397355
+[CellBase][flow] get intercept key=state keypath=state
+*************** Init Porthole view model! **********************
+PortholeBindingViewModel initialized
+Attaching resolverEmitter to Porthole with status: connected
+******** Got outward list (3) ********
+Initing Location Event Emitter
+******** Got history list (0) ********
+******** Got history list (0) ********
+Initing Entity Anchor (Apple) cell for owner: 4B44EFFB-4FD1-43BE-8F0F-E8D107CD2898
+*********** Finished setup keys in Entity Anchor ***********
+org.digipomps.haven: 70973

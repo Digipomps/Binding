@@ -1,0 +1,286 @@
+Isolated HOME: /var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/cellscaffold-test-home.Y6HVdzqIZb
+Bounded SwiftPM entrypoint: /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/scripts/run_swift_bounded.sh
+Build capacity: 56.8 GiB free (6%); reserving 10 GiB leaves 46.8 GiB (5%).
+[haven-swiftpm] running swift test with cache 28516ddea851
+warning: 'bigint': /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/BigInt/Package.swift:18:19: warning: 'v4' is deprecated: watchOS 9.0 is the oldest supported version [#DeprecatedDeclaration]
+16 |         .iOS(.v12),
+17 |         .tvOS(.v12),
+18 |         .watchOS(.v4),
+   |                   `- warning: 'v4' is deprecated: watchOS 9.0 is the oldest supported version [#DeprecatedDeclaration]
+19 |         .macCatalyst(.v13),
+20 |         .visionOS(.v1),
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+Building for debugging...
+[Computing dependencies]
+[Provisioning 8 / 244]
+[Using on-disk description]
+[1 / 4]
+[1 / 4] CellBase
+[1 / 4] JWTKit
+[1 / 4] NIOExtras
+[3 / 5] _ConnectionPoolModule
+[5 / 13] AppTests-product
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Tests/AppTests/AgentTrustPackageAdjustTests.swift:378:64: warning: 'AdjustURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+376 | }
+377 | 
+378 | private final class AdjustURLProtocol: URLProtocol, @unchecked Sendable {
+    |                     |                                          `- warning: 'AdjustURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+    |                     `- note: 'AdjustURLProtocol' inherits unavailable conformance to protocol 'Sendable' from superclass here
+379 |     private static let lock = NSLock()
+380 |     nonisolated(unsafe) private static var count = 0
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Tests/AppTests/AgentTrustPackageAntiPurposeTests.swift:322:69: warning: 'AntiPurposeURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+320 | }
+321 | 
+322 | private final class AntiPurposeURLProtocol: URLProtocol, @unchecked Sendable {
+    |                     |                                               `- warning: 'AntiPurposeURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+    |                     `- note: 'AntiPurposeURLProtocol' inherits unavailable conformance to protocol 'Sendable' from superclass here
+323 |     private static let lock = NSLock()
+324 |     nonisolated(unsafe) private static var count = 0
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Tests/AppTests/AgentTrustPackageApprovalTests.swift:412:66: warning: 'ApprovalURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+410 | }
+411 | 
+412 | private final class ApprovalURLProtocol: URLProtocol, @unchecked Sendable {
+    |                     |                                            `- warning: 'ApprovalURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+    |                     `- note: 'ApprovalURLProtocol' inherits unavailable conformance to protocol 'Sendable' from superclass here
+413 |     private static let lock = NSLock()
+414 |     nonisolated(unsafe) private static var count = 0
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Tests/AppTests/AgentTrustPackageAuditTests.swift:373:63: warning: 'AuditURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+371 |     }
+372 | }
+373 | private final class AuditURLProtocol: URLProtocol, @unchecked Sendable {
+    |                     |                                         `- warning: 'AuditURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+    |                     `- note: 'AuditURLProtocol' inherits unavailable conformance to protocol 'Sendable' from superclass here
+374 |     override class func canInit(with request: URLRequest) -> Bool { true }
+375 |     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Tests/AppTests/AgentTrustPackageE2ETests.swift:246:73: warning: 'TrustPackageE2EURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+244 | }
+245 | 
+246 | private final class TrustPackageE2EURLProtocol: URLProtocol, @unchecked Sendable {
+    |                     |                                                   `- warning: 'TrustPackageE2EURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+    |                     `- note: 'TrustPackageE2EURLProtocol' inherits unavailable conformance to protocol 'Sendable' from superclass here
+247 |     static let body = Data("wp13-fixture-response".utf8)
+248 |     private static let lock = NSLock()
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Tests/AppTests/ConferenceConnectionHubCellTests.swift:724:14: warning: concurrently-executed local function 'resolveAndMakeVisible(ownerContext:displayName:)' must be marked as '@Sendable'; this is an error in the Swift 6 language mode
+ 722 |         let endpoint = "cell:///\(ArendalsukaConnectionHubCell.cellName)"
+ 723 | 
+ 724 |         func resolveAndMakeVisible(ownerContext: String, displayName: String) async -> Result<Bool, Error> {
+     |              `- warning: concurrently-executed local function 'resolveAndMakeVisible(ownerContext:displayName:)' must be marked as '@Sendable'; this is an error in the Swift 6 language mode
+ 725 |             do {
+ 726 |                 guard let requester = await vault.identity(for: ownerContext, makeNewIfNotFound: true) else {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Tests/AppTests/EffectReceiptTests.swift:358:65: warning: 'ReceiptURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+356 | }
+357 | 
+358 | private final class ReceiptURLProtocol: URLProtocol, @unchecked Sendable {
+    |                     |                                           `- warning: 'ReceiptURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+    |                     `- note: 'ReceiptURLProtocol' inherits unavailable conformance to protocol 'Sendable' from superclass here
+359 |     static let body = Data("response-private-content".utf8)
+360 |     private static let lock = NSLock()
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Tests/AppTests/EventPlatformRoutesTests.swift:14:13: warning: stored property 'payload' of 'Sendable'-conforming struct 'EventActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+ 12 |     private struct EventActionRequest: Content {
+ 13 |         var keypath: String
+ 14 |         var payload: ValueType?
+    |             `- warning: stored property 'payload' of 'Sendable'-conforming struct 'EventActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+ 15 |     }
+ 16 | 
+
+CellBase.ValueType:1:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 1 | indirect public enum ValueType : Codable {
+   |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 2 |     case flowElement(CellBase.FlowElement)
+ 3 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Tests/AppTests/EventPlatformRoutesTests.swift:9:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  7 | import Fluent
+  8 | import Vapor
+  9 | import CellBase
+    | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+ 10 | 
+ 11 | final class EventPlatformRoutesTests: IsolatedCellTestCase {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Tests/AppTests/PersonEntityLinkCompletionTests.swift:135:21: warning: instance method 'test' is unavailable from asynchronous contexts; Use the async method instead.; this is an error in the Swift 6 language mode
+133 |                                 challenge: challenge, signature: try XCTUnwrap(signature))
+134 |             let requestBytes = try C.encode(proof)
+135 |             try app.test(.POST, C.discoveryPath, beforeRequest: { request in
+    |                     `- warning: instance method 'test' is unavailable from asynchronous contexts; Use the async method instead.; this is an error in the Swift 6 language mode
+136 |                 request.headers.contentType = .json; request.body.writeBytes(requestBytes)
+137 |             }) { response in
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Tests/AppTests/PersonEntityLinkCompletionTests.swift:142:21: warning: instance method 'test' is unavailable from asynchronous contexts; Use the async method instead.; this is an error in the Swift 6 language mode
+140 |             }
+141 |             let completion = try JSONEncoder().encode(fixture.envelope)
+142 |             try app.test(.POST, "/link/api/complete", beforeRequest: { request in
+    |                     `- warning: instance method 'test' is unavailable from asynchronous contexts; Use the async method instead.; this is an error in the Swift 6 language mode
+143 |                 request.headers.contentType = .json; request.body.writeBytes(completion)
+144 |             }) { response in XCTAssertEqual(response.status, .ok, response.body.string) }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Tests/AppTests/PersonEntityLinkCompletionTests.swift:146:21: warning: instance method 'test' is unavailable from asynchronous contexts; Use the async method instead.; this is an error in the Swift 6 language mode
+144 |             }) { response in XCTAssertEqual(response.status, .ok, response.body.string) }
+145 |             var descriptor: C.Descriptor?
+146 |             try app.test(.POST, C.discoveryPath, beforeRequest: { request in
+    |                     `- warning: instance method 'test' is unavailable from asynchronous contexts; Use the async method instead.; this is an error in the Swift 6 language mode
+147 |                 request.headers.contentType = .json; request.body.writeBytes(requestBytes)
+148 |             }) { response in
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Tests/AppTests/PersonEntityLinkCompletionTests.swift:177:21: warning: instance method 'test' is unavailable from asynchronous contexts; Use the async method instead.; this is an error in the Swift 6 language mode
+175 |             let publisherProvesControl = await PaymentGateOwnerIdentitySupport.canProve(publisher)
+176 |             XCTAssertTrue(publisherProvesControl, "transport requires the exact local signer, not its public descriptor")
+177 |             try app.test(.POST, C.discoveryPath, beforeRequest: { request in
+    |                     `- warning: instance method 'test' is unavailable from asynchronous contexts; Use the async method instead.; this is an error in the Swift 6 language mode
+178 |                 request.headers.contentType = .json; request.body.writeBytes(requestBytes)
+179 |             }) { response in XCTAssertEqual(response.status, .forbidden, "exact discovery retry must not allocate another setup") }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Tests/AppTests/PersonEntityLinkCompletionTests.swift:180:21: warning: instance method 'test' is unavailable from asynchronous contexts; Use the async method instead.; this is an error in the Swift 6 language mode
+178 |                 request.headers.contentType = .json; request.body.writeBytes(requestBytes)
+179 |             }) { response in XCTAssertEqual(response.status, .forbidden, "exact discovery retry must not allocate another setup") }
+180 |             try app.test(.GET, C.bridgePath) { response in
+    |                     `- warning: instance method 'test' is unavailable from asynchronous contexts; Use the async method instead.; this is an error in the Swift 6 language mode
+181 |                 XCTAssertEqual(response.status, .badRequest, "missing signed upgrade proof must never return 101")
+182 |             }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Tests/AppTests/PersonEntityLinkCompletionTests.swift:184:21: warning: instance method 'test' is unavailable from asynchronous contexts; Use the async method instead.; this is an error in the Swift 6 language mode
+182 |             }
+183 |             try await fixture.store.revoke(owner: fixture.owner, linkID: fixture.envelope.approval.approvalID)
+184 |             try app.test(.POST, C.discoveryPath, beforeRequest: { request in
+    |                     `- warning: instance method 'test' is unavailable from asynchronous contexts; Use the async method instead.; this is an error in the Swift 6 language mode
+185 |                 request.headers.contentType = .json; request.body.writeBytes(requestBytes)
+186 |             }) { response in XCTAssertEqual(response.status, .forbidden) }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Tests/AppTests/WebFetchCeilingTests.swift:361:65: warning: 'CeilingURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+359 | }
+360 | 
+361 | private final class CeilingURLProtocol: URLProtocol, @unchecked Sendable {
+    |                     |                                           `- warning: 'CeilingURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+    |                     `- note: 'CeilingURLProtocol' inherits unavailable conformance to protocol 'Sendable' from superclass here
+362 |     private static let lock = NSLock()
+363 |     nonisolated(unsafe) private static var captured: [URLRequest] = []
+
+[#AddPreconcurrencyImport]: <https://docs.swift.org/compiler/documentation/diagnostics/add-preconcurrency-import>
+[#UnavailableSendableConformance]: <https://docs.swift.org/compiler/documentation/diagnostics/unavailable-sendable-conformance>
+[7 / 15] AppTests-product
+[10 / 13] AppTests-product
+[11 / 13] AppTests-product
+[12 / 13] AppTests-product
+[16 / 17] AppTests-product
+[17 / 17] AppTests-product
+Build complete! (10,49 sek)
+Test Suite 'Selected tests' started at 2026-09-30 02:37:22.043.
+Test Suite 'UserSimulationScaffoldTests.xctest' started at 2026-09-30 02:37:22.043.
+Test Suite 'UserSimulationScaffoldTests.xctest' passed at 2026-09-30 02:37:22.043.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 02:37:22.043.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'Selected tests' started at 2026-09-30 02:37:22.101.
+Test Suite 'NodeAdminDockerCollectorTests.xctest' started at 2026-09-30 02:37:22.102.
+Test Suite 'NodeAdminDockerCollectorTests.xctest' passed at 2026-09-30 02:37:22.102.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 02:37:22.102.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'Selected tests' started at 2026-09-30 02:37:22.166.
+Test Suite 'AppTests.xctest' started at 2026-09-30 02:37:22.166.
+Test Suite 'PersonalCopilotV1Tests' started at 2026-09-30 02:37:22.166.
+Test Case '-[AppTests.PersonalCopilotV1Tests testAnonymousCatalogGETsStayPublicWhenCentralIdentityCreationIsUnavailable]' started.
+2026-09-30T02:37:22+0200 notice codes.vapor.application: [App] Using isolated test runtime directory: /var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/CellScaffoldTestRuntime-54722-CE154EA9-6459-4B56-B1C2-BEE0216E5ECC/Applications/3ABD02AD-6E28-4624-8495-89FFF565BA83
+2026-09-30T02:37:22+0200 warning codes.vapor.application: [App] DiMy mint client configured with development-only key material
+2026-09-30T02:37:22+0200 notice codes.vapor.application: [App] Cell resolver bootstrap completed in 0.09 seconds.
+2026-09-30T02:37:22+0200 notice codes.vapor.application: [App] LiveInteraction conference mapping ready: 24 created, 0 existing, 24 sessions discovered.
+2026-09-30T02:37:22+0200 info codes.vapor.application: request-id=F19DE1F7-5D2C-4B97-A56E-C322B626F23F [Vapor] GET /personal-copilot-v1/api/catalog
+2026-09-30T02:37:23+0200 info codes.vapor.application: request-id=998E4658-C18A-4C1F-A971-ABA5A33C4A62 [Vapor] GET /personal-copilot-v1/api/catalog
+2026-09-30T02:37:23+0200 info codes.vapor.application: request-id=EC283A7C-61C6-4821-8256-36BC7BCF0C30 [Vapor] GET /personal-copilot-v1/api/catalog/allowed
+2026-09-30T02:37:23+0200 info codes.vapor.application: request-id=2B392A61-8C43-40D5-84D3-5ACCC5DEB39C [Vapor] GET /personal-copilot-v1/api/catalog/allowed
+2026-09-30T02:37:24+0200 info codes.vapor.application: request-id=96F4FFB0-EF7F-4716-A6CB-DF4DB59D357F [Vapor] GET /personal-copilot-v1/api/catalog/unavailable
+2026-09-30T02:37:24+0200 info codes.vapor.application: request-id=37BDEA8A-DBFF-400A-83E6-0FB4C78BD1A2 [Vapor] GET /personal-copilot-v1/api/catalog/unavailable
+2026-09-30T02:37:24+0200 info codes.vapor.application: request-id=6E321A5D-0457-4D71-A226-A4F2773C5D99 [Vapor] GET /personal-copilot-v1/api/catalog/policy-summary
+2026-09-30T02:37:24+0200 info codes.vapor.application: request-id=0D42E950-32E1-4172-BCD3-0338C6C4FAD5 [Vapor] GET /personal-copilot-v1/api/catalog/policy-summary
+2026-09-30T02:37:24+0200 info codes.vapor.application: request-id=DDECA417-85D3-4528-8E39-FA566BDE0E5C [Vapor] GET /personal-copilot-v1/api/catalog
+2026-09-30T02:37:24+0200 info codes.vapor.application: request-id=19CDC8B1-06B7-4756-AB03-0D61763BCF24 [Vapor] GET /personal-copilot-v1/api/catalog
+2026-09-30T02:37:24+0200 warning codes.vapor.application: method=GET request-id=19CDC8B1-06B7-4756-AB03-0D61763BCF24 url=/personal-copilot-v1/api/catalog userAgent=[] [App] Abort.500: Cell resolver not available.
+Test Case '-[AppTests.PersonalCopilotV1Tests testAnonymousCatalogGETsStayPublicWhenCentralIdentityCreationIsUnavailable]' passed (2.702 seconds).
+Test Case '-[AppTests.PersonalCopilotV1Tests testAnonymousConfigurationGETsDoNotCreateCentralBindingsOrIdentityScopedCellsAndRequireResolver]' started.
+2026-09-30T02:37:24+0200 notice codes.vapor.application: [App] Using isolated test runtime directory: /var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/CellScaffoldTestRuntime-54722-CE154EA9-6459-4B56-B1C2-BEE0216E5ECC/Applications/F0CF40BC-F32B-44BC-B571-834D5D696E04
+2026-09-30T02:37:24+0200 warning codes.vapor.application: [App] DiMy mint client configured with development-only key material
+2026-09-30T02:37:24+0200 notice codes.vapor.application: [App] Cell resolver bootstrap completed in 0.02 seconds.
+2026-09-30T02:37:25+0200 notice codes.vapor.application: [App] LiveInteraction conference mapping ready: 24 created, 0 existing, 24 sessions discovered.
+2026-09-30T02:37:25+0200 info codes.vapor.application: request-id=0605CB45-F1C1-4A6A-885E-9D7E7BA19AEF [Vapor] GET /personal-copilot-v1/chat/api/configuration
+2026-09-30T02:37:25+0200 info codes.vapor.application: request-id=1F1F1D8C-5111-4B02-B480-0C8573388703 [Vapor] GET /personal-copilot-v1/chat/api/configuration
+2026-09-30T02:37:25+0200 info codes.vapor.application: request-id=D86F09D6-D40A-4B8B-9D91-F09C0302C5CF [Vapor] GET /personal-copilot-v1/chat/api/configuration
+2026-09-30T02:37:25+0200 info codes.vapor.application: request-id=9ED7F96C-381F-4401-BAF8-8F2755577AC9 [Vapor] GET /personal-copilot-v1/chat/api/configuration
+2026-09-30T02:37:25+0200 warning codes.vapor.application: method=GET request-id=9ED7F96C-381F-4401-BAF8-8F2755577AC9 url=/personal-copilot-v1/chat/api/configuration userAgent=[] [App] Abort.500: Cell resolver not available.
+Test Case '-[AppTests.PersonalCopilotV1Tests testAnonymousConfigurationGETsDoNotCreateCentralBindingsOrIdentityScopedCellsAndRequireResolver]' passed (0.246 seconds).
+Test Case '-[AppTests.PersonalCopilotV1Tests testPersonalCatalogOnlyReturnsPersonalCopilotConfigurations]' started.
+Test Case '-[AppTests.PersonalCopilotV1Tests testPersonalCatalogOnlyReturnsPersonalCopilotConfigurations]' passed (0.035 seconds).
+Test Case '-[AppTests.PersonalCopilotV1Tests testPublicCatalogPolicyAllowsOnlyExactStaticReadPaths]' started.
+Test Case '-[AppTests.PersonalCopilotV1Tests testPublicCatalogPolicyAllowsOnlyExactStaticReadPaths]' passed (0.035 seconds).
+Test Suite 'PersonalCopilotV1Tests' passed at 2026-09-30 02:37:25.185.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 3.018 (3.018) seconds
+Test Suite 'AppTests.xctest' passed at 2026-09-30 02:37:25.185.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 3.018 (3.018) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 02:37:25.185.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 3.018 (3.019) seconds
+Got HOME from environment: /var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/CellScaffoldTestRuntime-54722-CE154EA9-6459-4B56-B1C2-BEE0216E5ECC/Applications/3ABD02AD-6E28-4624-8495-89FFF565BA83
+Got RP_ID from environment: nil
+Got RP_DISPLAY_NAME from environment: nil
+Got RP_ORIGIN from environment: nil
+Got CHAT_MVP_TOKEN_SECRET from environment: nil
+Got CHAT_MVP_TOKEN_DAYS from environment: nil
+Got JWT_AUTH_SECRET from environment: nil
+Got JWT_AUTH_ISSUER from environment: nil
+Got JWT_AUTH_AUDIENCE from environment: nil
+Got JWT_AUTH_ACCESS_MINUTES from environment: nil
+Got JWT_AUTH_REFRESH_DAYS from environment: nil
+Effective RP configuration -> id: localhost, name: Passkey CellProtocol Integration, origin: http://localhost:9089
+Effective chat remember-token lifetime (seconds): 2592000
+Effective JWT access lifetime (seconds): 900
+Effective JWT refresh lifetime (seconds): 2592000
+Scaffold owner resolved from context: Scaffold
+Scaffold orchestrtor cell init
+Loading named emitters failed with error: Error Domain=NSCocoaErrorDomain Code=260 "Filen «NamedEmitters.json» kunne ikke åpnes fordi den ikke finnes." UserInfo={NSFilePath=/var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/CellScaffoldTestRuntime-54722-CE154EA9-6459-4B56-B1C2-BEE0216E5ECC/Applications/3ABD02AD-6E28-4624-8495-89FFF565BA83/CellsContainer/ScaffoldOrchestrator/NamedEmitters.json, NSURL=file:///var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/CellScaffoldTestRuntime-54722-CE154EA9-6459-4B56-B1C2-BEE0216E5ECC/Applications/3ABD02AD-6E28-4624-8495-89FFF565BA83/CellsContainer/ScaffoldOrchestrator/NamedEmitters.json, NSUnderlyingError=0x758e896cd0 {Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"}}.
+Loading identity named emitters failed with error: Error Domain=NSCocoaErrorDomain Code=260 "Filen «IdentityNamedEmitters.json» kunne ikke åpnes fordi den ikke finnes." UserInfo={NSFilePath=/var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/CellScaffoldTestRuntime-54722-CE154EA9-6459-4B56-B1C2-BEE0216E5ECC/Applications/3ABD02AD-6E28-4624-8495-89FFF565BA83/CellsContainer/ScaffoldOrchestrator/IdentityNamedEmitters.json, NSURL=file:///var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/CellScaffoldTestRuntime-54722-CE154EA9-6459-4B56-B1C2-BEE0216E5ECC/Applications/3ABD02AD-6E28-4624-8495-89FFF565BA83/CellsContainer/ScaffoldOrchestrator/IdentityNamedEmitters.json, NSUnderlyingError=0x758eb88750 {Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"}}.
+Loading CellConfiguration failed with error: Error Domain=NSCocoaErrorDomain Code=260 "Filen «CellConfiguration.json» kunne ikke åpnes fordi den ikke finnes." UserInfo={NSFilePath=/var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/CellScaffoldTestRuntime-54722-CE154EA9-6459-4B56-B1C2-BEE0216E5ECC/Applications/3ABD02AD-6E28-4624-8495-89FFF565BA83/CellsContainer/ScaffoldOrchestrator/CellConfiguration.json, NSURL=file:///var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/CellScaffoldTestRuntime-54722-CE154EA9-6459-4B56-B1C2-BEE0216E5ECC/Applications/3ABD02AD-6E28-4624-8495-89FFF565BA83/CellsContainer/ScaffoldOrchestrator/CellConfiguration.json, NSUnderlyingError=0x758eb89fe0 {Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"}}. Initializing only the missing configuration.
+Saving named cells: 6 entries
+******** Directory does not exist trying to create. path: /var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/CellScaffoldTestRuntime-54722-CE154EA9-6459-4B56-B1C2-BEE0216E5ECC/Applications/3ABD02AD-6E28-4624-8495-89FFF565BA83/CellsContainer/ScaffoldOrchestrator
+Saving identity named cells: 1 identities, 1 references
+Scaffold orchestrator got event feed item. Title: Resolver event, topic: register
+Saving named cells: 7 entries
+Got HOME from environment: /var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/CellScaffoldTestRuntime-54722-CE154EA9-6459-4B56-B1C2-BEE0216E5ECC/Applications/F0CF40BC-F32B-44BC-B571-834D5D696E04
+Got RP_ID from environment: nil
+Got RP_DISPLAY_NAME from environment: nil
+Got RP_ORIGIN from environment: nil
+Got CHAT_MVP_TOKEN_SECRET from environment: nil
+Got CHAT_MVP_TOKEN_DAYS from environment: nil
+Got JWT_AUTH_SECRET from environment: nil
+Got JWT_AUTH_ISSUER from environment: nil
+Got JWT_AUTH_AUDIENCE from environment: nil
+Got JWT_AUTH_ACCESS_MINUTES from environment: nil
+Got JWT_AUTH_REFRESH_DAYS from environment: nil
+Effective RP configuration -> id: localhost, name: Passkey CellProtocol Integration, origin: http://localhost:9089
+Effective chat remember-token lifetime (seconds): 2592000
+Effective JWT access lifetime (seconds): 900
+Effective JWT refresh lifetime (seconds): 2592000
+Scaffold owner resolved from context: Scaffold
+Scaffold orchestrtor cell init
+Loading named emitters failed with error: Error Domain=NSCocoaErrorDomain Code=260 "Filen «NamedEmitters.json» kunne ikke åpnes fordi den ikke finnes." UserInfo={NSFilePath=/var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/CellScaffoldTestRuntime-54722-CE154EA9-6459-4B56-B1C2-BEE0216E5ECC/Applications/F0CF40BC-F32B-44BC-B571-834D5D696E04/CellsContainer/ScaffoldOrchestrator/NamedEmitters.json, NSURL=file:///var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/CellScaffoldTestRuntime-54722-CE154EA9-6459-4B56-B1C2-BEE0216E5ECC/Applications/F0CF40BC-F32B-44BC-B571-834D5D696E04/CellsContainer/ScaffoldOrchestrator/NamedEmitters.json, NSUnderlyingError=0x7579ff99e0 {Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"}}.
+Loading identity named emitters failed with error: Error Domain=NSCocoaErrorDomain Code=260 "Filen «IdentityNamedEmitters.json» kunne ikke åpnes fordi den ikke finnes." UserInfo={NSFilePath=/var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/CellScaffoldTestRuntime-54722-CE154EA9-6459-4B56-B1C2-BEE0216E5ECC/Applications/F0CF40BC-F32B-44BC-B571-834D5D696E04/CellsContainer/ScaffoldOrchestrator/IdentityNamedEmitters.json, NSURL=file:///var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/CellScaffoldTestRuntime-54722-CE154EA9-6459-4B56-B1C2-BEE0216E5ECC/Applications/F0CF40BC-F32B-44BC-B571-834D5D696E04/CellsContainer/ScaffoldOrchestrator/IdentityNamedEmitters.json, NSUnderlyingError=0x7579ffb270 {Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"}}.
+Loading CellConfiguration failed with error: Error Domain=NSCocoaErrorDomain Code=260 "Filen «CellConfiguration.json» kunne ikke åpnes fordi den ikke finnes." UserInfo={NSFilePath=/var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/CellScaffoldTestRuntime-54722-CE154EA9-6459-4B56-B1C2-BEE0216E5ECC/Applications/F0CF40BC-F32B-44BC-B571-834D5D696E04/CellsContainer/ScaffoldOrchestrator/CellConfiguration.json, NSURL=file:///var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/CellScaffoldTestRuntime-54722-CE154EA9-6459-4B56-B1C2-BEE0216E5ECC/Applications/F0CF40BC-F32B-44BC-B571-834D5D696E04/CellsContainer/ScaffoldOrchestrator/CellConfiguration.json, NSUnderlyingError=0x758e895fe0 {Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"}}. Initializing only the missing configuration.
+############# deiniting scaffold orchestrator (C9A0D3A0-6046-4B4A-BCFA-23D58ADCD8B6 ################
+Saving named cells: 6 entries
+******** Directory does not exist trying to create. path: /var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/CellScaffoldTestRuntime-54722-CE154EA9-6459-4B56-B1C2-BEE0216E5ECC/Applications/F0CF40BC-F32B-44BC-B571-834D5D696E04/CellsContainer/ScaffoldOrchestrator
+Saving identity named cells: 1 identities, 1 references
+Scaffold orchestrator got event feed item. Title: Resolver event, topic: register
+Saving named cells: 7 entries
+**** Creating BrowserClientIdentityVault for identitydDomain: personal-catalog-EC25269F-8029-419C-A3F7-942FCE4187A4
+Generating VaultIdentity from Identity...
+Test Suite 'Selected tests' started at 2026-09-30 02:37:25.261.
+Test Suite 'AdminPlaneTests.xctest' started at 2026-09-30 02:37:25.261.
+Test Suite 'AdminPlaneTests.xctest' passed at 2026-09-30 02:37:25.261.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 02:37:25.261.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Build disk result: cache=10363140 KiB (delta=+1716 KiB), available delta=-600 KiB, status=0.

@@ -1,0 +1,9 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "### Error\nTimeoutError: locator.waitFor: Timeout 6000ms exceeded.\nCall log:\n  - waiting for getByText('Ingen handlinger kjørt ennå.') to be visible\n"
+    }
+  ],
+  "isError": true
+}

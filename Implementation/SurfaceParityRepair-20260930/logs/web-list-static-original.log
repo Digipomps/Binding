@@ -1,0 +1,63 @@
+
+Running 8 tests using 1 worker
+
+(node:42271) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:42271) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 playwright/skeleton-list-static-elements.spec.js:47:5 › List static elements at 1180px › renders static-only scalar values without a keypath or template (15.6s)
+[31mTesting stopped early after 1 maximum allowed failures.[39m
+
+
+  1) playwright/skeleton-list-static-elements.spec.js:47:5 › List static elements at 1180px › renders static-only scalar values without a keypath or template 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoHaveText[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator:  locator('.skeleton-list-row-main')
+    [32m- Expected  - 4[39m
+    [31m+ Received  + 1[39m
+
+    [32m- Array [[39m
+    [32m-   "Static first",[39m
+    [32m-   "Static second",[39m
+    [32m- ][39m
+    [31m+ Array [][39m
+    Timeout:  15000ms
+
+    Call log:
+    [2m  - Expect "toHaveText" with timeout 15000ms[22m
+    [2m  - waiting for locator('.skeleton-list-row-main')[22m
+    [2m    19 × locator resolved to 0 elements[22m
+
+
+      47 |     test("renders static-only scalar values without a keypath or template", async ({ page }) => {
+      48 |       await mount(page, { elements: ["Static first", "Static second"] });
+    > 49 |       await expect(rowLabels(page)).toHaveText(["Static first", "Static second"]);
+         |                                     ^
+      50 |       await expect(rowLabels(page).first()).toBeVisible();
+      51 |       expect(await actions(page)).toEqual([]);
+      52 |     });
+        at /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/playwright/skeleton-list-static-elements.spec.js:49:37
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../web-list-static-original/skeleton-list-static-eleme-7bbac-thout-a-keypath-or-template/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../web-list-static-original/skeleton-list-static-eleme-7bbac-thout-a-keypath-or-template/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../web-list-static-original/skeleton-list-static-eleme-7bbac-thout-a-keypath-or-template/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../web-list-static-original/skeleton-list-static-eleme-7bbac-thout-a-keypath-or-template/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../web-list-static-original/skeleton-list-static-eleme-7bbac-thout-a-keypath-or-template/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    playwright/skeleton-list-static-elements.spec.js:47:5 › List static elements at 1180px › renders static-only scalar values without a keypath or template 
+  7 did not run
+  1 error was not a part of any test, see above for details

@@ -1,0 +1,13 @@
+
+Running 4 tests using 1 worker
+
+(node:61666) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:61666) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside VStack at 390px (139ms)
+  ✓  2 playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside HStack at 390px (110ms)
+  ✓  3 playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside VStack at 1180px (117ms)
+  ✓  4 playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside HStack at 1180px (142ms)
+
+  4 passed (878ms)

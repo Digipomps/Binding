@@ -1,0 +1,14 @@
+diff --git a/Public/css/conference-mvp.css b/Public/css/conference-mvp.css
+index f924c98f..0cf87b0a 100644
+--- a/Public/css/conference-mvp.css
++++ b/Public/css/conference-mvp.css
+@@ -431,7 +431,9 @@ body {
+   gap: 0.72rem;
+ }
+ 
++/* Keep long entity endpoints inside compact grid and section layouts. */
+ .skeleton-text {
++  overflow-wrap: anywhere;
+   color: var(--text-muted);
+   font-size: 0.95rem;
+   line-height: 1.5;

@@ -1,0 +1,70 @@
+diff --git a/Public/js/conference-mvp.js b/Public/js/conference-mvp.js
+index ed5ebf55..b030535d 100644
+--- a/Public/js/conference-mvp.js
++++ b/Public/js/conference-mvp.js
+@@ -748,25 +748,39 @@ function isSafeRuntimeLookupValue(value, maximumLength) {
+ }
+ 
+ function composedRendererData() {
+-  const rootLabel = configurationRootLabel();
+-  return {
+-    [rootLabel]: {
+-      state: conferenceMVPState.viewState || {},
+-    },
+-  };
++  const references = configurationReferences();
++  const firstLabeled = references.find(hasConfigurationReferenceLabel);
++  const rootLabel = firstLabeled?.label || "conferenceUIRouter";
++  const view = { state: conferenceMVPState.viewState || {} };
++  const roots = [[rootLabel, view]];
++
++  // This HTTP host has fetched one Cell's state. Another label for that exact
++  // endpoint is an alias; a reference to any other endpoint needs its own data.
++  if (typeof firstLabeled?.endpoint === "string" && firstLabeled.endpoint.length > 0) {
++    for (const reference of references) {
++      if (hasConfigurationReferenceLabel(reference)
++          && reference.label !== rootLabel
++          && reference.endpoint === firstLabeled.endpoint) {
++        roots.push([reference.label, view]);
++      }
++    }
++  }
++  return Object.fromEntries(roots);
+ }
+ 
+-function configurationRootLabel() {
++function configurationReferences() {
+   const references = Array.isArray(conferenceMVPState.configuration?.references)
+     ? conferenceMVPState.configuration.references
+     : conferenceMVPState.configuration?.cellReferences;
+-  if (Array.isArray(references)) {
+-    const firstLabeled = references.find((reference) => reference && typeof reference.label === "string" && reference.label.length > 0);
+-    if (firstLabeled?.label) {
+-      return firstLabeled.label;
+-    }
+-  }
+-  return "conferenceUIRouter";
++  return Array.isArray(references) ? references : [];
++}
++
++function hasConfigurationReferenceLabel(reference) {
++  return reference && typeof reference.label === "string" && reference.label.length > 0;
++}
++
++function configurationRootLabel() {
++  return configurationReferences().find(hasConfigurationReferenceLabel)?.label || "conferenceUIRouter";
+ }
+ 
+ function normalizeActionEnvelope(keypath, payload) {
+diff --git a/package.json b/package.json
+index 2c659fa6..12e756ac 100644
+--- a/package.json
++++ b/package.json
+@@ -7,6 +7,7 @@
+     "test:conference-smoke:headed": "playwright test --config=playwright.config.js --headed",
+     "test:conference-ui-debate": "node scripts/conference-ui-debate.js",
+     "test:conference-public-navigation": "node scripts/conference-public-runtime-navigation-test.js",
++    "test:conference-renderer-data": "node --test scripts/conference-renderer-data.test.js",
+     "test:arendalsuka-action-state": "node --test scripts/porthole-arendalsuka-action-state.test.js",
+     "test:arendalsuka-participant-credential": "node --test scripts/arendalsuka-participant-credential.test.js",
+     "test:chat-prompt-canary": "playwright test --config=playwright.config.js playwright/personal-chat-prompt.spec.js",

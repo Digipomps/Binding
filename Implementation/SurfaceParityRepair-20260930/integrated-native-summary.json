@@ -1,0 +1,64 @@
+{
+  "devicesAndConfigurations" : [
+    {
+      "device" : {
+        "architecture" : "arm64",
+        "deviceId" : "00008142-001411C11A22401C",
+        "deviceName" : "My Mac",
+        "modelName" : "MacBook Pro",
+        "osBuildNumber" : "26A428",
+        "osVersion" : "27.0",
+        "platform" : "macOS"
+      },
+      "expectedFailures" : 0,
+      "failedTests" : 2,
+      "passedTests" : 15,
+      "skippedTests" : 0,
+      "testPlanConfiguration" : {
+        "configurationId" : "1",
+        "configurationName" : "Default"
+      }
+    }
+  ],
+  "environmentDescription" : "HAVEN · Built with macOS 27.0",
+  "expectedFailures" : 0,
+  "failedTests" : 2,
+  "finishTime" : 1790726380.305,
+  "passedTests" : 15,
+  "result" : "Failed",
+  "runtimeWarnings" : [
+
+  ],
+  "skippedTests" : 0,
+  "startTime" : 1790726355.789,
+  "statistics" : [
+
+  ],
+  "testFailures" : [
+    {
+      "failureText" : "XCTAssertEqual failed: (\"[\"Fallback lane\"]\") is not equal to (\"[\"Co-Pilot\"]\")",
+      "targetName" : "BindingTests",
+      "testIdentifier" : 12,
+      "testIdentifierString" : "SkeletonRendererParityTests/testLaneChipListFixtureMaterializesVisibleDynamicButtonRows()",
+      "testIdentifierURL" : "test://com.apple.xcode/Binding/BindingTests/SkeletonRendererParityTests/testLaneChipListFixtureMaterializesVisibleDynamicButtonRows",
+      "testName" : "testLaneChipListFixtureMaterializesVisibleDynamicButtonRows()"
+    },
+    {
+      "failureText" : "XCTAssertEqual failed: (\"1\") is not equal to (\"0\") - Some corpus surfaces failed; inspect the per-surface error artifacts.",
+      "targetName" : "BindingTests",
+      "testIdentifier" : 17,
+      "testIdentifierString" : "SkeletonSnapshotRenderXCTest/testRenderCorpusToPNG()",
+      "testIdentifierURL" : "test://com.apple.xcode/Binding/BindingTests/SkeletonSnapshotRenderXCTest/testRenderCorpusToPNG",
+      "testName" : "testRenderCorpusToPNG()"
+    }
+  ],
+  "title" : "Test - HAVEN",
+  "topInsights" : [
+    {
+      "category" : "Longest Test Runs",
+      "impact" : "93% of duration",
+      "text" : "1 longest test run with outlier durations exceeding 6.54s (three standard deviations)"
+    }
+  ],
+  "totalTestCount" : 17
+}

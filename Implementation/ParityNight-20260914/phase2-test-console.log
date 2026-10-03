@@ -1,0 +1,23 @@
+Workspace:      Binding.xcodeproj
+Scheme:         HAVEN
+Configuration:  Debug
+Destination:    platform=macOS,arch=arm64
+Mode:           parity-tests
+DerivedData:    /private/tmp/haven-xcode-derived/Binding-Parity
+Log:            ../phase2-test-logs/xcode-parity-tests-latest.log
+
+Build capacity: 140.3 GiB free (15%); reserving 10 GiB leaves 130.3 GiB (14%).
++ xcodebuild -jobs 2 -derivedDataPath /private/tmp/haven-xcode-derived/Binding-Parity -project Binding.xcodeproj -scheme HAVEN -configuration Debug -destination platform=macOS,arch=arm64 -disableAutomaticPackageResolution -onlyUsePackageVersionsFromResolvedFile -parallel-testing-enabled NO -only-testing:BindingTests/ParityNightRegressionTests -only-testing:BindingTests/SkeletonRendererParityTests -resultBundlePath ../phase2-test-logs/parity-tests.xcresult CONFIGURATION_BUILD_DIR=/private/tmp/haven-parity-products CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= CODE_SIGN_ENTITLEMENTS= ENABLE_APP_SANDBOX=NO TOOLCHAIN_DIR=$(DT_TOOLCHAIN_DIR) test
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -jobs 2 -derivedDataPath /private/tmp/haven-xcode-derived/Binding-Parity -project Binding.xcodeproj -scheme HAVEN -configuration Debug -destination platform=macOS,arch=arm64 -disableAutomaticPackageResolution -onlyUsePackageVersionsFromResolvedFile -parallel-testing-enabled NO "-only-testing:BindingTests/ParityNightRegressionTests" "-only-testing:BindingTests/SkeletonRendererParityTests" -resultBundlePath ../phase2-test-logs/parity-tests.xcresult CONFIGURATION_BUILD_DIR=/private/tmp/haven-parity-products CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= CODE_SIGN_ENTITLEMENTS= ENABLE_APP_SANDBOX=NO "TOOLCHAIN_DIR=$(DT_TOOLCHAIN_DIR)" test
+
+Build settings from command line:
+    CODE_SIGN_ENTITLEMENTS = 
+    CODE_SIGN_IDENTITY = -
+    CODE_SIGN_STYLE = Manual
+    CONFIGURATION_BUILD_DIR = /private/tmp/haven-parity-products
+    DEVELOPMENT_TEAM = 
+    ENABLE_APP_SANDBOX = NO
+    TOOLCHAIN_DIR = $(DT_TOOLCHAIN_DIR)
+
+Resolve Package Graph

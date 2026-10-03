@@ -1,0 +1,7 @@
+STATUS=compiling
+Wed Aug 19 19:52:27 CEST 2026
+		{ platform:visionOS, id:dvtdevice-DVTiOSDevicePlaceholder-xros:placeholder, name:Any visionOS Device, error:visionOS 26.2 is not installed. Please download and install the platform from Xcode > Settings > Components. }
++ echo RC=70
+RC=70
+STATUS=done
+Wed Aug 19 19:52:29 CEST 2026

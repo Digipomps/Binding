@@ -1,0 +1,80 @@
+{
+  "name": "tree-confirmed-visible-nodes-wide",
+  "host": "porthole-webo.css light baseline",
+  "viewport": {
+    "width": 1280,
+    "height": 1000
+  },
+  "deviceScaleFactor": 2,
+  "materialized": false,
+  "styleNormalizationApplied": false,
+  "content": "▸\nRoot\nOther",
+  "fieldValues": [],
+  "expectedTextCount": 2,
+  "missingExpectedText": [],
+  "errors": [],
+  "geometry": {
+    "box": {
+      "x": 50,
+      "y": 16,
+      "width": 1180,
+      "height": 64,
+      "top": 16,
+      "right": 1230,
+      "bottom": 80,
+      "left": 50
+    },
+    "scrollWidth": 1180,
+    "clientWidth": 1180
+  },
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "▸",
+      "box": {
+        "x": 58,
+        "y": 18,
+        "width": 28,
+        "height": 28,
+        "top": 18,
+        "right": 86,
+        "bottom": 46,
+        "left": 58
+      },
+      "font": "13.3333px Arial",
+      "color": "rgb(15, 23, 42)",
+      "background": "rgba(0, 0, 0, 0) none repeat scroll 0% 0% / auto padding-box border-box",
+      "padding": "0px",
+      "border": "0px none rgb(15, 23, 42)",
+      "borderRadius": "0px",
+      "boxSizing": "border-box"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "▸",
+      "box": {
+        "x": 58,
+        "y": 50,
+        "width": 28,
+        "height": 28,
+        "top": 50,
+        "right": 86,
+        "bottom": 78,
+        "left": 58
+      },
+      "font": "13.3333px Arial",
+      "color": "rgb(15, 23, 42)",
+      "background": "rgba(0, 0, 0, 0) none repeat scroll 0% 0% / auto padding-box border-box",
+      "padding": "0px",
+      "border": "0px none rgb(15, 23, 42)",
+      "borderRadius": "0px",
+      "boxSizing": "border-box"
+    }
+  ],
+  "images": [],
+  "selectedTexts": [],
+  "assetHashes": {
+    "/css/porthole-webo.css": "07845ea4e7d0d0b71ce95bd042ace835fd98df5ec2ca69e1fd6d7f9247aca525",
+    "/js/skeleton-runtime.js": "4f957ac8206f6777b7845d3cc41eec10c94bfb7ca8ca572f77c95cff6735b508"
+  }
+}

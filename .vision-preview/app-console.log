@@ -1,0 +1,14 @@
+APNS registration failed: Error Domain=NSCocoaErrorDomain Code=3000 "fant ingen gyldig «aps-environment»-godkjenningsstreng for appen" UserInfo={NSLocalizedDescription=fant ingen gyldig «aps-environment»-godkjenningsstreng for appen}
+PerspectiveCell init. Owner: 3F846785-3C76-4769-89C6-618E26A1F624
+Loading perspectiveJsonData failed with error: Error Domain=NSCocoaErrorDomain Code=260 "The file “Perspective.json” couldn’t be opened because there is no such file." UserInfo={NSFilePath=/Users/kjetil/Library/Developer/CoreSimulator/Devices/60A4509A-5AD0-42B9-A1D0-7CEBA044F514/data/Containers/Data/Application/11DBBB05-007A-434E-A3F8-966FD266CD39/Library/Application Support/Binding/CellDocumentRoot/CellsContainer/83D63F2E-669E-4CC3-B40D-B8048AC6D244/Perspective.json, NSURL=file:///Users/kjetil/Library/Developer/CoreSimulator/Devices/60A4509A-5AD0-42B9-A1D0-7CEBA044F514/data/Containers/Data/Application/11DBBB05-007A-434E-A3F8-966FD266CD39/Library/Application%20Support/Binding/CellDocumentRoot/CellsContainer/83D63F2E-669E-4CC3-B40D-B8048AC6D244/Perspective.json, NSUnderlyingError=0x6000006c06c0 {Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"}}
+*************** Init Porthole view model! **********************
+PortholeBindingViewModel initialized
+Attaching resolverEmitter to Porthole with status: connected
+******** Got outward list (3) ********
+APNS registration failed: Error Domain=NSCocoaErrorDomain Code=3000 "fant ingen gyldig «aps-environment»-godkjenningsstreng for appen" UserInfo={NSLocalizedDescription=fant ingen gyldig «aps-environment»-godkjenningsstreng for appen}
+Initing Location Event Emitter
+******** Got history list (0) ********
+******** Got history list (0) ********
+Initing Entity Anchor (Apple) cell for owner: 3F846785-3C76-4769-89C6-618E26A1F624
+*********** Finished setup keys in Entity Anchor ***********
+org.digipomps.haven: 73632

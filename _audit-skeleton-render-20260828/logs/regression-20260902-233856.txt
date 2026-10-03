@@ -1,0 +1,34 @@
+=== CellProtocol: hele BridgeTests (sikrer at endringen ikke brakk noe) ===
+Test Case '-[CellBaseTests.BridgeTests testCellResolverRemoteBridgeRejectsCopiedDescriptorMissingOrWrongVaultProof]' passed (5.051 seconds).
+Test Case '-[CellBaseTests.BridgeTests testCellResolverRemoteBridgeSeparatesProofBearingPrincipalsWithSameUUID]' passed (10.150 seconds).
+Test Case '-[CellBaseTests.BridgeTests testCellResolverRemoteBridgeUsesOwnedPrincipalSnapshotAcrossCallerMutation]' passed (10.104 seconds).
+Test Case '-[CellBaseTests.BridgeTests testCellResolverRouteChurnDoesNotSwallowCallerCancellation]' passed (5.110 seconds).
+Test Case '-[CellBaseTests.BridgeTests testCellResolverRouteReplacementInvalidatesCachedRemoteBridge]' passed (10.182 seconds).
+Test Case '-[CellBaseTests.BridgeTests testCellResolverRouteReplacementWhileSetupIsPendingCannotPublishStaleBridge]' passed (10.135 seconds).
+Test Case '-[CellBaseTests.BridgeTests testCellResolverUnregisterRevokesCachedRemoteBridge]' passed (5.053 seconds).
+Test Case '-[CellBaseTests.BridgeTests testCellResolverUnregisterWhileSetupIsPendingCannotReturnOrPublishBridge]' passed (5.095 seconds).
+Test Case '-[CellBaseTests.BridgeTests testDedicatedBridgeConnectionURLCarriesProvidedQueryItems]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.BridgeTests testDedicatedBridgeConnectionURLHasNoQueryWithoutProvider]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.BridgeTests testInboundBridgeCanPinIdentityScopedPublisherLookupToRouteIdentity]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.BridgeTests testInboundBridgeResolvesIdentityScopedPublisherForCommandIdentity]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.BridgeTests testInboundBridgeSignCommandRejectsNonLocalIdentity]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.BridgeTests testInboundBridgeSignCommandRejectsRawPayload]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.BridgeTests testInboundBridgeSignCommandRejectsReplayedChallengeAndRecordsEvent]' passed (0.029 seconds).
+Test Case '-[CellBaseTests.BridgeTests testInboundBridgeSignCommandRejectsValidChallengeBeforeReady]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.BridgeTests testInboundBridgeSignCommandRespectsLocalQuarantineBeforeVaultSigning]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.BridgeTests testInboundBridgeSignCommandSignsKnownLocalIdentity]' passed (0.023 seconds).
+Test Case '-[CellBaseTests.BridgeTests testLegacyBridgeConfigInitializerDefaultsToOutboundWithoutDummyPublisher]' passed (0.000 seconds).
+Test Suite 'BridgeTests' passed at 2026-09-02 23:40:55.438.
+	 Executed 50 tests, with 0 failures (0 unexpected) in 107.354 (107.360) seconds
+Test Suite 'CellProtocolPackageTests.xctest' passed at 2026-09-02 23:40:55.438.
+	 Executed 50 tests, with 0 failures (0 unexpected) in 107.354 (107.360) seconds
+Test Suite 'Selected tests' passed at 2026-09-02 23:40:55.438.
+	 Executed 50 tests, with 0 failures (0 unexpected) in 107.354 (107.362) seconds
+CP_BRIDGE_EXIT=0
+
+=== CellProtocol: CellRuntimeEnvironmentTests (rører samme provider) ===
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+CP_ENV_EXIT=0
+DONE 21:40:56Z

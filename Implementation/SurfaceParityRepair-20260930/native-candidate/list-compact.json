@@ -1,0 +1,22 @@
+{
+  "materialized" : false,
+  "missingExpectedText" : [
+
+  ],
+  "observedStyleTokens" : [
+
+  ],
+  "pixelHeight" : 2000,
+  "pixelWidth" : 780,
+  "recognizedText" : "List Fixture\nRepeated list rows\nIngen handlinger kjørt ennå.\nAlpha row\nRelative keypaths inside SkeletonList\nstatus: ready\nBeta row\nLonger subtitle for wrapping\nstatus: stable\nB\nGamma row\nDeterministic third row\nstatus: done\nc\nNär listen er tom skal headeren fortsatt være lesbar.\nAck list",
+  "rootDataSupplied" : true,
+  "styleNormalizationApplied" : false,
+  "surface" : {
+    "backgroundHex" : "#FFFFFF",
+    "contentMaxWidth" : 1180,
+    "height" : 1000,
+    "isDarkMode" : false,
+    "padding" : 16,
+    "width" : 390
+  }
+}

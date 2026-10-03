@@ -1,0 +1,12 @@
+Writing result bundle at path:
+	/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/integrated-acceptance.xcresult
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64, id:00008142-001411C11A22401C, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Mac Catalyst, id:00008142-001411C11A22401C, name:My Mac }
+{ platform:macOS, arch:arm64, variant:DriverKit, id:00008142-001411C11A22401C, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:00008142-001411C11A22401C, name:My Mac }
+2026-09-30 02:33:02.341 xcodebuild[50916:32862980] [MT] IDETestOperationsObserverDebug: 39.358 elapsed -- Testing started completed.
+2026-09-30 02:33:02.341 xcodebuild[50916:32862980] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-09-30 02:33:02.341 xcodebuild[50916:32862980] [MT] IDETestOperationsObserverDebug: 39.358 sec, +39.358 sec -- end
+Testing started

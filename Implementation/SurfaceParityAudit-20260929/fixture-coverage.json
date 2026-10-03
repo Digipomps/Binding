@@ -1,0 +1,151 @@
+{
+  "method": "Dictionary-key inventory of published skeletons, not Swift decoder/render verification",
+  "enumCases": [
+    "AttachmentField",
+    "Button",
+    "ComponentSurface",
+    "Divider",
+    "FileUpload",
+    "Grid",
+    "HStack",
+    "Image",
+    "List",
+    "NavigationBar",
+    "Object",
+    "Picker",
+    "Reference",
+    "ScrollView",
+    "Section",
+    "Spacer",
+    "Tabs",
+    "Text",
+    "TextArea",
+    "TextField",
+    "Toggle",
+    "Tree",
+    "Unsupported",
+    "VStack",
+    "Visualization",
+    "ZStack"
+  ],
+  "covered": [
+    "Button",
+    "Divider",
+    "Grid",
+    "HStack",
+    "List",
+    "Section",
+    "Text",
+    "TextArea",
+    "TextField",
+    "VStack"
+  ],
+  "notCovered": [
+    "AttachmentField",
+    "ComponentSurface",
+    "FileUpload",
+    "Image",
+    "NavigationBar",
+    "Object",
+    "Picker",
+    "Reference",
+    "ScrollView",
+    "Spacer",
+    "Tabs",
+    "Toggle",
+    "Tree",
+    "Unsupported",
+    "Visualization",
+    "ZStack"
+  ],
+  "fixtures": [
+    {
+      "path": "/skeleton-parity/text/api/configuration",
+      "elementCases": [
+        "Button",
+        "Divider",
+        "Section",
+        "Text",
+        "VStack"
+      ]
+    },
+    {
+      "path": "/skeleton-parity/list/api/configuration",
+      "elementCases": [
+        "Button",
+        "List",
+        "Section",
+        "Text",
+        "VStack"
+      ]
+    },
+    {
+      "path": "/skeleton-parity/grid/api/configuration",
+      "elementCases": [
+        "Button",
+        "Grid",
+        "Section",
+        "Text",
+        "VStack"
+      ]
+    },
+    {
+      "path": "/skeleton-parity/form/api/configuration",
+      "elementCases": [
+        "Button",
+        "HStack",
+        "Section",
+        "Text",
+        "TextArea",
+        "TextField",
+        "VStack"
+      ]
+    },
+    {
+      "path": "/skeleton-parity/markdown/api/configuration",
+      "elementCases": [
+        "Button",
+        "Section",
+        "Text",
+        "VStack"
+      ]
+    },
+    {
+      "path": "/skeleton-parity/relative-keypath/api/configuration",
+      "elementCases": [
+        "List",
+        "Section",
+        "Text",
+        "VStack"
+      ]
+    },
+    {
+      "path": "/skeleton-parity/nested-reference/api/configuration",
+      "elementCases": [
+        "List",
+        "Section",
+        "Text",
+        "VStack"
+      ]
+    },
+    {
+      "path": "/skeleton-parity/remote-bridge/api/configuration",
+      "elementCases": [
+        "Button",
+        "Section",
+        "Text",
+        "VStack"
+      ]
+    },
+    {
+      "path": "/skeleton-parity/unavailable/api/configuration",
+      "elementCases": [
+        "Button",
+        "List",
+        "Section",
+        "Text",
+        "VStack"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+warning: could not open directory 'Binding.xcworkspace/xcshareddata/swiftpm/configuration/': Operation not permitted
+swift-driver version: 1.168.6 
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1827:20: warning: main actor-isolated property 'helperID' can not be referenced from a nonisolated context
+1825 | 
+1826 |         let baselineExactHits = zip(cases, baseline).filter { item, result in
+1827 |             result.helperID == item.expectedHelperID
+     |                    `- warning: main actor-isolated property 'helperID' can not be referenced from a nonisolated context
+1828 |                 && result.purposeRef == item.expectedPurposeRef
+1829 |                 && result.shouldSuggest
+
+Binding.BindingChatIntentClassification.helperID:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var helperID: String}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1828:27: warning: main actor-isolated property 'purposeRef' can not be referenced from a nonisolated autoclosure
+1826 |         let baselineExactHits = zip(cases, baseline).filter { item, result in
+1827 |             result.helperID == item.expectedHelperID
+1828 |                 && result.purposeRef == item.expectedPurposeRef
+     |                           `- warning: main actor-isolated property 'purposeRef' can not be referenced from a nonisolated autoclosure
+1829 |                 && result.shouldSuggest
+1830 |         }.count
+
+Binding.BindingChatIntentClassification.purposeRef:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var purposeRef: String}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1832:20: warning: main actor-isolated property 'helperID' can not be referenced from a nonisolated context
+1830 |         }.count
+1831 |         let perspectiveExactHits = zip(cases, withPerspective).filter { item, result in
+1832 |             result.helperID == item.expectedHelperID
+     |                    `- warning: main actor-isolated property 'helperID' can not be referenced from a nonisolated context
+1833 |                 && result.purposeRef == item.expectedPurposeRef
+1834 |                 && result.shouldSuggest
+
+Binding.BindingChatIntentClassification.helperID:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var helperID: String}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1833:27: warning: main actor-isolated property 'purposeRef' can not be referenced from a nonisolated autoclosure
+1831 |         let perspectiveExactHits = zip(cases, withPerspective).filter { item, result in
+1832 |             result.helperID == item.expectedHelperID
+1833 |                 && result.purposeRef == item.expectedPurposeRef
+     |                           `- warning: main actor-isolated property 'purposeRef' can not be referenced from a nonisolated autoclosure
+1834 |                 && result.shouldSuggest
+1835 |         }.count
+
+Binding.BindingChatIntentClassification.purposeRef:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var purposeRef: String}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1838:72: warning: main actor-isolated property 'confidence' can not be referenced from a nonisolated context
+1836 |         let baselineSuggestions = baseline.filter(\.shouldSuggest).count
+1837 |         let perspectiveSuggestions = withPerspective.filter(\.shouldSuggest).count
+1838 |         let averageBaselineConfidence = baseline.reduce(0.0) { $0 + $1.confidence } / Double(cases.count)
+     |                                                                        `- warning: main actor-isolated property 'confidence' can not be referenced from a nonisolated context
+1839 |         let averagePerspectiveConfidence = withPerspective.reduce(0.0) { $0 + $1.confidence } / Double(cases.count)
+1840 | 
+
+Binding.BindingChatIntentClassification.confidence:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var confidence: Double}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1839:82: warning: main actor-isolated property 'confidence' can not be referenced from a nonisolated context
+1837 |         let perspectiveSuggestions = withPerspective.filter(\.shouldSuggest).count
+1838 |         let averageBaselineConfidence = baseline.reduce(0.0) { $0 + $1.confidence } / Double(cases.count)
+1839 |         let averagePerspectiveConfidence = withPerspective.reduce(0.0) { $0 + $1.confidence } / Double(cases.count)
+     |                                                                                  `- warning: main actor-isolated property 'confidence' can not be referenced from a nonisolated context
+1840 | 
+1841 |         #expect(baselineExactHits == 0)
+
+Binding.BindingChatIntentClassification.confidence:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var confidence: Double}
+  |                         `- note: property declared here
+3 | 
+
+macro expansion #expect:1:41: warning: main actor-isolated property 'negativeIntent' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1857:59: note: expanded code originates here
+1855 |         )
+1856 |         #expect(negative.shouldSuggest == false)
+1857 |         #expect(negative.negativeIntent == "idea_capture")
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkBinaryOperation(negative.negativeIntent,{ $0 == $1() },"idea_capture",expression: .__fromBinaryOperation(.__fromSyntaxNode("negative.negativeIntent"),"==",.__fromStringLiteral(#""idea_capture""#, "idea_capture")),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                                         `- warning: main actor-isolated property 'negativeIntent' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+     +------------------------------------------------------------------
+1858 |     }
+1859 | 
+note: Run script build phase 'Embed Build Provenance' will be run during every build because the option to run the script phase "Based on dependency analysis" is unchecked. (in target 'HAVEN' from project 'Binding')

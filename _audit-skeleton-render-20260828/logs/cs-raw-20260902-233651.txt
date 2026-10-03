@@ -1,0 +1,232 @@
+[0/1] Planning build
+Building for debugging...
+[0/2] Write sources
+[1/2] Write swift-version--58304C5D6DBC2206.txt
+[3/6] Compiling App VaporButterpopStudio.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporButterpopStudio.swift:657:17: warning: variable 'response' was never mutated; consider changing to 'let' constant
+ 655 |                 resourceID: resourceID
+ 656 |             )
+ 657 |             var response = try jsonResponse(from: .object([
+     |                 `- warning: variable 'response' was never mutated; consider changing to 'let' constant
+ 658 |                 "status": .string("issued"),
+ 659 |                 "audioURL": .string(Self.playerAudioPath),
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporButterpopStudio.swift:829:17: warning: variable 'failure' was never mutated; consider changing to 'let' constant
+ 827 |         MusicPublishingPersistence.persist(delivery, owner: deliveryOwner)
+ 828 |         guard let tokenID = tokenID(from: value) else {
+ 829 |             var failure = try productActionResponse(value)
+     |                 `- warning: variable 'failure' was never mutated; consider changing to 'let' constant
+ 830 |             if let cookie { failure.cookies[Self.anonymousCookieName] = cookie }
+ 831 |             return failure
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporButterpopStudio.swift:833:13: warning: variable 'response' was never mutated; consider changing to 'let' constant
+ 831 |             return failure
+ 832 |         }
+ 833 |         var response = try jsonResponse(from: .object([
+     |             `- warning: variable 'response' was never mutated; consider changing to 'let' constant
+ 834 |             "status": .string("issued"),
+ 835 |             "access": .string(access),
+[4/7] Compiling App routes.swift
+[5/7] Compiling App VaporChatMVP.swift
+[6/7] Emitting module App
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:75:13: warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  73 |         var purposes: [String]
+  74 |         var matchmakingConsent: Bool
+  75 |         var purposeInterestValue: ValueType
+     |             `- warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  76 |     }
+  77 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   3 | 
+   4 | import Foundation
+   5 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   6 | 
+   7 | final class ConferenceRecommendationCell: GeneralCell {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:12:9: warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  10 | struct PortholeActionRequest: Content, Codable {
+  11 |     let keypath: String?
+  12 |     let payload: ValueType?
+     |         `- warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  13 |     let command: String?
+  14 |     let args: ValueType?
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:6:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   4 | import Foundation
+   5 | import Vapor
+   6 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   7 | import CellVapor
+   8 | import ScaffoldKit
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:14:9: warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  12 |     let payload: ValueType?
+  13 |     let command: String?
+  14 |     let args: ValueType?
+     |         `- warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  15 | 
+  16 |     var resolvedKeypath: String? {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserGatekeeper.swift:217:1: warning: extension declares a conformance of imported type 'PublicKeyCredentialCreationOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+215 | 
+216 | 
+217 | extension PublicKeyCredentialCreationOptions: AsyncResponseEncodable {
+    | |- warning: extension declares a conformance of imported type 'PublicKeyCredentialCreationOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+    | `- note: add '@retroactive' to silence this warning
+218 |     public func encodeResponse(for request: Request) async throws -> Response {
+219 |         var headers = HTTPHeaders()
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserGatekeeper.swift:225:1: warning: extension declares a conformance of imported type 'PublicKeyCredentialRequestOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+223 | }
+224 | 
+225 | extension PublicKeyCredentialRequestOptions: AsyncResponseEncodable {
+    | |- warning: extension declares a conformance of imported type 'PublicKeyCredentialRequestOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+    | `- note: add '@retroactive' to silence this warning
+226 |     public func encodeResponse(for request: Request) async throws -> Response {
+227 |         var headers = HTTPHeaders()
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/AdminActionAuditEvent.swift:11:9: warning: stored property '_id' of 'Sendable'-conforming class 'AdminActionAuditEvent' is mutable; this is an error in the Swift 6 language mode
+ 9 | 
+10 |     @ID
+11 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'AdminActionAuditEvent' is mutable; this is an error in the Swift 6 language mode
+12 | 
+13 |     @OptionalField(key: "actor_user_id")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/ChatRememberToken.swift:11:9: warning: stored property '_id' of 'Sendable'-conforming class 'ChatRememberToken' is mutable; this is an error in the Swift 6 language mode
+ 9 | 
+10 |     @ID
+11 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'ChatRememberToken' is mutable; this is an error in the Swift 6 language mode
+12 | 
+13 |     @Field(key: "jti")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/FidoUser.swift:15:9: warning: stored property '_id' of 'Sendable'-conforming class 'FidoUser' is mutable; this is an error in the Swift 6 language mode
+13 | 
+14 |     @ID
+15 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'FidoUser' is mutable; this is an error in the Swift 6 language mode
+16 | 
+17 |     @Field(key: "username")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/FundingRequest.swift:20:9: warning: stored property '_id' of 'Sendable'-conforming class 'FundingRequest' is mutable; this is an error in the Swift 6 language mode
+ 18 | 
+ 19 |     @ID
+ 20 |     var id: UUID?
+    |         `- warning: stored property '_id' of 'Sendable'-conforming class 'FundingRequest' is mutable; this is an error in the Swift 6 language mode
+ 21 | 
+ 22 |     @Parent(key: "user_id")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/GraphStoreEdgeRow.swift:10:9: warning: stored property '_id' of 'Sendable'-conforming class 'GraphStoreEdgeRow' is mutable; this is an error in the Swift 6 language mode
+ 8 | 
+ 9 |     @ID(custom: "id", generatedBy: .user)
+10 |     var id: String?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'GraphStoreEdgeRow' is mutable; this is an error in the Swift 6 language mode
+11 | 
+12 |     @Field(key: "cell_uuid")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/GraphStoreNodeRow.swift:10:9: warning: stored property '_id' of 'Sendable'-conforming class 'GraphStoreNodeRow' is mutable; this is an error in the Swift 6 language mode
+ 8 | 
+ 9 |     @ID(custom: "id", generatedBy: .user)
+10 |     var id: String?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'GraphStoreNodeRow' is mutable; this is an error in the Swift 6 language mode
+11 | 
+12 |     @Field(key: "cell_uuid")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/JWTRefreshToken.swift:11:9: warning: stored property '_id' of 'Sendable'-conforming class 'JWTRefreshToken' is mutable; this is an error in the Swift 6 language mode
+ 9 | 
+10 |     @ID
+11 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'JWTRefreshToken' is mutable; this is an error in the Swift 6 language mode
+12 | 
+13 |     @Field(key: "token_hash")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/PaymentAccessCredentialRecords.swift:11:9: warning: stored property '_id' of 'Sendable'-conforming class 'PaymentAccessCredentialIssueEvent' is mutable; this is an error in the Swift 6 language mode
+ 9 | 
+10 |     @ID(custom: "jti", generatedBy: .user)
+11 |     var id: String?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'PaymentAccessCredentialIssueEvent' is mutable; this is an error in the Swift 6 language mode
+12 | 
+13 |     @Field(key: "subject_id") var subjectID: String
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/PaymentAccessCredentialRecords.swift:62:9: warning: stored property '_id' of 'Sendable'-conforming class 'PaymentAccessCredentialConsumptionEvent' is mutable; this is an error in the Swift 6 language mode
+60 | 
+61 |     @ID(custom: "jti", generatedBy: .user)
+62 |     var id: String?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'PaymentAccessCredentialConsumptionEvent' is mutable; this is an error in the Swift 6 language mode
+63 | 
+64 |     @Field(key: "subject_id") var subjectID: String
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/TopUpAuditEvent.swift:11:9: warning: stored property '_id' of 'Sendable'-conforming class 'TopUpAuditEvent' is mutable; this is an error in the Swift 6 language mode
+ 9 | 
+10 |     @ID
+11 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'TopUpAuditEvent' is mutable; this is an error in the Swift 6 language mode
+12 | 
+13 |     @OptionalField(key: "actor_user_id")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/TopUpOrder.swift:22:9: warning: stored property '_id' of 'Sendable'-conforming class 'TopUpOrder' is mutable; this is an error in the Swift 6 language mode
+ 20 | 
+ 21 |     @ID
+ 22 |     var id: UUID?
+    |         `- warning: stored property '_id' of 'Sendable'-conforming class 'TopUpOrder' is mutable; this is an error in the Swift 6 language mode
+ 23 | 
+ 24 |     @Parent(key: "user_id")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/TopUpSettlementOutbox.swift:20:9: warning: stored property '_id' of 'Sendable'-conforming class 'TopUpSettlementOutbox' is mutable; this is an error in the Swift 6 language mode
+18 | 
+19 |     @ID
+20 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'TopUpSettlementOutbox' is mutable; this is an error in the Swift 6 language mode
+21 | 
+22 |     @Parent(key: "order_id")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/UsageMeterEvent.swift:11:9: warning: stored property '_id' of 'Sendable'-conforming class 'UsageMeterEvent' is mutable; this is an error in the Swift 6 language mode
+ 9 | 
+10 |     @ID
+11 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'UsageMeterEvent' is mutable; this is an error in the Swift 6 language mode
+12 | 
+13 |     @Field(key: "schema_version")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/WebAuthnCredential.swift:12:9: warning: stored property '_id' of 'Sendable'-conforming class 'WebAuthnCredential' is mutable; this is an error in the Swift 6 language mode
+10 | 
+11 |     @ID(custom: "id", generatedBy: .user)
+12 |     var id: String?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'WebAuthnCredential' is mutable; this is an error in the Swift 6 language mode
+13 | 
+14 |     @Field(key: "public_key")
+[7/7] Compiling App VaporCellBridge.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:161:28: error: static member 'securityHeaders' cannot be used on instance of type 'VaporCellBridge'
+159 |                         audience: audience
+160 |                     )
+161 |                     return securityHeaders()
+    |                            `- error: static member 'securityHeaders' cannot be used on instance of type 'VaporCellBridge'
+162 |                 } catch {
+163 |                     let reason = (error as? ProofError)?.rawValue ?? "rejected"

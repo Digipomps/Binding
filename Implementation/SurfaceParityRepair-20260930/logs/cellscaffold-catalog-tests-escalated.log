@@ -1,0 +1,1650 @@
+Isolated HOME: /var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/cellscaffold-test-home.tyTisLm2af
+Bounded SwiftPM entrypoint: /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/scripts/run_swift_bounded.sh
+Build capacity: 62.9 GiB free (6%); reserving 10 GiB leaves 52.9 GiB (5%).
+[haven-swiftpm] running swift test with cache 28516ddea851
+warning: 'bigint': /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/BigInt/Package.swift:18:19: warning: 'v4' is deprecated: watchOS 9.0 is the oldest supported version [#DeprecatedDeclaration]
+16 |         .iOS(.v12),
+17 |         .tvOS(.v12),
+18 |         .watchOS(.v4),
+   |                   `- warning: 'v4' is deprecated: watchOS 9.0 is the oldest supported version [#DeprecatedDeclaration]
+19 |         .macCatalyst(.v13),
+20 |         .visionOS(.v1),
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+Building for debugging...
+[Computing dependencies]
+[Constructing description]
+[Pre-planning 1 / 4868]
+[Planning 1 / 4868]
+[Planning 2358 / 4868]
+[Planning 3614 / 4868]
+[Planning 4750 / 4868]
+[Planning deferred tasks]
+[Constructing 101 / 11757]
+[Constructing 4744 / 11757]
+[Starting]
+[1 / 593] swift-crypto_CryptoExtras
+[54 / 629] NodeAdminDockerCollector-product
+[136 / 635] CellsContainer_AppTests
+[137 / 635]
+[140 / 603] _NIOBase64
+[142 / 609] _NIOBase64
+[143 / 609] _CertificateInternals
+[146 / 611] _CertificateInternals
+[148 / 633] SwiftDagre
+[156 / 635] SwiftASN1
+[161 / 650] SystemPackage
+[163 / 661] SwiftASN1
+[172 / 674] RealModule
+[173 / 685] OpenCombine
+[173 / 685] SwiftASN1
+[181 / 687] NIOConcurrencyHelpers
+[183 / 696] NIOConcurrencyHelpers
+[183 / 696] OpenCombine
+[195 / 710] NIOConcurrencyHelpers
+[199 / 726] HavenCoreSchemas
+[207 / 728] DevelopmentStatusSnapshotProducerCore
+[209 / 730] FeedKit
+[214 / 745] CryptoSwiftResources
+[223 / 748] Crypto
+[225 / 757] FeedKit
+[231 / 774] Crypto
+[239 / 779] CodableHelpers
+[249 / 786] BigInt
+[254 / 809] Atomics
+[255 / 809] BrowserIdentityRecoveryPOSIX
+[257 / 809] _NIODataStructures
+[262 / 810] _NIOBase64
+[264 / 810] _CertificateInternals
+[271 / 812] SystemPackage
+[276 / 813] SystemPackage
+[278 / 813] SystemPackage
+[279 / 813] SystemPackage
+[281 / 813] SystemPackage
+[282 / 813] SwiftDagre
+[283 / 813] SwiftDagre
+[286 / 813] SwiftDagre
+[289 / 816] SwiftDagre
+[290 / 816] SwiftDagre
+[290 / 827] SwiftDagre
+[292 / 827] SwiftDagre
+[293 / 827] SwiftDagre
+[294 / 827] SwiftDagre
+[301 / 828] SwiftCBOR
+[303 / 828] SwiftCBOR
+[305 / 828] SwiftCBOR
+[306 / 828] SwiftCBOR
+[307 / 828] SwiftCBOR
+[309 / 828] SwiftASN1
+[310 / 828] SwiftASN1
+[314 / 828] SwiftASN1
+[317 / 828] SwiftASN1
+[319 / 828] SwiftASN1
+[320 / 828] ServiceContextModule
+[323 / 831] Instrumentation
+[328 / 837] RealModule
+[335 / 840] RealModule
+[339 / 852] RealModule
+[340 / 852] RealModule
+[341 / 852] Algorithms
+[347 / 853] Algorithms
+[349 / 853] OpenCombine
+[351 / 859] OpenCombineFoundation
+[353 / 859] OpenCombine
+[355 / 872] OpenCombineDispatch
+[363 / 874] OpenCombineFoundation
+[364 / 874] OpenCombineFoundation
+[367 / 874] OpenCombineFoundation
+[370 / 874] OpenCombineFoundation
+[371 / 874] OpenCombineDispatch
+[373 / 875] CombineHelpers
+[377 / 879] OpenCombineDispatch
+[379 / 879] OpenCombine
+[380 / 879] NodeAdminDockerCollectorTests-product
+[383 / 880] NIOConcurrencyHelpers
+[389 / 882] _NIODataStructures
+[392 / 883] _NIODataStructures
+[398 / 883] Logging
+[400 / 883] Logging
+[402 / 889] RoutingKit
+[405 / 895] RoutingKit
+[409 / 907] RoutingKit
+[413 / 907] RoutingKit
+[415 / 907] Logging
+[421 / 908] InternalCollectionsUtilities
+[424 / 908] InternalCollectionsUtilities
+[428 / 920] HeapModule
+[431 / 949] HeapModule
+[432 / 949] HeapModule
+[440 / 983] BitCollections
+[448 / 985] _RopeModule
+[449 / 985] _RopeModule
+[450 / 985] _RopeModule
+[451 / 985] _RopeModule
+[452 / 985] _RopeModule
+[454 / 985] _RopeModule
+[455 / 985] _RopeModule
+[456 / 985] _RopeModule
+[457 / 985] OrderedCollections
+[458 / 985] OrderedCollections
+[461 / 986] _RopeModule
+[464 / 986] OrderedCollections
+[465 / 986] OrderedCollections
+[467 / 986] OrderedCollections
+[469 / 986] InternalCollectionsUtilities
+[471 / 986] InternalCollectionsUtilities
+[475 / 989] InternalCollectionsUtilities
+[481 / 997] Tracing
+[483 / 997] Tracing
+[487 / 998] Tracing
+[490 / 998] Tracing
+[496 / 998] HeapModule
+[500 / 998] HeapModule
+[502 / 998] HavenCoreSchemas
+[505 / 1004] TaxonomyResolver
+[508 / 1007] TaxonomyResolver
+[513 / 1009] HavenCoreSchemas
+[515 / 1009] TaxonomyResolver
+[518 / 1010] KeyPathResolver
+[522 / 1017] KeyPathResolver
+[524 / 1017] KeyPathResolver
+[526 / 1017] KeyPathResolver
+[528 / 1017] HashTreeCollections
+[529 / 1017] HashTreeCollections
+[531 / 1018] HashTreeCollections
+[535 / 1018] HashTreeCollections
+[538 / 1018] FeedKit
+[539 / 1018] FeedKit
+[542 / 1019] HashTreeCollections
+[544 / 1019] FeedKit
+[546 / 1019] FeedKit
+[547 / 1019] FeedKit
+[549 / 1019] FeedKit
+[550 / 1019] DevelopmentStatusSnapshotProducer-product
+[554 / 1022] CryptoSwift
+[555 / 1022] CryptoSwiftResources
+[559 / 1033] CryptoSwift
+[560 / 1033] CryptoSwift
+[561 / 1033] CryptoSwift
+[562 / 1033] CryptoSwift
+[564 / 1033] CryptoSwift
+[566 / 1034] CryptoSwift
+[568 / 1034] CryptoSwift
+[570 / 1034] CryptoSwift
+[571 / 1034] CryptoSwift
+[573 / 1034] CryptoBoringWrapper
+[575 / 1034] CryptoBoringWrapper
+[577 / 1034] CryptoBoringWrapper
+[578 / 1034] CryptoBoringWrapper
+[580 / 1034] Crypto
+[583 / 1040] CryptoExtras
+[585 / 1043] DiMyPaymentTypes
+[586 / 1054] CryptoExtras
+[594 / 1062] DiMyMintCore
+[595 / 1062] DiMyMintClient
+[600 / 1074] DiMyMintClient
+[607 / 1076] DiMyMintCore
+[608 / 1076] DiMyMintCore
+[611 / 1076] DiMyMintCore
+[612 / 1076] DiMyMintCore
+[614 / 1076] DiMyMintClient
+[616 / 1080] DiMyWalletCell
+[618 / 1082] DiMyWalletCell
+[619 / 1084] DiMyMintCore
+[627 / 1087] DiMyAccessCell
+[631 / 1088] CryptoExtras
+[634 / 1088] DiMyAccessCell
+[635 / 1088] CryptoExtras
+[637 / 1091] _CryptoExtras
+[639 / 1093] _CryptoExtras
+[642 / 1093] _CryptoExtras
+[644 / 1094] CryptoExtras
+[650 / 1100] X509
+[651 / 1100] WebAuthn
+[652 / 1111] X509
+[654 / 1122] X509
+[655 / 1122] WebAuthn
+[656 / 1122] X509
+[662 / 1123] X509
+[665 / 1124] X509
+[668 / 1127] X509
+[669 / 1138] JWTKit
+[670 / 1138] X509
+[672 / 1138] X509
+[675 / 1139] JWTKit
+[677 / 1139] WebAuthn
+[680 / 1139] WebAuthn
+[682 / 1139] WebAuthn
+[685 / 1139] WebAuthn
+[687 / 1139] JWTKit
+[690 / 1139] JWTKit
+[692 / 1139] JWTKit
+[694 / 1139] JWTKit
+[696 / 1139] JWTKit
+[699 / 1139] Crypto
+[703 / 1139] Crypto
+[706 / 1139] CoreMetrics
+[708 / 1142] Metrics
+[710 / 1144] Metrics
+[711 / 1144] Metrics
+[719 / 1145] ContainersPreview
+[724 / 1148] ContainersPreview
+[727 / 1159] DequeModule
+[729 / 1159] DequeModule
+[730 / 1159] DequeModule
+[731 / 1159] DequeModule
+[735 / 1159] DequeModule
+[737 / 1160] DequeModule
+[740 / 1166] AsyncAlgorithms
+[742 / 1177] Configuration
+[744 / 1188] DequeModule
+[751 / 1189] ContainersPreview
+[758 / 1190] ConsoleKitTerminal
+[760 / 1193] ConsoleKitCommands
+[761 / 1193] ConsoleKitTerminal
+[763 / 1204] ConsoleKitTerminal
+[764 / 1204] ConsoleKitTerminal
+[771 / 1205] ConsoleKitCommands
+[772 / 1205] ConsoleKitCommands
+[775 / 1205] ConsoleKitCommands
+[777 / 1208] ConsoleKit
+[780 / 1210] ConsoleKit
+[783 / 1210] ConsoleKit
+[788 / 1211] ConsoleKitCommands
+[790 / 1211] Configuration
+[793 / 1211] Configuration
+[795 / 1211] Configuration
+[797 / 1211] Configuration
+[798 / 1211] Configuration
+[799 / 1211] ConcurrencyHelpers
+[800 / 1214] ConcurrencyHelpers
+[806 / 1217] UnixSignals
+[808 / 1217] UnixSignals
+[816 / 1218] CodableHelpers
+[824 / 1220] CodableHelpers
+[827 / 1220] BitCollections
+[830 / 1222] BitCollections
+[833 / 1223] BitCollections
+[837 / 1224] HeapModule
+[839 / 1225] _RopeModule
+[843 / 1226] _RopeModule
+[846 / 1235] BigInt
+[853 / 1236] Collections
+[857 / 1236] BigInt
+[860 / 1236] BigInt
+[862 / 1236] BeautifulMermaid
+[866 / 1236] BeautifulMermaid
+[868 / 1236] BeautifulMermaid
+[869 / 1236] BeautifulMermaid
+[872 / 1236] Atomics
+[876 / 1241] _ConnectionPoolModule
+[877 / 1242] _ConnectionPoolModule
+[879 / 1253] _ConnectionPoolModule
+[881 / 1264] NIOCore
+[882 / 1264] _ConnectionPoolModule
+[886 / 1265] _ConnectionPoolModule
+[888 / 1265] _ConnectionPoolModule
+[890 / 1265] _ConnectionPoolModule
+[891 / 1265] _ConnectionPoolModule
+[892 / 1265] _ConnectionPoolModule
+[892 / 1265] NIOCore
+[893 / 1265] _ConnectionPoolModule
+[896 / 1265] NIOCore
+[899 / 1266] NIOCore
+[901 / 1266] NIOCore
+[902 / 1278] NIOCore
+[904 / 1278] NIOPosix
+[906 / 1289] SQLKit
+[907 / 1303] NIOFoundationEssentialsCompat
+[908 / 1303] SQLKit
+[916 / 1305] SQLKit
+[917 / 1309] NIOEmbedded
+[919 / 1309] NIOEmbedded
+[925 / 1311] NIOEmbedded
+[927 / 1311] SQLKit
+[930 / 1311] SQLKit
+[931 / 1311] SQLKit
+[932 / 1311] SQLKit
+[934 / 1311] NIOPosix
+[937 / 1311] NIOPosix
+[939 / 1314] _NIOFileSystem
+[941 / 1314] NIOPosix
+[943 / 1325] _NIOFileSystem
+[944 / 1325] _NIOFileSystem
+[946 / 1325] _NIOFileSystem
+[948 / 1326] _NIOFileSystem
+[950 / 1326] _NIOFileSystem
+[952 / 1329] NIOFileSystem
+[953 / 1329] _NIOFileSystem
+[954 / 1331] NIOFileSystem
+[955 / 1331] _NIOFileSystem
+[957 / 1331] _NIOFileSystem
+[959 / 1332] _NIOFileSystem
+[962 / 1332] NIOPosix
+[965 / 1333] _NIOFileSystemFoundationCompat
+[965 / 1335] NIOFoundationEssentialsCompat
+[967 / 1335] NIOFoundationEssentialsCompat
+[969 / 1338] _NIOFileSystemFoundationCompat
+[971 / 1338] _NIOFileSystemFoundationCompat
+[978 / 1342] NIO
+[984 / 1344] NIO
+[984 / 1344] NIOEmbedded
+[986 / 1345] NIOEmbedded
+[988 / 1345] NIOCore
+[991 / 1345] NIOCore
+[992 / 1345] NIOCore
+[993 / 1345] NIO
+[995 / 1357] NIOTLS
+[996 / 1357] NIOSOCKS
+[996 / 1363] NIOSOCKS
+[998 / 1374] NIOCore
+[1005 / 1376] NIOHTTP1
+[1009 / 1391] NIOTLS
+[1011 / 1394] NIOSSL
+[1019 / 1396] NIOTLS
+[1022 / 1407] NIOSSL
+[1025 / 1407] NIOSSL
+[1027 / 1408] NIOSSL
+[1029 / 1408] NIOSSL
+[1031 / 1411] Random
+[1032 / 1411] NIOSSL
+[1034 / 1419] Random
+[1035 / 1419] Random
+[1038 / 1420] NIOSSL
+[1042 / 1423] CellBase
+[1045 / 1423] NIOSSL
+[1048 / 1423] NIOSSL
+[1049 / 1436] CellBase
+[1051 / 1436] NIOSOCKS
+[1054 / 1436] NIOSOCKS
+[1055 / 1436] NIOSOCKS
+[1056 / 1436] NIOSOCKS
+[1057 / 1436] NIOSOCKS
+[1059 / 1436] NIOSOCKS
+[1061 / 1436] NIOSOCKS
+[1062 / 1436] NIOHTTP1
+[1065 / 1436] NIOHTTP1
+[1066 / 1451] NIOHTTP1
+[1068 / 1451] NIOHTTPCompression
+[1069 / 1468] NIOWebSocket
+[1070 / 1468] NIOHTTPCompression
+[1078 / 1470] NIOExtras
+[1078 / 1481] NIOExtras
+[1080 / 1492] NIOExtras
+[1082 / 1492] MultipartKit
+[1088 / 1504] NIOWebSocket
+[1097 / 1507] MultipartKit
+[1099 / 1507] NIOWebSocket
+[1101 / 1507] NIOWebSocket
+[1104 / 1507] NIOWebSocket
+[1107 / 1507] NIOWebSocket
+[1110 / 1507] NIOHTTPCompression
+[1111 / 1507] NIOHTTP1
+[1112 / 1507] NIOHTTP1
+[1114 / 1507] NIOHTTP1
+[1117 / 1507] NIOHTTP1
+[1119 / 1507] NIOHPACK
+[1120 / 1507] NIOHPACK
+[1124 / 1507] NIOHPACK
+[1126 / 1507] NIOHPACK
+[1129 / 1510] NIOHPACK
+[1130 / 1521] NIOHPACK
+[1132 / 1521] NIOHTTP2
+[1133 / 1521] NIOHTTP2
+[1135 / 1521] NIOHTTP2
+[1137 / 1522] NIOHTTP2
+[1141 / 1522] NIOHTTP2
+[1142 / 1522] NIOHTTP2
+[1143 / 1522] NIOHTTP2
+[1145 / 1522] NIOFoundationCompat
+[1149 / 1531] LeafKit
+[1151 / 1553] NIOTransportServices
+[1152 / 1564] LeafKit
+[1159 / 1566] SQLiteNIO
+[1161 / 1566] SQLiteNIO
+[1165 / 1567] SQLiteNIO
+[1170 / 1567] SQLiteNIO
+[1172 / 1567] NIOTransportServices
+[1173 / 1567] NIOTransportServices
+[1176 / 1567] NIOTransportServices
+[1179 / 1567] NIOTransportServices
+[1181 / 1567] NIOTransportServices
+[1182 / 1567] NIOTransportServices
+[1186 / 1567] NIOTransportServices
+[1189 / 1567] NIOExtras
+[1191 / 1570] NIOExtras
+[1194 / 1578] WebSocketKit
+[1196 / 1578] WebSocketKit
+[1198 / 1578] WebSocketKit
+[1201 / 1579] WebSocketKit
+[1205 / 1579] NIOExtras
+[1206 / 1579] NIOExtras
+[1209 / 1579] NIOExtras
+[1213 / 1579] MultipartKit
+[1214 / 1579] MultipartKit
+[1215 / 1579] MultipartKit
+[1219 / 1579] MultipartKit
+[1221 / 1579] MultipartKit
+[1222 / 1579] MultipartKit
+[1224 / 1579] LeafKit
+[1227 / 1579] LeafKit
+[1229 / 1579] LeafKit
+[1230 / 1579] LeafKit
+[1231 / 1579] LeafKit
+[1233 / 1579] LeafKit
+[1235 / 1579] CellBase
+[1237 / 1579] CellBase
+[1238 / 1579] CellBase
+[1240 / 1579] CellBase
+[1241 / 1582] CellBase
+[1243 / 1582] CellBase
+[1244 / 1591] DiMyCellProtocolCells
+[1245 / 1591] DiMyCellProtocolCells
+[1247 / 1591] DiMyCellProtocolCells
+[1248 / 1591] DiMyCellProtocolCells
+[1250 / 1592] DiMyCellProtocolCells
+[1254 / 1592] DiMyCellProtocolCells
+[1255 / 1592] DiMyCellProtocolCells
+[1257 / 1592] CellBase
+[1259 / 1592] CellBase
+[1260 / 1592] CellBase
+[1261 / 1592] Atomics
+[1263 / 1592] Atomics
+[1264 / 1592] Atomics
+[1266 / 1592] CellBase
+[1269 / 1595] AsyncAlgorithms
+[1273 / 1605] ServiceLifecycle
+[1275 / 1605] ServiceLifecycle
+[1279 / 1606] ServiceLifecycle
+[1282 / 1615] PostgresNIO
+[1283 / 1620] SystemMetrics
+[1285 / 1631] PostgresNIO
+[1285 / 1631] FluentKit
+[1288 / 1642] SystemMetrics
+[1289 / 1643] PostgresNIO
+[1300 / 1645] ServiceLifecycle
+[1302 / 1645] ServiceLifecycle
+[1306 / 1645] PostgresNIO
+[1307 / 1645] ServiceLifecycle
+[1309 / 1648] DiMyMintPersistence
+[1310 / 1648] DiMyMintPersistence
+[1311 / 1648] PostgresNIO
+[1312 / 1653] DiMyMintPersistence
+[1313 / 1653] PostgresNIO
+[1314 / 1653] DiMyMintPersistence
+[1315 / 1653] PostgresNIO
+[1318 / 1654] DiMyMintPersistence
+[1320 / 1654] PostgresNIO
+[1321 / 1654] FluentKit
+[1321 / 1654] PostgresNIO
+[1322 / 1654] FluentKit
+[1324 / 1657] FluentKit
+[1325 / 1657] FluentKit
+[1328 / 1668] FluentSQL
+[1329 / 1668] FluentSQL
+[1330 / 1668] FluentSQL
+[1334 / 1669] FluentSQL
+[1336 / 1669] FluentSQL
+[1339 / 1669] FluentSQL
+[1340 / 1669] FluentSQL
+[1341 / 1669] FluentSQL
+[1342 / 1669] FluentSQL
+[1343 / 1669] FluentKit
+[1346 / 1669] FluentKit
+[1347 / 1669] FluentKit
+[1349 / 1669] DiMyMintPersistence
+[1351 / 1669] DiMyMintPersistence
+[1353 / 1669] AsyncAlgorithms
+[1354 / 1669] AsyncAlgorithms
+[1357 / 1669] AsyncAlgorithms
+[1358 / 1669] AsyncAlgorithms
+[1359 / 1669] AsyncAlgorithms
+[1361 / 1669] Algorithms
+[1362 / 1669] Algorithms
+[1362 / 1669] AsyncAlgorithms
+[1363 / 1669] Algorithms
+[1365 / 1675] Algorithms
+[1367 / 1675] AsyncHTTPClient
+[1368 / 1676] AsyncKit
+[1369 / 1686] AsyncKit
+[1370 / 1697] AsyncHTTPClient
+[1371 / 1697] AsyncKit
+[1373 / 1697] AsyncHTTPClient
+[1381 / 1699] AsyncKit
+[1382 / 1699] AsyncKit
+[1384 / 1702] SQLiteKit
+[1387 / 1711] SQLiteKit
+[1389 / 1711] SQLiteKit
+[1391 / 1711] SQLiteKit
+[1394 / 1712] SQLiteKit
+[1397 / 1715] SQLiteKit
+[1399 / 1723] FluentSQLiteDriver
+[1400 / 1723] FluentSQLiteDriver
+[1404 / 1723] FluentSQLiteDriver
+[1406 / 1724] FluentSQLiteDriver
+[1410 / 1724] FluentSQLiteDriver
+[1412 / 1724] AsyncKit
+[1414 / 1724] AsyncHTTPClient
+[1416 / 1724] AsyncHTTPClient
+[1417 / 1724] AsyncHTTPClient
+[1419 / 1727] Vapor
+[1420 / 1727] AsyncKit
+[1422 / 1727] AsyncHTTPClient
+[1422 / 1738] AsyncHTTPClient
+[1424 / 1738] Vapor
+[1425 / 1738] Vapor
+[1427 / 1738] Vapor
+[1429 / 1738] Vapor
+[1430 / 1739] Vapor
+[1432 / 1739] Vapor
+[1434 / 1757] VaporTestUtils
+[1435 / 1757] UserSimulationScaffoldCore
+[1437 / 1762] Queues
+[1438 / 1762] VaporTestUtils
+[1441 / 1785] Leaf
+[1444 / 1792] Leaf
+[1444 / 1792] UserSimulationScaffoldCore
+[1454 / 1795] Leaf
+[1456 / 1806] Leaf
+[1458 / 1806] Leaf
+[1459 / 1820] XCTVapor
+[1462 / 1820] XCTVapor
+[1465 / 1829] VaporTestUtils
+[1468 / 1829] XCTVapor
+[1475 / 1831] XCTVapor
+[1476 / 1831] XCTVapor
+[1478 / 1831] XCTVapor
+[1481 / 1831] Vapor
+[1481 / 1831] VaporTestUtils
+[1483 / 1831] Vapor
+[1486 / 1831] UserSimulationScaffoldCore
+[1487 / 1831] UserSimulationScaffoldCore
+[1488 / 1831] UserSimulationScaffoldCore
+[1490 / 1831] UserSimulationScaffoldTests-product
+[1491 / 1831] UserSimulationScaffoldTests-product
+[1493 / 1831] UserSimulationScaffoldCore
+[1494 / 1831] UserSimulationScaffoldCore
+[1495 / 1831] UserSimulationScaffoldCore
+[1496 / 1831] UserSimulationScaffoldCore
+[1496 / 1831] UserSimulationScaffold-product
+[1497 / 1831] UserSimulationScaffold-product
+[1498 / 1831] Queues
+[1500 / 1831] Queues
+[1502 / 1831] Queues
+[1506 / 1831] Queues
+[1508 / 1831] Leaf
+[1510 / 1831] Queues
+[1512 / 1831] Leaf
+[1513 / 1831] Leaf
+[1514 / 1831] Leaf
+[1516 / 1831] Fluent
+[1519 / 1831] Fluent
+[1522 / 1834] Fluent
+[1523 / 1834] Fluent
+[1525 / 1845] QueuesFluentDriver
+[1526 / 1845] QueuesFluentDriver
+[1527 / 1845] QueuesFluentDriver
+[1530 / 1845] QueuesFluentDriver
+[1532 / 1846] QueuesFluentDriver
+[1535 / 1846] QueuesFluentDriver
+[1538 / 1846] QueuesFluentDriver
+[1539 / 1846] Fluent
+[1540 / 1846] Fluent
+[1543 / 1846] CellVapor
+[1546 / 1846] CellVapor
+[1548 / 1849] CellVapor
+[1550 / 1861] CellVapor
+[1551 / 1861] ScaffoldKit
+[1552 / 1861] ScaffoldKit
+[1555 / 1861] ScaffoldKit
+[1557 / 1863] ScaffoldKit
+[1560 / 1863] ScaffoldKit
+[1562 / 1869] ScaffoldTestKit
+[1563 / 1869] App
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/ScaffoldKit/BrowserClientIdentityVault.swift:1192:17: warning: variable 'newIdentity' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1190 |     var identity: Identity {
+1191 |         get {
+1192 |             var newIdentity = Identity(self.uuid, displayName: self.displayName, identityVault: nil)
+     |                 `- warning: variable 'newIdentity' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1193 |             
+1194 |             newIdentity.properties = self.properties
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/ScaffoldKit/BrowserClientIdentityVault.swift:1526:13: warning: initialization of immutable value 'valueCancellable' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+1524 |         print("Setting value for key: \(key)")
+1525 |         var localSelf = self
+1526 |         let valueCancellable = valuePublisher.sink(receiveCompletion:{
+     |             `- warning: initialization of immutable value 'valueCancellable' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+1527 |             print ("Value for key completion: \($0).")
+1528 |         } , receiveValue: { value in
+
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+[1564 / 1873] ScaffoldTestKit
+[1565 / 1873] ScaffoldTestKit
+[1567 / 1873] ScaffoldTestKit
+[1569 / 1875] ScaffoldTestKit
+[1573 / 1875] ScaffoldTestKit-product
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/ScaffoldKit/HostRoutedBridgeTransport.swift:98:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+ 96 |     public func setup(_ endpointURL: URL, identity: Identity) async throws {
+ 97 |         let transport = Self.makeTransport(for: endpointURL)
+ 98 |         lock.lock()
+    |              `- warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+ 99 |         activeTransport = transport
+100 |         let delegate = pendingDelegate
+
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/System/Library/Frameworks/Foundation.framework/Headers/NSLock.h:15:1: note: 'lock()' declared here
+ 13 | 
+ 14 | /// Attempts to acquire a lock, blocking a thread's execution until the lock can be acquired.
+ 15 | - (void)lock NS_SWIFT_UNAVAILABLE_FROM_ASYNC("Use async-safe scoped locking instead");
+    | `- note: 'lock()' declared here
+ 16 | 
+ 17 | /// Relinquishes a previously acquired lock.
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/ScaffoldKit/HostRoutedBridgeTransport.swift:101:14: warning: instance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+ 99 |         activeTransport = transport
+100 |         let delegate = pendingDelegate
+101 |         lock.unlock()
+    |              `- warning: instance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+102 |         if let delegate {
+103 |             transport.setDelegate(delegate)
+
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/System/Library/Frameworks/Foundation.framework/Headers/NSLock.h:18:1: note: 'unlock()' declared here
+ 16 | 
+ 17 | /// Relinquishes a previously acquired lock.
+ 18 | - (void)unlock NS_SWIFT_UNAVAILABLE_FROM_ASYNC("Use async-safe scoped locking instead");
+    | `- note: 'unlock()' declared here
+ 19 | 
+ 20 | @end
+[1574 / 1900] ScaffoldKit
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/ScaffoldKit/AdminScaffoldBridgeRoutes.swift:241:17: warning: variable 'headers' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+239 |                 credentialsExpiring: AdminCredentialRuntimeInventory.shared.expiringCount()
+240 |             )
+241 |             var headers = securityHeaders(contentType: "text/plain; version=0.0.4; charset=utf-8")
+    |                 `- warning: variable 'headers' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+242 |             return Response(status: .ok, headers: headers, body: .init(string: body))
+243 |         }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/ScaffoldKit/AdminScaffoldBridgeRoutes.swift:255:21: warning: variable 'response' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+253 |             guard requestAllowed else {
+254 |                 await context.operations.metrics.recordSnapshotRateLimited()
+255 |                 var response = try jsonResponse(
+    |                     `- warning: variable 'response' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+256 |                     status: .tooManyRequests,
+257 |                     value: .object([
+
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+[1575 / 1900] ScaffoldKit
+[1577 / 1900] ScaffoldKit
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/ScaffoldKit/PortholeRuntimeBindingEnsuring.swift:207:18: warning: 'restoreStoredOwnerIdentity(using:)' is deprecated: renamed to 'bindStoredOwnerToRuntimeIdentity(_:)' [#DeprecatedDeclaration]
+205 |         if PortholeRuntimeBindingIdentityKey.referencesSameCryptographicIdentity(candidate, requester),
+206 |            await identityIsBoundToAttachedHomeVault(requester),
+207 |            await restoreStoredOwnerIdentity(using: requester) {
+    |                  |- warning: 'restoreStoredOwnerIdentity(using:)' is deprecated: renamed to 'bindStoredOwnerToRuntimeIdentity(_:)' [#DeprecatedDeclaration]
+    |                  `- note: use 'bindStoredOwnerToRuntimeIdentity(_:)' instead
+208 |             return requester
+209 |         }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/ScaffoldKit/PortholeRuntimeBindingEnsuring.swift:213:18: warning: 'restoreStoredOwnerIdentity(using:)' is deprecated: renamed to 'bindStoredOwnerToRuntimeIdentity(_:)' [#DeprecatedDeclaration]
+211 |         if let hydratedOwner = try? await PaymentGateOwnerIdentitySupport.requireSigningIdentity(
+212 |             for: candidate
+213 |         ), await restoreStoredOwnerIdentity(using: hydratedOwner) {
+    |                  |- warning: 'restoreStoredOwnerIdentity(using:)' is deprecated: renamed to 'bindStoredOwnerToRuntimeIdentity(_:)' [#DeprecatedDeclaration]
+    |                  `- note: use 'bindStoredOwnerToRuntimeIdentity(_:)' instead
+214 |             return hydratedOwner
+215 |         }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/ScaffoldKit/PortholeRuntimeBindingEnsuring.swift:218:18: warning: 'restoreStoredOwnerIdentity(using:)' is deprecated: renamed to 'bindStoredOwnerToRuntimeIdentity(_:)' [#DeprecatedDeclaration]
+216 | 
+217 |         if await identityIsBoundToAttachedHomeVault(candidate),
+218 |            await restoreStoredOwnerIdentity(using: candidate) {
+    |                  |- warning: 'restoreStoredOwnerIdentity(using:)' is deprecated: renamed to 'bindStoredOwnerToRuntimeIdentity(_:)' [#DeprecatedDeclaration]
+    |                  `- note: use 'bindStoredOwnerToRuntimeIdentity(_:)' instead
+219 |             return candidate
+220 |         }
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[1578 / 1900] CellVapor
+[1580 / 1900] CellVapor
+[1581 / 1900] CellVapor
+[1582 / 1900] AsyncHTTPClient
+[1585 / 1900] AsyncHTTPClient
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/AI/KallimachosAdvisorCell.swift:1436:13: warning: stored property 'parsed' of 'Sendable'-conforming struct 'AdviceValidation' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+1434 | 
+1435 |     struct AdviceValidation: Sendable {
+1436 |         var parsed: ValueType?
+     |             `- warning: stored property 'parsed' of 'Sendable'-conforming struct 'AdviceValidation' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+1437 |         var contractParsed: Bool
+1438 |         var droppedTools: [String]
+
+CellBase.ValueType:1:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 1 | indirect public enum ValueType : Codable {
+   |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 2 |     case flowElement(CellBase.FlowElement)
+ 3 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/AI/KallimachosAdvisorCell.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+   3 | 
+   4 | import Foundation
+   5 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+   6 | import ScaffoldKit
+   7 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:75:13: warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  73 |         var purposes: [String]
+  74 |         var matchmakingConsent: Bool
+  75 |         var purposeInterestValue: ValueType
+     |             `- warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  76 |     }
+  77 | 
+
+CellBase.ValueType:1:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 1 | indirect public enum ValueType : Codable {
+   |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 2 |     case flowElement(CellBase.FlowElement)
+ 3 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+   3 | 
+   4 | import Foundation
+   5 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+   6 | 
+   7 | final class ConferenceRecommendationCell: GeneralCell {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/PortholeWebSessionSupport.swift:12:9: warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  10 | struct PortholeActionRequest: Content, Codable {
+  11 |     let keypath: String?
+  12 |     let payload: ValueType?
+     |         `- warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  13 |     let command: String?
+  14 |     let args: ValueType?
+
+CellBase.ValueType:1:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 1 | indirect public enum ValueType : Codable {
+   |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 2 |     case flowElement(CellBase.FlowElement)
+ 3 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/PortholeWebSessionSupport.swift:6:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+   4 | import Foundation
+   5 | import Vapor
+   6 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+   7 | import CellVapor
+   8 | import ScaffoldKit
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/PortholeWebSessionSupport.swift:14:9: warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  12 |     let payload: ValueType?
+  13 |     let command: String?
+  14 |     let args: ValueType?
+     |         `- warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  15 |     var sourceCellEndpoint: String? = nil
+  16 |     var mount: ComponentActionMount? = nil
+
+CellBase.ValueType:1:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 1 | indirect public enum ValueType : Codable {
+   |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 2 |     case flowElement(CellBase.FlowElement)
+ 3 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/VaporBrowserGatekeeper.swift:217:1: warning: extension declares a conformance of imported type 'PublicKeyCredentialCreationOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+215 | 
+216 | 
+217 | extension PublicKeyCredentialCreationOptions: AsyncResponseEncodable {
+    | |- warning: extension declares a conformance of imported type 'PublicKeyCredentialCreationOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+    | `- note: add '@retroactive' to silence this warning
+218 |     public func encodeResponse(for request: Request) async throws -> Response {
+219 |         var headers = HTTPHeaders()
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/VaporBrowserGatekeeper.swift:225:1: warning: extension declares a conformance of imported type 'PublicKeyCredentialRequestOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+223 | }
+224 | 
+225 | extension PublicKeyCredentialRequestOptions: AsyncResponseEncodable {
+    | |- warning: extension declares a conformance of imported type 'PublicKeyCredentialRequestOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+    | `- note: add '@retroactive' to silence this warning
+226 |     public func encodeResponse(for request: Request) async throws -> Response {
+227 |         var headers = HTTPHeaders()
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Models/AdminActionAuditEvent.swift:11:9: warning: stored property '_id' of 'Sendable'-conforming class 'AdminActionAuditEvent' is mutable; this is an error in the Swift 6 language mode
+ 9 | 
+10 |     @ID
+11 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'AdminActionAuditEvent' is mutable; this is an error in the Swift 6 language mode
+12 | 
+13 |     @OptionalField(key: "actor_user_id")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Models/ChatRememberToken.swift:11:9: warning: stored property '_id' of 'Sendable'-conforming class 'ChatRememberToken' is mutable; this is an error in the Swift 6 language mode
+ 9 | 
+10 |     @ID
+11 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'ChatRememberToken' is mutable; this is an error in the Swift 6 language mode
+12 | 
+13 |     @Field(key: "jti")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Models/FidoUser.swift:15:9: warning: stored property '_id' of 'Sendable'-conforming class 'FidoUser' is mutable; this is an error in the Swift 6 language mode
+13 | 
+14 |     @ID
+15 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'FidoUser' is mutable; this is an error in the Swift 6 language mode
+16 | 
+17 |     @Field(key: "username")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Models/FirstPartyAICharge.swift:10:23: warning: stored property '_id' of 'Sendable'-conforming class 'FirstPartyAICharge' is mutable; this is an error in the Swift 6 language mode
+ 8 | final class FirstPartyAICharge: Model {
+ 9 |     static let schema = "first_party_ai_charges"
+10 |     @ID(key: .id) var id: UUID?
+   |                       `- warning: stored property '_id' of 'Sendable'-conforming class 'FirstPartyAICharge' is mutable; this is an error in the Swift 6 language mode
+11 |     @Field(key: "subject_uuid") var subjectUUID: String
+12 |     @Field(key: "identity_domain") var identityDomain: String
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Models/FundingRequest.swift:20:9: warning: stored property '_id' of 'Sendable'-conforming class 'FundingRequest' is mutable; this is an error in the Swift 6 language mode
+ 18 | 
+ 19 |     @ID
+ 20 |     var id: UUID?
+    |         `- warning: stored property '_id' of 'Sendable'-conforming class 'FundingRequest' is mutable; this is an error in the Swift 6 language mode
+ 21 | 
+ 22 |     @Parent(key: "user_id")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Models/GraphStoreEdgeRow.swift:10:9: warning: stored property '_id' of 'Sendable'-conforming class 'GraphStoreEdgeRow' is mutable; this is an error in the Swift 6 language mode
+ 8 | 
+ 9 |     @ID(custom: "id", generatedBy: .user)
+10 |     var id: String?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'GraphStoreEdgeRow' is mutable; this is an error in the Swift 6 language mode
+11 | 
+12 |     @Field(key: "cell_uuid")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Models/GraphStoreNodeRow.swift:10:9: warning: stored property '_id' of 'Sendable'-conforming class 'GraphStoreNodeRow' is mutable; this is an error in the Swift 6 language mode
+ 8 | 
+ 9 |     @ID(custom: "id", generatedBy: .user)
+10 |     var id: String?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'GraphStoreNodeRow' is mutable; this is an error in the Swift 6 language mode
+11 | 
+12 |     @Field(key: "cell_uuid")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Models/JWTRefreshToken.swift:11:9: warning: stored property '_id' of 'Sendable'-conforming class 'JWTRefreshToken' is mutable; this is an error in the Swift 6 language mode
+ 9 | 
+10 |     @ID
+11 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'JWTRefreshToken' is mutable; this is an error in the Swift 6 language mode
+12 | 
+13 |     @Field(key: "token_hash")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Models/PaymentAccessCredentialRecords.swift:11:9: warning: stored property '_id' of 'Sendable'-conforming class 'PaymentAccessCredentialIssueEvent' is mutable; this is an error in the Swift 6 language mode
+ 9 | 
+10 |     @ID(custom: "jti", generatedBy: .user)
+11 |     var id: String?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'PaymentAccessCredentialIssueEvent' is mutable; this is an error in the Swift 6 language mode
+12 | 
+13 |     @Field(key: "subject_id") var subjectID: String
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Models/PaymentAccessCredentialRecords.swift:62:9: warning: stored property '_id' of 'Sendable'-conforming class 'PaymentAccessCredentialConsumptionEvent' is mutable; this is an error in the Swift 6 language mode
+60 | 
+61 |     @ID(custom: "jti", generatedBy: .user)
+62 |     var id: String?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'PaymentAccessCredentialConsumptionEvent' is mutable; this is an error in the Swift 6 language mode
+63 | 
+64 |     @Field(key: "subject_id") var subjectID: String
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Models/TopUpAccountingReceipt.swift:11:13: warning: stored property '_id' of 'Sendable'-conforming class 'TopUpAccountingReceipt' is mutable; this is an error in the Swift 6 language mode
+ 9 | final class TopUpAccountingReceipt: Model {
+10 |     static let schema = "topup_accounting_receipts"
+11 |     @ID var id: UUID?
+   |             `- warning: stored property '_id' of 'Sendable'-conforming class 'TopUpAccountingReceipt' is mutable; this is an error in the Swift 6 language mode
+12 |     @Field(key: "grant_id") var grantID: String
+13 |     @Field(key: "subject_uuid") var subjectUUID: String
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Models/TopUpAuditEvent.swift:11:9: warning: stored property '_id' of 'Sendable'-conforming class 'TopUpAuditEvent' is mutable; this is an error in the Swift 6 language mode
+ 9 | 
+10 |     @ID
+11 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'TopUpAuditEvent' is mutable; this is an error in the Swift 6 language mode
+12 | 
+13 |     @OptionalField(key: "actor_user_id")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Models/TopUpOrder.swift:22:9: warning: stored property '_id' of 'Sendable'-conforming class 'TopUpOrder' is mutable; this is an error in the Swift 6 language mode
+ 20 | 
+ 21 |     @ID
+ 22 |     var id: UUID?
+    |         `- warning: stored property '_id' of 'Sendable'-conforming class 'TopUpOrder' is mutable; this is an error in the Swift 6 language mode
+ 23 | 
+ 24 |     @Parent(key: "user_id")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Models/TopUpSettlementOutbox.swift:20:9: warning: stored property '_id' of 'Sendable'-conforming class 'TopUpSettlementOutbox' is mutable; this is an error in the Swift 6 language mode
+18 | 
+19 |     @ID
+20 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'TopUpSettlementOutbox' is mutable; this is an error in the Swift 6 language mode
+21 | 
+22 |     @Parent(key: "order_id")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Models/UsageMeterEvent.swift:11:9: warning: stored property '_id' of 'Sendable'-conforming class 'UsageMeterEvent' is mutable; this is an error in the Swift 6 language mode
+ 9 | 
+10 |     @ID
+11 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'UsageMeterEvent' is mutable; this is an error in the Swift 6 language mode
+12 | 
+13 |     @Field(key: "schema_version")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Models/WebAuthnCredential.swift:12:9: warning: stored property '_id' of 'Sendable'-conforming class 'WebAuthnCredential' is mutable; this is an error in the Swift 6 language mode
+10 | 
+11 |     @ID(custom: "id", generatedBy: .user)
+12 |     var id: String?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'WebAuthnCredential' is mutable; this is an error in the Swift 6 language mode
+13 | 
+14 |     @Field(key: "public_key")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Support/IdentityLinkRendezvousStore.swift:68:9: warning: stored property 'sameEntityCredential' of 'Sendable'-conforming struct 'IdentityLinkCompletionPackage' has non-Sendable type 'VCClaim'; this is an error in the Swift 6 language mode
+ 66 |     var requestHash: String
+ 67 |     var approval: IdentityEnrollmentApproval
+ 68 |     var sameEntityCredential: VCClaim
+    |         `- warning: stored property 'sameEntityCredential' of 'Sendable'-conforming struct 'IdentityLinkCompletionPackage' has non-Sendable type 'VCClaim'; this is an error in the Swift 6 language mode
+ 69 |     var issuerIdentity: IdentityPublicKeyDescriptor
+ 70 |     var presentationChallenge: Data
+
+CellBase.VCClaim:1:15: note: struct 'VCClaim' does not conform to the 'Sendable' protocol
+ 1 | public struct VCClaim : Codable {
+   |               `- note: struct 'VCClaim' does not conform to the 'Sendable' protocol
+ 2 |     public let uuid: String
+ 3 |     public var context: [String]?
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Support/IdentityLinkRendezvousStore.swift:10:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  8 | 
+  9 | import Foundation
+ 10 | import CellBase
+    | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+ 11 | 
+ 12 | /// Det QR-koden bærer. Ingen felt gir rettigheter alene.
+
+[#AddPreconcurrencyImport]: <https://docs.swift.org/compiler/documentation/diagnostics/add-preconcurrency-import>
+[1586 / 1900] App
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:440:17: warning: variable 'resultString' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 438 |         await addInterceptForGet(requester: owner, key: "setupMenus", getValueIntercept:  { [weak self] keypath, requester in
+ 439 |             guard let self = self else { return .string("failure") }
+ 440 |             var resultString = "denied"
+     |                 `- warning: variable 'resultString' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 441 |             if await self.validateAccess("r---", at: "skeleton", for: requester) {
+ 442 |                 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1349:13: warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1347 |         var menuItems = Object()
+1348 |         
+1349 |         var cellReference1 = CellReference(endpoint: "cell:///TimesWrapper", label: "times")
+     |             `- warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1350 | //        cellReference1.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1351 |         let cellConfiguration1 = CellConfiguration(name: "Times", cellReferences: [cellReference1])
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1354:13: warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1352 |         
+1353 |         
+1354 |         var cellReference2 = CellReference(endpoint: "cell:///EntitiesWrapper", label: "entities")
+     |             `- warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1355 | //        cellReference2.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1356 |         let cellConfiguration2 = CellConfiguration(name: "Entities", cellReferences: [cellReference2])
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/SimpleProjectManager/ProjectOverviewCell.swift:38:13: warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+36 |     
+37 |     required init(from decoder: Decoder) throws {
+38 |         let container = try decoder.container(keyedBy: CodingKeys.self)
+   |             `- warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+39 |         try super.init(from: decoder)
+40 |         
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/SimpleProjectManager/ScaffoldOrchestratorCell.swift:311:15: warning: 'setInterceptValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+ 309 | 
+ 310 |         
+ 311 |         await setInterceptValueForKey(requester: owner, key: "skeleton", setValueForKeyIntercept:  { [weak self] requester in
+     |               `- warning: 'setInterceptValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+ 312 |             guard let self = self else { return .string("failure") }
+ 313 |             var resultString = "denied"
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/SimpleProjectManager/ScaffoldOrchestratorCell.swift:342:15: warning: 'setInterceptValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+ 340 |         })
+ 341 |         
+ 342 |         await setInterceptValueForKey(requester: owner, key: "setupMenus", setValueForKeyIntercept:  { [weak self] requester in
+     |               `- warning: 'setInterceptValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+ 343 |             guard let self = self else { return .string("failure") }
+ 344 |             var resultString = "denied"
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/SimpleProjectManager/ScaffoldOrchestratorCell.swift:344:17: warning: variable 'resultString' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 342 |         await setInterceptValueForKey(requester: owner, key: "setupMenus", setValueForKeyIntercept:  { [weak self] requester in
+ 343 |             guard let self = self else { return .string("failure") }
+ 344 |             var resultString = "denied"
+     |                 `- warning: variable 'resultString' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 345 |             if await self.validateAccess("r---", at: "skeleton", for: requester) {
+ 346 |                 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/SimpleProjectManager/ScaffoldOrchestratorCell.swift:850:11: warning: initialization of variable 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 848 |     
+ 849 |     override func encode(to encoder: Encoder) throws {
+ 850 |       var container = encoder.container(keyedBy: CodingKeys.self)
+     |           `- warning: initialization of variable 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 851 |         try super.encode(to: encoder)
+ 852 |     }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/SimpleProjectManager/SimpleChatCell.swift:51:15: warning: 'setInterceptValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+ 49 |         })
+ 50 |         
+ 51 |         await setInterceptValueForKey(requester: owner, key: "stop", setValueForKeyIntercept:  { [weak self] requester in
+    |               `- warning: 'setInterceptValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+ 52 |             guard let self = self else { return .string("failure") }
+ 53 |             var resultString = "denied"
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/SimpleProjectManager/SimpleChatCell.swift:74:13: warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 72 |     
+ 73 |     required init(from decoder: Decoder) throws {
+ 74 |         let container = try decoder.container(keyedBy: CodingKeys.self)
+    |             `- warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 75 |         try super.init(from: decoder)
+ 76 |         
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/SimpleProjectManager/SimpleChatWrapperCell.swift:56:13: warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+54 |     
+55 |     required init(from decoder: Decoder) throws {
+56 |         let container = try decoder.container(keyedBy: CodingKeys.self)
+   |             `- warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+57 |         try super.init(from: decoder)
+58 | //        
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/SimpleProjectManager/TestCellWebEmbed.swift:64:15: warning: 'setInterceptValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+ 62 |         })
+ 63 |         
+ 64 |         await setInterceptValueForKey(requester: owner, key: "skeleton", setValueForKeyIntercept:  { [weak self] requester in
+    |               `- warning: 'setInterceptValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+ 65 |             guard let self = self else { return .string("failure") }
+ 66 |             var resultString = "denied"
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/SimpleProjectManager/TestCellWebEmbed.swift:84:13: warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 82 |     
+ 83 |     required init(from decoder: Decoder) throws {
+ 84 |         let container = try decoder.container(keyedBy: CodingKeys.self)
+    |             `- warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 85 |         try super.init(from: decoder)
+ 86 |         
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/SimpleProjectManager/TimesWrapperCell.swift:54:13: warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 52 |     
+ 53 |     required init(from decoder: Decoder) throws {
+ 54 |         let container = try decoder.container(keyedBy: CodingKeys.self)
+    |             `- warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 55 |         try super.init(from: decoder)
+ 56 | //        
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/UniversalResolver/DIDTestingCell.swift:171:11: warning: initialization of variable 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+169 |     
+170 |     override func encode(to encoder: Encoder) throws {
+171 |       var container = encoder.container(keyedBy: CodingKeys.self)
+    |           `- warning: initialization of variable 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+172 |         try super.encode(to: encoder)
+173 |     }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/UniversalResolver/DIDTestingCell.swift:211:13: warning: variable 'vClaim' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+209 |     
+210 |     private func verify(claim: VCClaim, requester: Identity) async throws -> Bool {
+211 |         var vClaim = claim
+    |             `- warning: variable 'vClaim' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+212 |         var verified = false
+213 |         let issuerDID = claim.issuer
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/UniversalResolver/DIDTestingCell.swift:213:13: warning: initialization of immutable value 'issuerDID' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+211 |         var vClaim = claim
+212 |         var verified = false
+213 |         let issuerDID = claim.issuer
+    |             `- warning: initialization of immutable value 'issuerDID' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+214 |         
+215 |         var did = ""
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/UniversalResolver/DIDTestingCell.swift:253:17: warning: initialization of immutable value 'uuid' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+251 |             
+252 |             
+253 |             let uuid = try self.stringFrom(string: did, index: 9)
+    |                 `- warning: initialization of immutable value 'uuid' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+254 |             
+255 |             guard let vault = CellBase.defaultIdentityVault else {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/UniversalResolver/DIDTestingCell.swift:259:17: warning: initialization of immutable value 'identity' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+257 |             }
+258 |             
+259 |             let identity = await vault.identity(for: did, makeNewIfNotFound: false)
+    |                 `- warning: initialization of immutable value 'identity' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+260 |             // 2. find identity with uuid
+261 |             // 3. get DIDDocument represenation of Identity
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/UniversalResolver/UniversalResolverCell.swift:55:13: warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+53 |     
+54 |     required init(from decoder: Decoder) throws {
+55 |         let container = try decoder.container(keyedBy: CodingKeys.self)
+   |             `- warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+56 |         try super.init(from: decoder)
+57 |         
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+[1589 / 1900] App
+[1591 / 1900] App
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/CellRegister/RegisterCellOwnerCell.swift:82:11: warning: initialization of variable 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 80 |     
+ 81 |     override func encode(to encoder: Encoder) throws {
+ 82 |       var container = encoder.container(keyedBy: CodingKeys.self)
+    |           `- warning: initialization of variable 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 83 |         try super.encode(to: encoder)
+ 84 |     }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/CellRegister/SMICell.swift:39:11: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+ 37 | //            try self.agreementTemplate.addCondition(proveCondition)
+ 38 |             
+ 39 |         } catch {
+    |           `- warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+ 40 |             print("SMICell setupPermissions conditions failed with error: \(error)")
+ 41 |         }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/CellRegister/SMICell.swift:74:17: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 72 |                 
+ 73 |                 flowElement.origin = self.uuid
+ 74 |                 await self.pushFlowElement(flowElement, requester: issuerIdentity)
+    |                 `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 75 |                 print("minted VC for \(requester.uuid)")
+ 76 |                 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/CellRegister/SMICell.swift:201:11: warning: initialization of variable 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+199 |     
+200 |     override func encode(to encoder: Encoder) throws {
+201 |       var container = encoder.container(keyedBy: CodingKeys.self)
+    |           `- warning: initialization of variable 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+202 |         try super.encode(to: encoder)
+203 |     }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/CellRegister/SMICell.swift:216:21: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+214 |     
+215 |     func mintVerifiableCredential(for subjectValue: Object, requester: Identity, issuerIdentity: Identity) async throws -> ValueType { // is it better to return VCClaim?
+216 |         var claim = try VCClaim(issuerIdentity: issuerIdentity, subjectIdentity: requester, credentialSubject: subjectValue)
+    |                     `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+217 |         
+218 |         try await claim.generateProof(issuerIdentity: issuerIdentity)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/CellRegister/SMIProductCell.swift:46:23: warning: value 'self' was defined but never used; consider replacing with boolean test [#NoUsage]
+ 44 |         await addInterceptForSet(requester: owner, key: "getProduct", setValueIntercept:  {
+ 45 |             [weak self] keypath, value, requester in
+ 46 |             guard let self = self else { return .string("failure") }
+    |                       `- warning: value 'self' was defined but never used; consider replacing with boolean test [#NoUsage]
+ 47 |             print("SMI Cell set addClaim. Keypath: \(keypath) value: \(try value.jsonString())")
+ 48 |         guard case let  .object(paramObject) = value else {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/CellRegister/SMIProductCell.swift:58:37: warning: immutable value 'claimObject' was never used; consider replacing with '_' or removing it [#NoUsage]
+ 56 |             }
+ 57 |             
+ 58 |             guard case  .object(let claimObject) = claimValue else {
+    |                                     `- warning: immutable value 'claimObject' was never used; consider replacing with '_' or removing it [#NoUsage]
+ 59 |                 throw SetValueError.paramErr
+ 60 |             }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/CellRegister/SMIProductCell.swift:78:24: warning: value 'self' was defined but never used; consider replacing with boolean test [#NoUsage]
+ 76 |         await addInterceptForSet(requester: owner, key: "buyWithVerifiableCredential", setValueIntercept:  {
+ 77 |              [weak self] keypath, value, requester in
+ 78 |              guard let self = self else { return .string("failure") }
+    |                        `- warning: value 'self' was defined but never used; consider replacing with boolean test [#NoUsage]
+ 79 |              print("SMI Cell set addClaim. Keypath: \(keypath) value: \(try value.jsonString())")
+ 80 |          guard case let  .object(paramObject) = value else {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/CellRegister/SMIProductCell.swift:90:38: warning: immutable value 'claimObject' was never used; consider replacing with '_' or removing it [#NoUsage]
+ 88 |              }
+ 89 |              
+ 90 |              guard case  .object(let claimObject) = claimValue else {
+    |                                      `- warning: immutable value 'claimObject' was never used; consider replacing with '_' or removing it [#NoUsage]
+ 91 |                  throw SetValueError.paramErr
+ 92 |              }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/CellRegister/SMICell.swift:149:13: warning: will never be executed
+147 |         }
+148 |             
+149 |             return .string("Under construction")
+    |             `- warning: will never be executed
+150 |         })
+151 |         
+
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+[1591 / 1903] App
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/PortholeWebSessionSupport.swift:12:9: warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  10 | struct PortholeActionRequest: Content, Codable {
+  11 |     let keypath: String?
+  12 |     let payload: ValueType?
+     |         `- warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  13 |     let command: String?
+  14 |     let args: ValueType?
+
+CellBase.ValueType:1:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 1 | indirect public enum ValueType : Codable {
+   |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 2 |     case flowElement(CellBase.FlowElement)
+ 3 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/PortholeWebSessionSupport.swift:6:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+   4 | import Foundation
+   5 | import Vapor
+   6 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+   7 | import CellVapor
+   8 | import ScaffoldKit
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/PortholeWebSessionSupport.swift:14:9: warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  12 |     let payload: ValueType?
+  13 |     let command: String?
+  14 |     let args: ValueType?
+     |         `- warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  15 |     var sourceCellEndpoint: String? = nil
+  16 |     var mount: ComponentActionMount? = nil
+
+CellBase.ValueType:1:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 1 | indirect public enum ValueType : Codable {
+   |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 2 |     case flowElement(CellBase.FlowElement)
+ 3 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/PortholeWebSessionSupport.swift:612:28: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 610 |         fallbackRequester: Identity? = nil
+ 611 |     ) async -> Identity {
+ 612 |         let sessionOwner = await session.owner
+     |                            `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 613 |         if await identityIsBoundToAttachedHomeVault(sessionOwner) {
+ 614 |             return sessionOwner
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/VaporAdminMVP.swift:679:13: warning: variable 'user' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+677 | 
+678 |     private func ensurePortholeControlCell(for req: Request) async throws -> (OrchestratorCell, Identity, String) {
+679 |         var user = try req.auth.require(FidoUser.self)
+    |             `- warning: variable 'user' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+680 |         guard let identityDomain = user.id?.uuidString else {
+681 |             throw Abort(.internalServerError, reason: "Authenticated user has no identity domain.")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/VaporBrowserGatekeeper.swift:217:1: warning: extension declares a conformance of imported type 'PublicKeyCredentialCreationOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+215 | 
+216 | 
+217 | extension PublicKeyCredentialCreationOptions: AsyncResponseEncodable {
+    | |- warning: extension declares a conformance of imported type 'PublicKeyCredentialCreationOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+    | `- note: add '@retroactive' to silence this warning
+218 |     public func encodeResponse(for request: Request) async throws -> Response {
+219 |         var headers = HTTPHeaders()
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/VaporBrowserGatekeeper.swift:225:1: warning: extension declares a conformance of imported type 'PublicKeyCredentialRequestOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+223 | }
+224 | 
+225 | extension PublicKeyCredentialRequestOptions: AsyncResponseEncodable {
+    | |- warning: extension declares a conformance of imported type 'PublicKeyCredentialRequestOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+    | `- note: add '@retroactive' to silence this warning
+226 |     public func encodeResponse(for request: Request) async throws -> Response {
+227 |         var headers = HTTPHeaders()
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/VaporBrowserGatekeeper.swift:73:31: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+ 71 |             // step 1 for authentication
+ 72 |             authSessionRoutes.get("authenticate") { req -> PublicKeyCredentialRequestOptions in
+ 73 |                 let options = try req.webAuthn.beginAuthentication()
+    |                               `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+ 74 |                 
+ 75 |                 req.session.data["authChallenge"] = Data(options.challenge).base64EncodedString()
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/VaporBrowserhead.swift:168:17: warning: variable 'user' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 166 |         // Testing widgets
+ 167 |         protected.get("webo") {  req async throws -> Response in
+ 168 |             var user = try req.auth.require(FidoUser.self)
+     |                 `- warning: variable 'user' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 169 |             guard let identityDomain = user.id?.uuidString else {
+ 170 |                 throw CellBaseError.noIdentityUUID
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/VaporBrowserhead.swift:187:17: warning: variable 'conferencePersonaWarning' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 185 |             )
+ 186 |             let activeConferencePersonaID = requestedConferencePersonaID
+ 187 |             var conferencePersonaWarning = conferencePersonaRequest.warning
+     |                 `- warning: variable 'conferencePersonaWarning' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 188 | 
+ 189 |             print("* webo identityDomain: \(identityDomain)")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/VaporBrowserhead.swift:387:23: warning: value 'keypath' was defined but never used; consider replacing with boolean test [#NoUsage]
+ 385 | 
+ 386 |             let action = try req.content.decode(PortholeActionRequest.self)
+ 387 |             guard let keypath = action.resolvedKeypath else {
+     |                       `- warning: value 'keypath' was defined but never used; consider replacing with boolean test [#NoUsage]
+ 388 |                 throw Abort(.badRequest, reason: "Missing action keypath.")
+ 389 |             }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/VaporBrowserhead.swift:467:17: warning: initialization of immutable value 'targetMeddleCell' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 465 |             let session = await VaporWebSessions.shared.session(for: sessionId)!
+ 466 |             
+ 467 |             let targetMeddleCell = await session.controlCell as Meddle
+     |                 `- warning: initialization of immutable value 'targetMeddleCell' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 468 |             let uuid = try req.parameters.require("uuid")
+ 469 |             
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/VaporBrowserhead.swift:477:17: warning: initialization of immutable value 'didDocument' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 475 |             }
+ 476 |             
+ 477 |             let didDocument = try await identitiesCell.get(keypath: "identities.\(uuid)", requester: requester)
+     |                 `- warning: initialization of immutable value 'didDocument' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 478 |             
+ 479 |             
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/VaporBrowserhead.swift:495:13: warning: variable 'user' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 493 |     
+ 494 |     func getIdentity(from req: Request) async throws -> Identity {
+ 495 |         var user = try req.auth.require(FidoUser.self)
+     |             `- warning: variable 'user' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 496 |         guard let identityDomain = user.id?.uuidString else {
+ 497 |             throw CellBaseError.noIdentityUUID
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/VaporButterpopStudio.swift:682:17: warning: variable 'response' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 680 |                 resourceID: resourceID
+ 681 |             )
+ 682 |             var response = try jsonResponse(from: .object([
+     |                 `- warning: variable 'response' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 683 |                 "status": .string("issued"),
+ 684 |                 "audioURL": .string(Self.playerAudioPath),
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/VaporButterpopStudio.swift:884:17: warning: variable 'failure' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 882 |         MusicPublishingPersistence.persist(delivery, owner: deliveryOwner)
+ 883 |         guard let tokenID = tokenID(from: value) else {
+ 884 |             var failure = try productActionResponse(value)
+     |                 `- warning: variable 'failure' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 885 |             if let cookie { failure.cookies[Self.anonymousCookieName] = cookie }
+ 886 |             return failure
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Controllers/VaporButterpopStudio.swift:889:13: warning: variable 'response' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 887 |         }
+ 888 |         await recordUsage(access == "preview" ? .previews : .starts, trackID: trackID, req: req)
+ 889 |         var response = try jsonResponse(from: .object([
+     |             `- warning: variable 'response' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 890 |             "status": .string("issued"),
+ 891 |             "access": .string(access),
+
+[#AddPreconcurrencyImport]: <https://docs.swift.org/compiler/documentation/diagnostics/add-preconcurrency-import>
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+[1596 / 1903] App
+error: SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PersonalCopilot/PersonalCopilotCells.swift failed with a nonzero exit code. Command line:     cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces
+    builtin-SwiftPerFileCompile PersonalCopilotCells.swift
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:30:31: warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+ 28 | //        await context.setJsonStorageFile("/Users/kjetil/CellsContainer/ATTA/keypathstorage.json")
+ 29 |         do {
+ 30 |             try await context.loadContext()
+    |                               `- warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+ 31 |         } catch {
+ 32 |             print("Loading storage data failed with error: \(error)")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:72:35: warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+ 70 |             guard let self = self else { return .string("failure") }
+ 71 |             if await self.validateAccess("r---", at: "interests", for: requester) {
+ 72 |                 try await context.loadContext() // a bit clunky
+    |                                   `- warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+ 73 |                 if var storage = try await context.getContainerInterests() { // Very dirty!
+ 74 |                     return try await storage.get(keypath: keypath)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:87:35: warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+ 85 |             if await self.validateAccess("r---", at: "interests", for: requester) {
+ 86 |                 print("KeypathStorage set. Keypath: \(keypath) value: \(try value.jsonString())")
+ 87 |                 try await context.loadContext() // a bit clunky
+    |                                   `- warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+ 88 |                 if var storage = try await context.getContainerInterests() {
+ 89 |                     try storage.set(keypath: keypath, setValue: value)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:111:35: warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+109 |             guard let self = self else { return .string("failure") }
+110 |             if await self.validateAccess("r---", at: "purposes", for: requester) {
+111 |                 try await context.loadContext() // a bit clunky
+    |                                   `- warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+112 |                 guard var entity = try await context.getContainerInterests() else {
+113 |                     throw KeypathStorageErrors.notStorage
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:142:35: warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+140 |             guard let self = self else { return .string("failure") }
+141 |             if await self.validateAccess("r---", at: "purposes", for: requester) {
+142 |                 try await context.loadContext() // a bit clunky
+    |                                   `- warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+143 |                 print("ATTA set. Keypath: \(keypath) value: \(try value.jsonString())")
+144 | //                guard var entity = await self.context.loadedEntity else {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:199:35: warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+197 |             if await self.validateAccess("r---", at: "find", for: requester) {
+198 |                 print("ATTA find: \(keypath) value: \(try value.jsonString())")
+199 |                 try await context.loadContext() // a bit clunky
+    |                                   `- warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+200 |                 
+201 |                 do {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:249:35: warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+247 |             if await self.validateAccess("r---", at: "updateInterest", for: requester) {
+248 |                 print("ATTA updateInterest: \(keypath) value: \(try value.jsonString())")
+249 |                 try await context.loadContext() // a bit clunky
+    |                                   `- warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+250 |                 
+251 |                 do {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:269:35: warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+267 |             if await self.validateAccess("r---", at: "updatePurpose", for: requester) {
+268 |                 print("ATTA updateInterest: \(keypath) value: \(try value.jsonString())")
+269 |                 try await context.loadContext() // a bit clunky
+    |                                   `- warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+270 |                 
+271 |                 do {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:289:35: warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+287 |             if await self.validateAccess("r---", at: "updateEntityRepresentation", for: requester) {
+288 |                 print("ATTA updateEntityRepresentation: \(keypath) value: \(try value.jsonString())")
+289 |                 try await context.loadContext() // a bit clunky
+    |                                   `- warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+290 |                 
+291 |                 do {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:310:35: warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+308 |             if await self.validateAccess("r---", at: "get", for: requester) {
+309 |                 print("ATTA get: \(keypath) value: \(try value.jsonString())")
+310 |                 try await context.loadContext() // a bit clunky
+    |                                   `- warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+311 |                 // Send FeedItem notification
+312 |                 do {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:73:24: warning: variable 'storage' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 71 |             if await self.validateAccess("r---", at: "interests", for: requester) {
+ 72 |                 try await context.loadContext() // a bit clunky
+ 73 |                 if var storage = try await context.getContainerInterests() { // Very dirty!
+    |                        `- warning: variable 'storage' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 74 |                     return try await storage.get(keypath: keypath)
+ 75 |                 }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:112:27: warning: variable 'entity' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+110 |             if await self.validateAccess("r---", at: "purposes", for: requester) {
+111 |                 try await context.loadContext() // a bit clunky
+112 |                 guard var entity = try await context.getContainerInterests() else {
+    |                           `- warning: variable 'entity' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+113 |                     throw KeypathStorageErrors.notStorage
+114 |                 }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:74:32: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 72 |                 try await context.loadContext() // a bit clunky
+ 73 |                 if var storage = try await context.getContainerInterests() { // Very dirty!
+ 74 |                     return try await storage.get(keypath: keypath)
+    |                                `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 75 |                 }
+ 76 |             } else {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:372:13: warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+370 |     
+371 |     required init(from decoder: Decoder) throws {
+372 |         let container = try decoder.container(keyedBy: CodingKeys.self)
+    |             `- warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+373 |         try super.init(from: decoder)
+374 |         
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:421:27: warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+419 | //
+420 | //        print("Loaded \(interests.count) interests")
+421 |         try await context.loadContext()
+    |                           `- warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+422 |         
+423 |         
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:435:27: warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+433 |     
+434 |     func findInterest(_ name: String) async throws -> ValueType {
+435 |         try await context.loadContext()
+    |                           `- warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+436 |         
+437 |         let targetInterests = await context.findInterest(name: name, weightedInterests: [Weight<Interest>]())
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:444:45: warning: type 'Facilitator<Interest>' does not conform to the 'Sendable' protocol
+442 | //        facilitator.context = self
+443 |         if let userInfoKey = CodingUserInfoKey(rawValue: "interestFacilitator") {
+444 |             encoder.userInfo[userInfoKey] = facilitator
+    |                                             `- warning: type 'Facilitator<Interest>' does not conform to the 'Sendable' protocol
+445 |         }
+446 |         let purposeFacilitator = Facilitator<Purpose>()
+
+CellBase.Facilitator:1:14: note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+1 | public class Facilitator<T> where T : CellBase.Referenceable {
+  |              `- note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+2 |     public init()
+3 |     deinit
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:12:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+ 10 | 
+ 11 | import Foundation
+ 12 | import CellBase
+    | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+ 13 | 
+ 14 | class ATTACS : GeneralCell {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:448:45: warning: type 'Facilitator<Purpose>' does not conform to the 'Sendable' protocol
+446 |         let purposeFacilitator = Facilitator<Purpose>()
+447 |         if let userInfoKey = CodingUserInfoKey(rawValue: "purposeFacilitator") {
+448 |             encoder.userInfo[userInfoKey] = purposeFacilitator
+    |                                             `- warning: type 'Facilitator<Purpose>' does not conform to the 'Sendable' protocol
+449 |         }
+450 |         if let userInfoKey = CodingUserInfoKey(rawValue: "context") {
+
+CellBase.Facilitator:1:14: note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+1 | public class Facilitator<T> where T : CellBase.Referenceable {
+  |              `- note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+2 |     public init()
+3 |     deinit
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:460:27: warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+458 |     
+459 |     func findPurpose(_ name: String) async throws -> ValueType {
+460 |         try await context.loadContext()
+    |                           `- warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+461 |         
+462 |         let targetPurposes = await context.findPurpose(name: name, weightedPurposes: [Weight<Purpose>]())
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:474:27: warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+472 |     
+473 |     func getInterest(_ name: String) async throws -> ValueType {
+474 |         try await context.loadContext()
+    |                           `- warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+475 |         
+476 |         let targetInterest = await context.getInterest(name: name)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:483:45: warning: type 'Facilitator<Interest>' does not conform to the 'Sendable' protocol
+481 | //        facilitator.context = self
+482 |         if let userInfoKey = CodingUserInfoKey(rawValue: "interestFacilitator") {
+483 |             encoder.userInfo[userInfoKey] = facilitator
+    |                                             `- warning: type 'Facilitator<Interest>' does not conform to the 'Sendable' protocol
+484 |         }
+485 |         let jsonData = try encoder.encode(targetInterest)
+
+CellBase.Facilitator:1:14: note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+1 | public class Facilitator<T> where T : CellBase.Referenceable {
+  |              `- note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+2 |     public init()
+3 |     deinit
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift:550:13: warning: variable 'claim' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+548 |     func verifyVerifiableCredential(vc: VCClaim) async throws -> Bool {
+549 |         // We should infer the issuerIdentity from the VC
+550 |         var claim = vc
+    |             `- warning: variable 'claim' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+551 |         return try await claim.verify(issuer: getIssuer())
+552 |     }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/CSAgent.swift:183:13: warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+181 |     
+182 |     required init(from decoder: Decoder) throws {
+183 |         let container = try decoder.container(keyedBy: CodingKeys.self)
+    |             `- warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+184 |         try super.init(from: decoder)
+185 |         
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/KeypathStorage.swift:55:15: warning: 'setInterceptValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+ 53 |             })
+ 54 |             //The intercept should throw
+ 55 |         await setInterceptValueForKey(requester: owner, key: "person", setValueForKeyIntercept:  { requester in
+    |               `- warning: 'setInterceptValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+ 56 |             //return .string(self.someProperty)
+ 57 |             var resultString = "denied"
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/KeypathStorage.swift:68:15: warning: 'setInterceptSetValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+ 66 |         })
+ 67 |         
+ 68 |         await setInterceptSetValueForKey(requester: owner, key: "person", setValueForKeyIntercept:  { value, requester in
+    |               `- warning: 'setInterceptSetValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+ 69 |             if await self.validateAccess("r---", at: "person", for: requester) {
+ 70 |                 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/KeypathStorage.swift:108:21: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+106 |             if await self.validateAccess("r---", at: "claims", for: requester) {
+107 |                 CellBase.diagnosticLog("KeypathStorage set keypath=\(keypath)", domain: .flow)
+108 |                 try await self.storage.set(keypath: keypath, setValue: value)
+    |                     `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+109 |                 try self.saveKeypathStorage(entity: self.storage)
+110 |                 // Send FeedItem notification
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/KeypathStorage.swift:214:13: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+212 |         
+213 |         // write to storage
+214 |         try await self.storage.set(keypath: keypath, setValue: value)
+    |             `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+215 |         try saveKeypathStorage(entity: self.storage)
+216 |     }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/Recommendations/GatekeeperCell.swift:38:13: warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+36 |     
+37 |     required init(from decoder: Decoder) throws {
+38 |         let container = try decoder.container(keyedBy: CodingKeys.self)
+   |             `- warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+39 |         try super.init(from: decoder)
+40 |     }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/Recommendations/RecommendCell.swift:54:13: warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+52 |     
+53 |     required init(from decoder: Decoder) throws {
+54 |         let container = try decoder.container(keyedBy: CodingKeys.self)
+   |             `- warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+55 |         context = Perspective()
+56 |         try super.init(from: decoder)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/TrustedSourcesCS.swift:68:13: warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+66 |     
+67 |     required init(from decoder: Decoder) throws {
+68 |         let container = try decoder.container(keyedBy: CodingKeys.self)
+   |             `- warning: initialization of immutable value 'container' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+69 |         try super.init(from: decoder)
+70 |         
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PersonalCopilot/PersonalCopilotCells.swift:132:29: error: type 'ValueType' has no member 'unavailable'
+ 130 |                     return PersonalCopilotCatalogReadModel.policySummary()
+ 131 |                 default:
+ 132 |                     return .unavailable
+     |                             `- error: type 'ValueType' has no member 'unavailable'
+ 133 |                 }
+ 134 |             }
+
+[#AddPreconcurrencyImport]: <https://docs.swift.org/compiler/documentation/diagnostics/add-preconcurrency-import>
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+Failed frontend command:
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -frontend -c -filelist /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/sources-3 -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/ObjectStorage/ObjectStorageAdapterCell.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/ATTACS.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/CSAgent.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/KeypathStorage.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/PDSCS.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/Recommendations/GatekeeperCell.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/Recommendations/RecommendCell.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PDS/TrustedSourcesCS.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/Participation/ParticipationHubCell.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/Participation/ParticipationHubConfigurationFactory.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/Participation/ParticipationModels.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PersonalCopilot/AccountContinuityPersonalChatHubCell.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PersonalCopilot/ExecutablePurposeGroundingCell.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PersonalCopilot/GuidedOnboardingCell.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PersonalCopilot/HAVENAgentCapabilityBrokerCell.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PersonalCopilot/PersonalAssistantProfileCell.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PersonalCopilot/PersonalChatHubCell+WidgetCanvas.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PersonalCopilot/PersonalCopilotCells+HelperTree.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PersonalCopilot/PersonalCopilotCells.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PersonalCopilot/PersonalCopilotChatPresentation.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PersonalCopilot/PersonalCopilotCloudStore+HelperTree.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PersonalCopilot/PersonalCopilotCloudStore+WidgetCanvas.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PersonalCopilot/PersonalCopilotCloudStore.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/App/Cells/PersonalCopilot/PersonalCopilotCollaborationInviteModels.swift -supplementary-output-file-map /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/supplementaryOutputs-354 -target arm64-apple-macos13.0 -module-can-import-version AppKit 2775.10.103.1 2775.10.103 -module-can-import BeautifulMermaid -module-can-import-version Combine 3023 0 -module-can-import-version Crypto 4.5.2.0 0 -module-can-import-version CryptoKit 383.1.1 0 -module-can-import-version Darwin 428.0.10 0 -module-can-import-version Security 62460.1.2 62460.1.2 -module-can-import VaporCSQLite -module-can-import-version WebKit 7625.1.29.11 625.1.29 -disable-cross-import-overlay-search -swift-module-cross-import Darwin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/Darwin.swiftcrossimport/xlocale.swiftoverlay -swift-module-cross-import WebKit /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Cryptexes/OS/System/Library/Frameworks/WebKit.framework/Modules/WebKit.swiftcrossimport/SwiftUI.swiftoverlay -swift-module-cross-import WebKit /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/System/Library/Frameworks/WebKit.framework/Modules/WebKit.swiftcrossimport/SwiftUI.swiftoverlay -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libFoundationMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#FoundationMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libObservationMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#ObservationMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libPreviewsMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#PreviewsMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libSwiftMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#SwiftMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#SwiftUIMacros -disable-implicit-swift-modules -Xcc -fno-implicit-modules -Xcc -fno-implicit-module-maps -explicit-swift-module-map-file /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/App-dependencies-1.json -Xllvm -aarch64-use-tbi -enable-objc-interop -stack-check -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk -I /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Products/Debug -Isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib -F /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Products/Debug/PackageFrameworks -F /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Products/Debug -F /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks -module-cache-path /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/SwiftExplicitPrecompiledModules -no-color-diagnostics -Xcc -fno-color-diagnostics -enable-testing -g -debug-info-format\=dwarf -dwarf-version\=4 -swift-version 5 -Onone -D SWIFT_PACKAGE -D DEBUG -D SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE -D Xcode -serialize-debugging-options -enable-experimental-feature DebugDescriptionMacro -empty-abi-descriptor -validate-clang-modules-once -clang-build-session-file /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/ModuleCache.noindex/Session.modulevalidation -Xcc -working-directory -Xcc /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces -enable-anonymous-context-mangled-names -file-compilation-dir /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/GeneratedModuleMaps/COpenCombineHelpers.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/GeneratedModuleMaps/CAsyncHTTPClient.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/GeneratedModuleMaps/CNIOExtrasZlib.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/GeneratedModuleMaps/CNIOSHA1.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/GeneratedModuleMaps/CNIOLLHTTP.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/vapor/Sources/CVaporBcrypt/include/module.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/GeneratedModuleMaps/VaporCSQLite.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-system/Sources/CSystem/include/module.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-numerics/Sources/_NumericsShims/include/module.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/GeneratedModuleMaps/CFileUtils.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-atomics/Sources/_AtomicsShims/include/module.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-crypto/Sources/CCryptoBoringSSLShims/include/module.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-crypto/Sources/CCryptoBoringSSL/include/module.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/GeneratedModuleMaps/CNIOBoringSSLShims.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-nio-ssl/Sources/CNIOBoringSSL/include/module.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/GeneratedModuleMaps/CNIOPosix.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/GeneratedModuleMaps/CNIOWASI.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-nio/Sources/CNIOWindows/include/module.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/GeneratedModuleMaps/CNIOLinux.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/GeneratedModuleMaps/CNIODarwin.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/GeneratedModuleMaps/CNIOFreeBSD.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/GeneratedModuleMaps/CNIOOpenBSD.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/GeneratedModuleMaps/CNIOAtomics.modulemap -Xcc -fmodule-map-file\=/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/GeneratedModuleMaps/BrowserIdentityRecoveryPOSIX.modulemap -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -Xcc -ivfsstatcache -Xcc /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/SDKStatCaches.noindex/macosx27.0-26A425-a0facfad118c1a7a18f0aad9463f65497231f6df4def33e022ae2eb8f782df1a.sdkstatcache -Xcc -fmodules-prune-interval\=86400 -Xcc -fmodules-prune-after\=345600 -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/OpenCombine/Sources/COpenCombineHelpers/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/async-http-client/Sources/CAsyncHTTPClient/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-nio-extras/Sources/CNIOExtrasZlib/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-nio/Sources/CNIOSHA1/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-nio/Sources/CNIOLLHTTP/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/vapor/Sources/CVaporBcrypt/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/sqlite-nio/Sources/VaporCSQLite/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-system/Sources/CSystem/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-numerics/Sources/_NumericsShims/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/FileUtils-c/Sources/CFileUtils/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-atomics/Sources/_AtomicsShims/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-crypto/Sources/CCryptoBoringSSLShims/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-crypto/Sources/CCryptoBoringSSL/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-nio-ssl/Sources/CNIOBoringSSLShims/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-nio-ssl/Sources/CNIOBoringSSL/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-nio/Sources/CNIOPosix/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-nio/Sources/CNIOWASI/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-nio/Sources/CNIOWindows/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-nio/Sources/CNIOLinux/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-nio/Sources/CNIODarwin/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-nio/Sources/CNIOFreeBSD/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-nio/Sources/CNIOOpenBSD/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/checkouts/swift-nio/Sources/CNIOAtomics/include -Xcc -I/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/Sources/BrowserIdentityRecoveryPOSIX/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Products/Debug/include -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/DerivedSources-normal/arm64 -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/DerivedSources/arm64 -Xcc -I/private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/DerivedSources -Xcc -DSWIFT_PACKAGE -Xcc -DDEBUG\=1 -no-auto-bridging-header-chaining -module-name App -package-name cellscaffold -const-gather-protocols-file /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/App_const_extract_protocols.json -disable-clang-spi -clang-target arm64-apple-macos27.0 -target-sdk-version 27.0 -target-sdk-name macosx27.0 -in-process-plugin-server-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/libSwiftInProcPluginServer.dylib -parse-as-library -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/ObjectStorageAdapterCell.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/ATTACS.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/CSAgent.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/KeypathStorage.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PDSCS.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/GatekeeperCell.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/RecommendCell.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/TrustedSourcesCS.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/ParticipationHubCell.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/ParticipationHubConfigurationFactory.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/ParticipationModels.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/AccountContinuityPersonalChatHubCell.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/ExecutablePurposeGroundingCell.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/GuidedOnboardingCell.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/HAVENAgentCapabilityBrokerCell.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PersonalAssistantProfileCell.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PersonalChatHubCell+WidgetCanvas.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PersonalCopilotCells+HelperTree.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PersonalCopilotCells.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PersonalCopilotChatPresentation.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PersonalCopilotCloudStore+HelperTree.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PersonalCopilotCloudStore+WidgetCanvas.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PersonalCopilotCloudStore.o -o /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PersonalCopilotCollaborationInviteModels.o -debug-module-path /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out/Intermediates.noindex/CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/App.swiftmodule -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/ObjectStorageAdapterCell.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/ATTACS.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/CSAgent.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/KeypathStorage.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PDSCS.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/GatekeeperCell.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/RecommendCell.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/TrustedSourcesCS.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/ParticipationHubCell.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/ParticipationHubConfigurationFactory.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/ParticipationModels.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/AccountContinuityPersonalChatHubCell.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/ExecutablePurposeGroundingCell.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/GuidedOnboardingCell.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/HAVENAgentCapabilityBrokerCell.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PersonalAssistantProfileCell.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PersonalChatHubCell+WidgetCanvas.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PersonalCopilotCells+HelperTree.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PersonalCopilotCells.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PersonalCopilotChatPresentation.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PersonalCopilotCloudStore+HelperTree.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PersonalCopilotCloudStore+WidgetCanvas.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PersonalCopilotCloudStore.o -index-unit-output-path /CellsContainer.build/Debug/App-t.build/Objects-normal/arm64/PersonalCopilotCollaborationInviteModels.o -index-store-path /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd/out -index-system-modules
+[1597 / 1903] App
+error: Build failed
+error: fatalError
+Build disk result: cache=10199524 KiB (delta=+54736 KiB), available delta=-2886936 KiB, status=1.

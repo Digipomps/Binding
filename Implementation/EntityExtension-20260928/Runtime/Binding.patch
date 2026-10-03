@@ -1,0 +1,783 @@
+diff --git a/Binding/BindingApp.swift b/Binding/BindingApp.swift
+index 115b611e..bbfb92dc 100644
+--- a/Binding/BindingApp.swift
++++ b/Binding/BindingApp.swift
+@@ -23,7 +23,9 @@ struct BindingApp: App {
+     var body: some Scene {
+         WindowGroup {
+             #if DEBUG && os(macOS)
+-            if IdentityLinkUIFixture.enabled {
++            if OwnerAttachRuntimeFixture.enabled {
++                OwnerAttachRuntimeFixtureView()
++            } else if IdentityLinkUIFixture.enabled {
+                 IdentityLinkUIFixtureView()
+             } else {
+                 RootView().modifier(BindingPersonalButlerLifecycleModifier())
+diff --git a/Binding/BindingMacAppDelegate.swift b/Binding/BindingMacAppDelegate.swift
+index dfaead74..683a97ca 100644
+--- a/Binding/BindingMacAppDelegate.swift
++++ b/Binding/BindingMacAppDelegate.swift
+@@ -5,7 +5,7 @@ import AppKit
+ 
+ final class BindingMacAppDelegate: NSObject, NSApplicationDelegate {
+     func applicationWillFinishLaunching(_ notification: Notification) {
+-        guard !IdentityLinkUIFixture.enabled else { return }
++        guard !IdentityLinkUIFixture.enabled, !OwnerAttachRuntimeFixture.enabled else { return }
+         let defaults = UserDefaults.standard
+         defaults.set(false, forKey: "NSQuitAlwaysKeepsWindows")
+         clearLegacyWindowFrames(from: defaults)
+@@ -13,7 +13,7 @@ final class BindingMacAppDelegate: NSObject, NSApplicationDelegate {
+     }
+ 
+     func applicationDidFinishLaunching(_ notification: Notification) {
+-        if IdentityLinkUIFixture.enabled { scheduleEnsureMainWindowPresent(); return }
++        if IdentityLinkUIFixture.enabled || OwnerAttachRuntimeFixture.enabled { scheduleEnsureMainWindowPresent(); return }
+         Task(priority: .userInitiated) {
+             await BindingLaunchWarmup.preloadLocalRuntime()
+         }
+diff --git a/Binding/BindingOwnerAttachExtension.swift b/Binding/BindingOwnerAttachExtension.swift
+new file mode 100644
+index 00000000..d602ea1c
+--- /dev/null
++++ b/Binding/BindingOwnerAttachExtension.swift
+@@ -0,0 +1,238 @@
++import Foundation
++import SwiftUI
++import Combine
++import CellBase
++
++@MainActor
++final class BindingOwnerAttachExtension: ObservableObject {
++    static let shared = BindingOwnerAttachExtension()
++    struct Review: Identifiable {
++        let id = UUID()
++        let offer: OwnerAttachExtensionOffer
++        let endpoint: String
++    }
++    struct PolicyRow: Identifiable {
++        var id: String { binding.storageID }
++        let binding: OwnerAttachExtensionBinding
++        let label: String
++        let policy: OwnerAttachExtensionPolicy
++    }
++    @Published private(set) var policies: [PolicyRow] = []
++    @Published private(set) var policyLoadError: String?
++    private var policyStore: OwnerAttachEncryptedStore?
++    @Published private(set) var review: Review?
++    @Published private(set) var status: String?
++    @Published private(set) var latestBinding: OwnerAttachExtensionBinding?
++    private var answer: CheckedContinuation<OwnerAttachExtensionChoice?, Never>?
++    private var reviewExpiry: Task<Void, Never>?
++    private var jobs: [UUID: Task<Void, Never>] = [:]
++    private var reviewedInteractions: [UUID: Set<String>] = [:]
++    private var client: OwnerAttachEntityExtensionClient?
++    private var configuredVault: String?
++    private var preparationTask: Task<Void, Error>?
++
++    func prepare() async throws {
++        if let preparationTask { return try await preparationTask.value }
++        let task = Task { @MainActor in try await self.performPreparation() }
++        preparationTask = task
++        defer { preparationTask = nil }
++        try await task.value
++    }
++
++    private func performPreparation() async throws {
++        guard let vault = CellBase.defaultIdentityVault,
++              let secrets = vault as? any ScopedSecretProviderProtocol,
++              let vaultID = await vault.identityVaultReference(),
++              let root = CellBase.documentRootPath else { throw OwnerAttachExtensionError.unavailable }
++        guard configuredVault != vaultID else { return }
++        resolve(nil)
++        if configuredVault != nil { jobs.values.forEach { $0.cancel() }; jobs.removeAll() }
++        client = nil; configuredVault = nil
++        let directory = URL(fileURLWithPath: root).appendingPathComponent("OwnerAttach", isDirectory: true)
++            .appendingPathComponent(OwnerAttachWire.digest(Data(vaultID.utf8)), isDirectory: true)
++        let key = try await secrets.scopedSecretData(tag: "binding.owner-attach-client.v1", minimumLength: 32)
++        let store = try OwnerAttachEncryptedStore(directory: directory.appendingPathComponent("Decisions"), key: key)
++        client = OwnerAttachEntityExtensionClient(store: store)
++        policyStore = store
++        try await OwnerAttachExtensionRuntime.shared.configure(vault: vault,
++            directory: directory.appendingPathComponent("Receipts"), label: "HAVEN-appen")
++        configuredVault = vaultID
++    }
++
++    /// Only called inside a context installed by an explicit navigation gesture.
++    /// Queueing keeps a consent sheet from holding up normal cell attachment.
++    func attached(source: GeneralCell, emitter: any Emit, label: String, requester: Identity, endpoint: String, interactionID: UUID) {
++        guard emitter is BridgeBase, jobs.count < 8 else { return }
++        let id = UUID()
++        jobs[id] = Task { [weak self, weak source] in
++            guard let self, let source else { return }
++            defer { self.jobs[id] = nil }
++            do {
++                try await self.prepare()
++                guard let client = self.client,
++                      let human = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: false),
++                      human.referencesSameSigningIdentity(as: requester) else { return }
++                let outcome = try await client.consider(emitter: emitter, activeHuman: human, requester: requester, receiverEndpoint: endpoint,
++                    stillAttached: { [weak source] in
++                        guard let source,
++                              let active = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: false),
++                              active.referencesSameSigningIdentity(as: human),
++                              let current = await source.getEmitterWithLabel(label, requester: requester) else { return false }
++                        return current === emitter
++                    }, review: { [weak self] offer in
++                        await self?.askOnce(offer, endpoint: endpoint, interactionID: interactionID)
++                    })
++                if case let .confirmed(receipt) = outcome {
++                    self.latestBinding = receipt.binding
++                    self.status = "Entitetens tilstedeværelse er registrert her med identiteten du allerede bruker."
++                } else if case let .declined(binding) = outcome {
++                    self.latestBinding = binding
++                }
++            } catch {
++                // Unsupported peers and ordinary shared-cell access are normal.
++                // A failed completion must remain visibly unconfirmed.
++                if let failure = error as? OwnerAttachExtensionError,
++                   failure != .unavailable, failure != .ownerProofRequired, failure != .enrollmentRequired {
++                    self.status = "Entitetsutvidelsen kunne ikke bekreftes. Åpne cellen igjen for å prøve på nytt."
++                }
++            }
++        }
++    }
++
++    func cancelPending() {
++        resolve(nil)
++        jobs.values.forEach { $0.cancel() }
++        jobs.removeAll()
++        reviewedInteractions.removeAll()
++    }
++
++    private func askOnce(_ offer: OwnerAttachExtensionOffer, endpoint: String, interactionID: UUID) async -> OwnerAttachExtensionChoice? {
++        guard reviewedInteractions[interactionID, default: []].insert(offer.binding.storageID).inserted else { return nil }
++        return await ask(offer, endpoint: endpoint)
++    }
++
++    func ask(_ offer: OwnerAttachExtensionOffer, endpoint: String) async -> OwnerAttachExtensionChoice? {
++        guard review == nil, !Task.isCancelled else { return nil }
++        latestBinding = offer.binding
++        let pending = Review(offer: offer, endpoint: endpoint)
++        return await withTaskCancellationHandler {
++            await withCheckedContinuation { continuation in
++                answer = continuation
++                review = pending
++                reviewExpiry = Task { [weak self] in
++                    let remaining = max(0, min(295, offer.expiresAt.timeIntervalSinceNow))
++                    try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
++                    guard !Task.isCancelled else { return }
++                    self?.resolve(nil, reviewID: pending.id)
++                }
++            }
++        } onCancel: {
++            Task { @MainActor [weak self] in self?.resolve(nil, reviewID: pending.id) }
++        }
++    }
++
++    func resolve(_ choice: OwnerAttachExtensionChoice?, reviewID: UUID? = nil) {
++        if let reviewID, review?.id != reviewID { return }
++        let continuation = answer; answer = nil
++        reviewExpiry?.cancel(); reviewExpiry = nil
++        review = nil
++        continuation?.resume(returning: choice)
++    }
++
++    func forgetLatestPolicy() async {
++        guard let latestBinding, let client else { return }
++        do {
++            try await client.forgetPolicy(for: latestBinding)
++            status = "HAVEN spør igjen neste gang du åpner en eid celle her."
++        } catch { status = "Innstillingen kunne ikke lagres. Prøv igjen." }
++    }
++
++    func refreshPolicies() async {
++        do {
++            try await prepare()
++            guard let store = policyStore,
++                  let human = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: false) else {
++                throw OwnerAttachExtensionError.unavailable
++            }
++            let descriptor = try IdentityLinkProtocolService.descriptor(for: human)
++            var rows: [PolicyRow] = []
++            for id in try await store.identifiers() {
++                guard let data = try await store.read(id: id) else { continue }
++                let record = try OwnerAttachWire.decode(OwnerAttachExtensionClientRecord.self, data: data)
++                guard let policy = record.policy,
++                      OwnerAttachWire.sameKey(policy.binding.requester, descriptor) else { continue }
++                rows.append(PolicyRow(binding: policy.binding,
++                    label: record.receipt?.consent.offer.receiverLabel ?? policy.binding.receiver.displayName ?? "Tidligere sted",
++                    policy: policy))
++            }
++            policies = rows.sorted { $0.label < $1.label }
++            policyLoadError = nil
++        } catch {
++            policies = []
++            policyLoadError = "Policyene kunne ikke åpnes med den aktive identiteten."
++        }
++    }
++
++    func forgetPolicy(_ binding: OwnerAttachExtensionBinding) async {
++        do {
++            guard let client else { throw OwnerAttachExtensionError.unavailable }
++            try await client.forgetPolicy(for: binding)
++            await refreshPolicies()
++        } catch { policyLoadError = "Innstillingen kunne ikke lagres." }
++    }
++
++    func dismissStatus() { status = nil }
++}
++
++struct BindingOwnerAttachReviewView: View {
++    let review: BindingOwnerAttachExtension.Review
++    @ObservedObject private var controller = BindingOwnerAttachExtension.shared
++    var body: some View {
++        VStack(alignment: .leading, spacing: 18) {
++            Text("Bruke entiteten din også her?").font(.title2.bold())
++            Text(review.offer.receiverLabel).font(.headline)
++            Text(review.endpoint).font(.caption).textSelection(.enabled)
++            Text("Du har bevist at identiteten din eier cellen. HAVEN kan huske at du bruker entiteten din på dette stedet. Identiteten og domenet beholdes.")
++            Text("Dette registrerer tilstedeværelse. Dataflytting, indeksering og varsler velges separat.")
++                .font(.callout).foregroundStyle(.secondary)
++            Text("Domene: \(review.offer.binding.domain)").font(.caption)
++            Button("Denne gangen") { controller.resolve(.once) }
++                .buttonStyle(.borderedProminent).accessibilityIdentifier("ownerAttach.once")
++            Button("Automatisk her i ett år") { controller.resolve(.alwaysHere) }
++                .accessibilityIdentifier("ownerAttach.always")
++            Button("Ikke spør på dette stedet i ett år") { controller.resolve(.neverHere) }
++            Button("Ikke nå", role: .cancel) { controller.resolve(nil) }
++                .accessibilityIdentifier("ownerAttach.cancel")
++        }
++        .padding(24)
++        .frame(idealWidth: 480)
++        .onDisappear { controller.resolve(nil, reviewID: review.id) }
++    }
++}
++
++struct BindingOwnerAttachPolicyView: View {
++    @ObservedObject private var controller = BindingOwnerAttachExtension.shared
++    var body: some View {
++        VStack(alignment: .leading, spacing: 16) {
++            Text("Utvidelse ved cellebruk").font(.title2.bold())
++            Text("HAVEN spør før entiteten tas i bruk på et nytt sted. Lagrede valg gjelder bare den samme mottakernøkkelen, identiteten og domenet, i inntil ett år.")
++            if let error = controller.policyLoadError { Text(error).foregroundStyle(.red) }
++            if controller.policies.isEmpty && controller.policyLoadError == nil {
++                Text("Ingen lagrede automatiske valg.").foregroundStyle(.secondary)
++            }
++            ForEach(controller.policies) { row in
++                VStack(alignment: .leading, spacing: 8) {
++                    Text(row.label).font(.headline)
++                    Text(row.binding.domain).font(.caption)
++                    Text(row.policy.choice == .neverHere ? "Ikke spør" : "Automatisk")
++                    Text("Utløper \(row.policy.expiresAt.formatted(date: .abbreviated, time: .omitted))").font(.caption)
++                    Button("Spør neste gang") { Task { await controller.forgetPolicy(row.binding) } }
++                }
++                Divider()
++            }
++            Spacer()
++        }
++        .padding(20)
++        .task { await controller.refreshPolicies() }
++    }
++}
+diff --git a/Binding/ContentView.swift b/Binding/ContentView.swift
+index 4dcc6326..d2cc3aa4 100644
+--- a/Binding/ContentView.swift
++++ b/Binding/ContentView.swift
+@@ -1080,7 +1080,7 @@ struct ContentView: View {
+                 configurations: configurations(for: position),
+                 onSelect: { configuration in
+                     presentingMenuLibrary = nil
+-                    queueConfigurationLoad(configuration, provenance: .localTrusted)
++                    queueConfigurationLoad(configuration, provenance: .localTrusted, allowsEntityExtension: true)
+                 }
+             )
+         }
+@@ -1271,7 +1271,7 @@ struct ContentView: View {
+                         presentingMenuLibrary = position
+                     },
+                     onSelect: { config in
+-                        queueConfigurationLoad(config, provenance: .hostPrepared)
++                        queueConfigurationLoad(config, provenance: .hostPrepared, allowsEntityExtension: true)
+                     }
+                 )
+                 .allowsHitTesting(true)
+@@ -3249,7 +3249,7 @@ struct ContentView: View {
+                 } else {
+                     ForEach(Array(configurations.prefix(EdgeMenu.presentationLimit - 1)), id: \.uuid) { configuration in
+                         Button(configuration.name) {
+-                            queueConfigurationLoad(configuration, provenance: .localTrusted)
++                            queueConfigurationLoad(configuration, provenance: .localTrusted, allowsEntityExtension: true)
+                         }
+                     }
+                     if configurations.count >= EdgeMenu.presentationLimit {
+@@ -3510,7 +3510,7 @@ struct ContentView: View {
+                 HStack(spacing: 10) {
+                     ForEach(compactConvenienceConfigurations, id: \.name) { configuration in
+                         Button {
+-                            queueConfigurationLoad(configuration, provenance: .hostPrepared)
++                            queueConfigurationLoad(configuration, provenance: .hostPrepared, allowsEntityExtension: true)
+                         } label: {
+                             VStack(alignment: .leading, spacing: 8) {
+                                 Image(systemName: configuration.skeletonIconName)
+@@ -4513,11 +4513,24 @@ struct ContentView: View {
+     private func queueConfigurationLoad(
+         _ configuration: CellConfiguration?,
+         navigationMode: ConferenceNavigationMode = .automatic,
+-        provenance: ConfigurationProvenance
++        provenance: ConfigurationProvenance,
++        allowsEntityExtension: Bool = false
+     ) -> Task<Void, Never> {
++        BindingOwnerAttachExtension.shared.cancelPending()
++        let interactionID = UUID()
+         prepareConferenceNavigation(for: configuration, mode: navigationMode)
+         let task = configurationLoadCoordinator.enqueue {
+-            await loadConfigurationForEditing(configuration, provenance: provenance)
++            var handler: OwnerAttachExtensionContext.Handler?
++            if allowsEntityExtension && !provenance.requiresSideEffectFreeView && !provenance.isUntrustedImport {
++                let endpoints = Dictionary((configuration?.cellReferences ?? []).map { ($0.label, $0.endpoint) }, uniquingKeysWith: { first, _ in first })
++                handler = { source, emitter, label, requester in
++                    await BindingOwnerAttachExtension.shared.attached(source: source, emitter: emitter,
++                        label: label, requester: requester, endpoint: endpoints[label] ?? label, interactionID: interactionID)
++                }
++            }
++            await OwnerAttachExtensionContext.$handler.withValue(handler) {
++                await loadConfigurationForEditing(configuration, provenance: provenance)
++            }
+         }
+         configurationLoadTask = task
+         return task
+diff --git a/Binding/IdentityLinkFlow.swift b/Binding/IdentityLinkFlow.swift
+index d9695272..8b7df63c 100644
+--- a/Binding/IdentityLinkFlow.swift
++++ b/Binding/IdentityLinkFlow.swift
+@@ -736,6 +736,7 @@ final class IdentityLinkFlowPresenter: ObservableObject {
+     static let shared = IdentityLinkFlowPresenter()
+ 
+     @Published var isPresented = false
++    @Published var showsExtensionPolicies = false
+     @Published var state: IdentityLinkFlowState = .idle
+     private var observerID: UUID?
+ 
+@@ -752,17 +753,27 @@ final class IdentityLinkFlowPresenter: ObservableObject {
+     func handle(url: URL) -> Bool {
+         let deepLink = url.absoluteString
+         if url.scheme == "haven", url.host == "nearby-link" {
++            showsExtensionPolicies = false
+             isPresented = true
+             state = .scanning
+             Task { await IdentityLinkFlowCoordinator.shared.beginScanning() }
+             IdentityLinkNearbyModel.shared.reviewPublication(url)
+             return true
+         }
++        if url.scheme == "haven", url.host == "entity-extension-policy",
++           url.query == nil, url.fragment == nil, url.user == nil, url.password == nil,
++           url.port == nil, url.path.isEmpty {
++            IdentityLinkNearbyModel.shared.stop()
++            showsExtensionPolicies = true
++            isPresented = true
++            return true
++        }
+         if url.scheme == "haven", url.host == "link-devices", url.query == nil {
+             presentScanner()
+             return true
+         }
+         guard (try? IdentityLinkTicket.decode(deepLink: deepLink)) != nil || Self.looksLikeTicket(deepLink) else { return false }
++        showsExtensionPolicies = false
+         isPresented = true
+         IdentityLinkNearbyModel.shared.stop()
+         Task { await IdentityLinkFlowCoordinator.shared.review(deepLink: deepLink) }
+@@ -770,11 +781,13 @@ final class IdentityLinkFlowPresenter: ObservableObject {
+     }
+ 
+     func presentScanner() {
++        showsExtensionPolicies = false
+         isPresented = true
+         Task { await IdentityLinkFlowCoordinator.shared.beginScanning() }
+     }
+ 
+     func dismiss() {
++        showsExtensionPolicies = false
+         isPresented = false
+         IdentityLinkNearbyModel.shared.stop()
+         Task { await IdentityLinkFlowCoordinator.shared.reset() }
+@@ -798,6 +811,10 @@ struct IdentityLinkFlowView: View {
+ 
+     var body: some View {
+         NavigationStack {
++            Group {
++            if presenter.showsExtensionPolicies {
++                BindingOwnerAttachPolicyView()
++            } else {
+             ScrollView {
+                 VStack(alignment: .leading, spacing: 16) {
+                     if IdentityLinkUIFixture.enabled {
+@@ -812,6 +829,8 @@ struct IdentityLinkFlowView: View {
+                         content
+                     }
+                 }
++            }
++            }
+             }
+                 .onChange(of: scenePhase) { _, phase in
+                     if phase == .background { nearby.stop(); cameraRequested = false }
+@@ -894,6 +913,7 @@ struct IdentityLinkFlowView: View {
+     private var scanning: some View {
+         VStack(alignment: .leading, spacing: 16) {
+             header("Utvid min entitet", "Finn eller skann invitasjonen fra en av dine entiteter.")
++            NavigationLink("Når jeg bruker eide celler …") { BindingOwnerAttachPolicyView() }
+             #if canImport(VisionKit) && os(iOS)
+             if cameraRequested, IdentityLinkScannerView.isAvailable {
+                 IdentityLinkScannerView { payload in
+diff --git a/Binding/OwnerAttachRuntimeFixture.swift b/Binding/OwnerAttachRuntimeFixture.swift
+new file mode 100644
+index 00000000..f6707d29
+--- /dev/null
++++ b/Binding/OwnerAttachRuntimeFixture.swift
+@@ -0,0 +1,91 @@
++import SwiftUI
++import CellBase
++
++nonisolated enum OwnerAttachRuntimeFixture {
++    static var enabled: Bool {
++        #if DEBUG && os(macOS)
++        ProcessInfo.processInfo.arguments.contains("--owner-attach-runtime-test")
++        #else
++        false
++        #endif
++    }
++}
++
++#if DEBUG && os(macOS)
++private actor OwnerAttachFixtureStore: OwnerAttachExtensionStore {
++    private var entries: [String: Data] = [:]
++    private(set) var writes = 0
++    func read(id: String) -> Data? { entries[id] }
++    func write(_ data: Data, id: String) { entries[id] = data; writes += 1 }
++}
++
++/// Executable acceptance fixture using real Cells, crypto, consent and policy.
++/// Its vault and stores live only in this process; it never boots user state.
++struct OwnerAttachRuntimeFixtureView: View {
++    @ObservedObject private var controller = BindingOwnerAttachExtension.shared
++    @State private var owner: Identity?
++    @State private var source: GeneralCell?
++    @State private var cell: GeneralCell?
++    @State private var client: OwnerAttachEntityExtensionClient?
++    @State private var hostStore = OwnerAttachFixtureStore()
++    @State private var result = "Forbereder isolert runtime"
++    @State private var completed = 0
++    var body: some View {
++        VStack(spacing: 18) {
++            Text("Entitetsutvidelse — isolert runtime-test").font(.title2)
++            Text(result).accessibilityIdentifier("ownerAttach.result")
++            Text("Fullføringer: \(completed)")
++            Button("Attach eid celle igjen") { Task { await attach() } }
++                .accessibilityIdentifier("ownerAttach.attach")
++        }
++        .frame(width: 600, height: 760)
++        .sheet(item: Binding(get: { controller.review }, set: { if $0 == nil { controller.resolve(nil) } })) { review in
++            BindingOwnerAttachReviewView(review: review)
++        }
++        .task {
++            guard owner == nil else { return }
++            let vault = EphemeralIdentityVault()
++            guard let human = await vault.identity(for: "private", makeNewIfNotFound: true),
++                  let receiver = await vault.identity(for: "test-runtime", makeNewIfNotFound: true) else { return }
++            owner = human
++            source = await GeneralCell(owner: human)
++            cell = await GeneralCell(owner: human.publicIdentitySnapshot())
++            client = OwnerAttachEntityExtensionClient(store: OwnerAttachFixtureStore())
++            await OwnerAttachExtensionRuntime.shared.install(OwnerAttachEntityExtensionHost(
++                receiver: receiver, label: "Teststed på denne Macen", store: hostStore))
++            await attach()
++        }
++    }
++
++    private func attach() async {
++        guard let owner, let source, let cell, let client else { return }
++        do {
++            let store = hostStore
++            _ = try await OwnerAttachExtensionContext.$handler.withValue({ source, emitter, label, requester in
++                do {
++                    let outcome = try await client.consider(emitter: emitter, activeHuman: owner, requester: requester,
++                        stillAttached: { await source.getEmitterWithLabel(label, requester: requester) === emitter },
++                        review: { offer in await controller.ask(offer, endpoint: "Lokal testcelle · ingen nettverkstrafikk") })
++                    let writes = await store.writes
++                    await record(outcome, writes: writes)
++                } catch {
++                    await report(error)
++                }
++            }) {
++                try await source.attach(emitter: cell, label: "owned", requester: owner)
++            }
++        } catch { result = "Runtime-test feilet: \(error)" }
++    }
++    private func record(_ outcome: OwnerAttachExtensionOutcome, writes: Int) {
++        switch outcome {
++        case .confirmed:
++            completed += 1
++            result = "Bekreftet. Lagrede tilstedeværelser: \(writes)"
++        case .declined: result = "Avslått. Cellen er fortsatt tilkoblet."
++        default: result = "Venter på ny attach."
++        }
++    }
++    private func report(_ error: Error) { result = "Runtime-test feilet: \(error)" }
++
++}
++#endif
+diff --git a/Binding/RootView.swift b/Binding/RootView.swift
+index 587b6435..c9b94a0f 100644
+--- a/Binding/RootView.swift
++++ b/Binding/RootView.swift
+@@ -13,6 +13,7 @@ import DiMyCellProtocolCells
+ 
+ struct RootView: View {
+     @ObservedObject private var identityLinkPresenter = IdentityLinkFlowPresenter.shared
++    @ObservedObject private var ownerAttach = BindingOwnerAttachExtension.shared
+     @State private var initialized = false
+     @State private var initializationFailure: String?
+     @State private var initializationAttemptID = UUID()
+@@ -51,6 +52,7 @@ struct RootView: View {
+                     return
+                 }
+ 
++                try? await BindingOwnerAttachExtension.shared.prepare()
+                 let resolver = CellResolver.sharedInstance
+ #if canImport(DiMyCellProtocolCells)
+                 do {
+@@ -110,6 +112,20 @@ struct RootView: View {
+         .sheet(isPresented: identityLinkPresented) {
+             IdentityLinkFlowView()
+         }
++        .sheet(item: Binding(get: { ownerAttach.review }, set: { value in
++            if value == nil { ownerAttach.resolve(nil) }
++        })) { review in
++            BindingOwnerAttachReviewView(review: review)
++        }
++        .safeAreaInset(edge: .bottom) {
++            if let message = ownerAttach.status {
++                HStack {
++                    Text(message).font(.callout)
++                    Button("Spør igjen neste gang") { Task { await ownerAttach.forgetLatestPolicy() } }
++                    Button("Lukk") { ownerAttach.dismissStatus() }
++                }.padding().background(.regularMaterial)
++            }
++        }
+         .alert("Kunne ikke åpne lenken", isPresented: $incomingURLDeliveryFailed) {
+             Button("OK", role: .cancel) {}
+         } message: {
+diff --git a/BindingTests/IdentityLinkFlowTests.swift b/BindingTests/IdentityLinkFlowTests.swift
+index 823e30c4..dee58a0f 100644
+--- a/BindingTests/IdentityLinkFlowTests.swift
++++ b/BindingTests/IdentityLinkFlowTests.swift
+@@ -12,6 +12,21 @@ import CellBase
+ final class IdentityLinkFlowTests: XCTestCase {
+     private let origin = "https://staging.haven.digipomps.org"
+ 
++    @MainActor
++    func testPolicyEntryPointOnlyOpensSettingsAndRejectsExtraPayload() {
++        let presenter = IdentityLinkFlowPresenter.shared
++        presenter.isPresented = false
++        XCTAssertTrue(presenter.handle(url: URL(string: "haven://entity-extension-policy")!))
++        XCTAssertTrue(presenter.isPresented)
++        XCTAssertTrue(presenter.showsExtensionPolicies)
++        presenter.isPresented = false
++        presenter.showsExtensionPolicies = false
++        for suffix in ["?auto=true", "#approve", "/accept", ":8443"] {
++            XCTAssertFalse(presenter.handle(url: URL(string: "haven://entity-extension-policy" + suffix)!))
++            XCTAssertFalse(presenter.isPresented)
++        }
++    }
++
+     // MARK: Billett
+ 
+     func testTicketDecodeRejectsUntrustedOriginsAndExpiry() throws {
+diff --git a/BindingUITests/BindingUITests.swift b/BindingUITests/BindingUITests.swift
+index 8c271019..dd8c9055 100644
+--- a/BindingUITests/BindingUITests.swift
++++ b/BindingUITests/BindingUITests.swift
+@@ -22,6 +22,37 @@ final class BindingUITests: XCTestCase {
+         // Put teardown code here. This method is called after the invocation of each test method in the class.
+     }
+ 
++    @MainActor
++    func testOwnerAttachRuntimeConsentAndAutomaticRetry() throws {
++        let app = XCUIApplication()
++        app.launchArguments.append("--owner-attach-runtime-test")
++        app.launch()
++        let consent = app.buttons["ownerAttach.always"]
++        XCTAssertTrue(consent.waitForExistence(timeout: 15))
++        XCTAssertFalse(app.staticTexts["Fullføringer: 1"].exists)
++        consent.click()
++        XCTAssertTrue(app.staticTexts["Fullføringer: 1"].waitForExistence(timeout: 10))
++        XCTAssertTrue(app.staticTexts["Bekreftet. Lagrede tilstedeværelser: 1"].exists)
++        app.buttons["ownerAttach.attach"].click()
++        XCTAssertTrue(app.staticTexts["Fullføringer: 2"].waitForExistence(timeout: 10))
++        XCTAssertFalse(consent.exists)
++        XCTAssertTrue(app.staticTexts["Bekreftet. Lagrede tilstedeværelser: 1"].exists)
++        app.terminate()
++    }
++
++    @MainActor
++    func testOwnerAttachRuntimeCancelPreservesConnection() throws {
++        let app = XCUIApplication()
++        app.launchArguments.append("--owner-attach-runtime-test")
++        app.launch()
++        let cancel = app.buttons["ownerAttach.cancel"]
++        XCTAssertTrue(cancel.waitForExistence(timeout: 15))
++        cancel.click()
++        XCTAssertTrue(app.staticTexts["Avslått. Cellen er fortsatt tilkoblet."].waitForExistence(timeout: 5))
++        XCTAssertTrue(app.staticTexts["Fullføringer: 0"].exists)
++        app.terminate()
++    }
++
+     @MainActor
+     func testPersonalEntityInvitationRequiresVisibleReviewAndCanCancel() throws {
+         let app = XCUIApplication()
+diff --git a/Documentation/EntityExtension-20260928/ATTACH_DRIVEN_EXTENSION.md b/Documentation/EntityExtension-20260928/ATTACH_DRIVEN_EXTENSION.md
+index 76d80f29..62acd921 100644
+--- a/Documentation/EntityExtension-20260928/ATTACH_DRIVEN_EXTENSION.md
++++ b/Documentation/EntityExtension-20260928/ATTACH_DRIVEN_EXTENSION.md
+@@ -147,3 +147,11 @@ Lest fra CellProtocol lokal `origin/main` på
+ 
+ Ingen runtime-endring eller nye testkjøringer er utført for denne presiseringen.
+ Den eldre uverifiserte flyten forblir sperret i sikkerhetskandidaten.
++
++
++## Runtime-kandidat implementert 2026-09-28
++
++Etter forslaget over er første implementasjon lagt i isolerte arbeidsgrener.
++Se [RUNTIME_IMPLEMENTATION.md](RUNTIME_IMPLEMENTATION.md) for faktisk omfang,
++kjøreoppskrift, tester og gjenstående integrasjoner. Dette er ikke en bekreftelse
++på utrulling i installert HAVEN, Sprout, agent, staging eller produksjon.
+diff --git a/Documentation/EntityExtension-20260928/RUNTIME_IMPLEMENTATION.md b/Documentation/EntityExtension-20260928/RUNTIME_IMPLEMENTATION.md
+new file mode 100644
+index 00000000..c5ffefc2
+--- /dev/null
++++ b/Documentation/EntityExtension-20260928/RUNTIME_IMPLEMENTATION.md
+@@ -0,0 +1,114 @@
++# Attach-drevet entitetstilstedeværelse — lokal runtime-kandidat
++
++Dato: 2026-09-28. Oppgaven er «Implementer dette så vi får det i runtime».
++
++## Hva som kjører
++
++CellProtocol har en faktisk attach-trigger, signert tilbud/samtykke/kvittering,
++fersk kontroll av eieradgang og en delt klient for samtykke eller policy. Binding
++kobler klienten til eksplisitt menynavigasjon som attacher en remote celle.
++Brukeren velger denne gangen, automatisk her i ett år, ikke spør her i ett år,
++eller ikke nå. Automatisk bruk fornyer ikke policyens utløpstid. Policyoversikten ligger i identitetskoblingsflyten under
++«Når jeg bruker eide celler …». «Spør neste gang» fjerner automatikk.
++
++Policy og kvitteringer ligger kryptert med vault-avgrensede hemmeligheter.
++Automatikk matcher mottakernøkkel, aktiv menneskeidentitet, domene, formål og
++versjon. Delingstilgang, kopiert owner-UUID, debug-bypass og tilbakekalt
++same-entity-kobling kvalifiserer ikke. Gjentatte forsøk gjenbruker en kvittering,
++men må bevise gjeldende eierskap igjen. Ingen scaffold-identitet kobles til
++menneskets entitet.
++
++Dette registrerer tilstedeværelse med en eksisterende identitet. En ny nøkkel
++eller to ennå ukoblede identiteter trenger fortsatt den signerte IdentityLink-
++seremonien. Kvitteringen er ikke en rettighet til å lese/skrive/indexere data.
++Den er et grunnlag for videre distribuerte entitetsfunksjoner, ikke bevis på at
++alle slike funksjoner nå finnes. Ingen persondata er flyttet av denne kandidaten.
++
++## Integrasjonsstatus
++
++| Del | Faktisk status |
++| --- | --- |
++| CellProtocol | Implementert og 101 fokuserte tester består |
++| Binding / macOS HAVEN | Bygger med lokal CellProtocol; 16 identitets-/sikkerhetstester består |
++| Native attach-samtykke | Direkte GUI-test bestod: samtykke, automatisk nytt attach med én kvittering, og avbryt med fortsatt celletilgang. XCTest UI-runner er separat blokkert av macOS-autentisering |
++| iPhone | Signert generisk iOS-bygg består; fysisk telefon er ikke tilkoblet og to-enhetstest er ikke verifisert |
++| CellScaffold | Mottakeradapter og anonym readiness-rute lagt til; serverbygg er fortsatt ikke verifisert |
++| Sprout, agent, menyhjelper | Kandidater bygget; agentens krypterte kvitteringer overlever omstart. Sprout/meny åpner HAVEN via faste URL-er for kobling/policy |
++| Staging / prod / installert app | Ikke oppdatert av denne implementasjonen |
++| Push / datamigrering / indeksering | Separat arbeid; ingen ny tillatelse eller implementasjon følger av tilstedeværelse |
++
++## Praktisk lokal test
++
++Åpne den isolerte testappen uten å erstatte /Applications/HAVEN.app:
++
++```sh
++open -n /private/tmp/haven-owner-attach-runtime/app-products/HAVEN.app --args --owner-attach-runtime-test
++```
++
++Fixture-modus hopper over normal oppstart og bruker bare midlertidige testnøkler
++og minnelagring. Den kjører GeneralCell.attach, delt runtime-klient og det
++native samtykkearket. Velg «Automatisk her i ett år», kjør attach igjen, og
++kontroller to fullføringer men én mottakerkvittering. «Ikke nå» skal beholde
++celleforbindelsen uten fullføring. Dette tester ikke en ekstern server eller
++varig Keychain-lagring; disse trenger egne integrasjonstester.
++
++Den vanlige appens attach-flyt krever en oppdatert mottaker med støttet vault
++og kryptert kvitteringslager. Tilbyderen konfigureres med en eksisterende
++provisionert mottakersigner på serveren. Ustøttede verter påvirker ikke vanlig
++celletilgang. Ingen tilfeldig Absorb, import, preview eller automatisk oppstart
++slår på automatisk entitetsutvidelse.
++
++## Kilder og gjenskapbarhet
++
++Arbeidet er isolert for å bevare pågående arbeid i hovedarbeidsområdene:
++
++- Binding: `codex/entity-extension-security-20260928`, basis `ff3b20ca`.
++- CellProtocol: `codex/owner-attach-entity-extension-20260929`, basis `81601a6f835252aba7e99d43786fb5d67227c245`.
++- CellScaffold: `codex/owner-attach-runtime-20260928`, basis `adf48d46`.
++
++CellProtocol-kandidaten er publisert i PR #56; consumer-kandidatene er under koordinert utrulling. Koordinert kildearkiv og sjekksummer ligger i
++hovedarbeidsområdets `Implementation/EntityExtension-20260928/Runtime`.
++`OwnerAttachRuntime.xcworkspace` refererer til Binding-prosjektet og en lokal
++CellProtocol-mappe ved siden av Binding. Prosjektets vanlige remote package-pin
++er ennå ikke oppdatert; bruk dette arbeidsområdet for kandidaten. Publisering
++krever først en koordinert CellProtocol-versjon og deretter consumer-pins.
++
++Kandidaten ble bygd med Xcode for macOS arm64, ad-hoc signering og lokal
++CellProtocol. App-resultat: `Test-HAVEN-2026.09.28_19-18-39-+0200.xcresult`,
++Nyeste appkjøring: 13 XCTest + 3 Swift Testing; alle bestod (20:18 CEST). CellProtocol-kjøringen består av
++OwnerAttach, BridgeIdentityBoundary, GeneralCellInterface, ExploreContractValidator
++og IdentityLink. Én syntetisk JSON-golden fastsetter ISO8601-wire og avviser
++manglende signatur. Dette er Swift-dekning, ikke Sprout-interoperabilitet.
++
++Serverens påkrevde bounded-build stoppet på en eksisterende SwiftPM-cache uten
++`.haven-swiftpm-cache-v1`. Ingen markør ble forfalsket og ingen cache ble slettet.
++UI-runneren må også få kjøre etter at den pågående macOS-autentiseringen er ferdig.
++CellProtocol-CI er startet; ingen serverdeploy eller produksjonsendring er utført per dette checkpointet.
++
++## Handoff til distribuert entitetsdata
++
++`OwnerAttachExtensionClientRecord` inneholder validert kvittering og eventuelt
++kryptert `receiverEndpoint` som rutinghint. Dette kan være innspill til en senere
++entity-scaffold-inventarløsning, men er ikke i seg selv en fullstendig inventarliste
++eller en tilgangsgrant. Ny lesing/skriving/indeksering må kontrollere aktiv
++identitet, gjeldende eierskap, domene, mottakernøkkel og selvstendig datapolicy.
++Tilbakekall og nøkkelrotasjon må gjelde også om en historisk kvittering finnes.
++
++## Direkte native GUI-kjøring
++
++Den endelige appen ble åpnet med fixture-flagget og betjent gjennom
++tilgjengelighetstreet 2026-09-28. «Automatisk her i ett år» ga
++«Bekreftet. Lagrede tilstedeværelser: 1 Fullføringer: 1». Et nytt attach
++ga «Lagrede tilstedeværelser: 1 Fullføringer: 2», uten nytt samtykkeark.
++Etter en ny fixture-prosess ga «Ikke nå» resultatet
++«Avslått. Cellen er fortsatt tilkoblet. Fullføringer: 0».
++Dette verifiserer den kjørbare native brukerflyten med faktiske lokale
++GeneralCell-operasjoner. Det erstatter ikke fysisk telefon-/servertesting.
++
++## Innganger og avgrensning ved utrulling
++
++`haven://entity-extension-policy` åpner policyoversikten uten å endre samtykke.
++Ekstra URL-payload avvises. Sprout har `entity policy`, og native Sprout og
++menyhjelperen har «Automatikk ved cellebruk …». Agenten bruker sin eksisterende
++vedvarende mottakersigner med separat avledet lagringsnøkkel. Ingen av disse
++launcher-knappene etablerer en ny menneskeidentitet eller gir datarettigheter.
+diff --git a/OwnerAttachRuntime.xcworkspace/contents.xcworkspacedata b/OwnerAttachRuntime.xcworkspace/contents.xcworkspacedata
+new file mode 100644
+index 00000000..48ee2f3a
+--- /dev/null
++++ b/OwnerAttachRuntime.xcworkspace/contents.xcworkspacedata
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<Workspace version="1.0">
++  <FileRef location="group:Binding.xcodeproj"/>
++  <FileRef location="group:../CellProtocol"/>
++</Workspace>

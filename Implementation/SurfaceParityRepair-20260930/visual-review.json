@@ -1,0 +1,26 @@
+{
+  "reviewedAtUTC": "2026-09-30T01:28:02.165113+00:00",
+  "native": "native-acceptance-delivery",
+  "web": "web-acceptance-delivery",
+  "directlyInspectedFinalPairs": [
+    "picker-static-options-compact",
+    "component-surface-two-local-mounts-compact",
+    "navigation-bar-action-and-link-compact",
+    "list-compact"
+  ],
+  "priorSameRendererPairInspection": [
+    "visualization-static-table-compact",
+    "grid",
+    "form",
+    "reference",
+    "image"
+  ],
+  "findings": [
+    "List row values, full-width badges and column structure match closely; font metrics/line wrapping differ.",
+    "Picker has same dark full-width field and displayed Normal; native popup uses platform arrows. The base web/theme label is pale on white in both.",
+    "Mounted buttons now fill both columns, and the separate adapter tests prove authorized local clicks. Snapshot data alone does not prove source state refresh.",
+    "Table base paint and values match. Navigation target without a valid base is disabled; native shadow/disabled paint details differ.",
+    "The gallery loads all 140 images and switches both widths without page errors; not every arbitrary modifier/combination is manually reviewed."
+  ],
+  "pixelIdentityClaimed": false
+}

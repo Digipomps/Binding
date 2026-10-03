@@ -1,0 +1,4 @@
+2026-09-29 14:28:39.074 xcodebuild[91528:31676716] Writing error result bundle to /var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/ResultBundle_2026-29-09_14-28-0039.xcresult
+xcodebuild: error: Could not resolve package dependencies:
+  an out-of-date resolved file was detected at /Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding.xcworkspace/xcshareddata/swiftpm/Package.resolved, which is not allowed when automatic dependency resolution is disabled; please make sure to update the file to reflect the changes in dependencies. Running resolver because requirements have changed.
+

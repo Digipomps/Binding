@@ -1,0 +1,22 @@
+{
+  "materialized" : false,
+  "missingExpectedText" : [
+    "Reference row"
+  ],
+  "observedStyleTokens" : [
+
+  ],
+  "pixelHeight" : 2000,
+  "pixelWidth" : 780,
+  "recognizedText" : "\n\n\n\n",
+  "rootDataSupplied" : true,
+  "styleNormalizationApplied" : false,
+  "surface" : {
+    "backgroundHex" : "#FFFFFF",
+    "contentMaxWidth" : 1180,
+    "height" : 1000,
+    "isDarkMode" : false,
+    "padding" : 16,
+    "width" : 390
+  }
+}

@@ -1,0 +1,1930 @@
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 (in target 'HAVEN' from project 'Binding')
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/BindingStartupIdentityVault.swift:48:50: warning: call to main actor-isolated initializer 'init()' in a synchronous nonisolated context [#ActorIsolatedCall]
+ 46 |     init(
+ 47 |         durable: Bool = BindingStartupIdentityVault.shouldPersistAcrossLaunches(),
+ 48 |         store: any BindingStartupIdentityStore = BindingKeychainStartupIdentityStore(),
+    |                                                  `- warning: call to main actor-isolated initializer 'init()' in a synchronous nonisolated context [#ActorIsolatedCall]
+ 49 |         persistenceRoot: URL? = nil
+ 50 |     ) {
+    :
+410 | /// only, readable after first unlock so the app can boot before the person
+411 | /// authenticates.
+412 | struct BindingKeychainStartupIdentityStore: BindingStartupIdentityStore {
+    |        |- note: calls to initializer 'init()' from outside of its actor context are implicitly asynchronous
+    |        `- note: main actor isolation inferred from conformance to protocol 'BindingStartupIdentityStore'
+413 |     private func query(account: String) -> [String: Any] {
+414 |         [
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/PendingActionInboxViewModel.swift:80:58: warning: main actor-isolated static property 'defaultStorageKey' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 62 | final class PendingActionInboxViewModel: ObservableObject {
+ 63 |     static let shared = PendingActionInboxViewModel()
+ 64 |     static let defaultStorageKey = "binding.pendingDeviceActions.v1"
+    |                `- note: static property declared here
+ 65 | #if DEBUG
+ 66 |     static let correspondenceApprovalUITestLaunchArgument =
+    :
+ 78 |     init(
+ 79 |         defaults: UserDefaults = .standard,
+ 80 |         storageKey: String = PendingActionInboxViewModel.defaultStorageKey,
+    |                                                          `- warning: main actor-isolated static property 'defaultStorageKey' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 81 |         launchArguments: [String] = ProcessInfo.processInfo.arguments
+ 82 |     ) {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/PersonEntityReadResult.swift:17:13: warning: stored property 'value' of 'Sendable'-conforming struct 'Fragment' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+ 15 |         let keypath: String
+ 16 |         let status: Status
+ 17 |         let value: ValueType?
+    |             `- warning: stored property 'value' of 'Sendable'-conforming struct 'Fragment' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+ 18 |         let sourceOrigin: String?
+ 19 |         let sourceReference: String?
+
+CellBase.ValueType:1:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 1 | indirect public enum ValueType : Codable {
+   |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 2 |     case flowElement(CellBase.FlowElement)
+ 3 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/PersonEntityReadResult.swift:4:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  2 | // SPDX-FileCopyrightText: Copyright (c) 2026 Stiftelsen Digipomps and HAVEN contributors
+  3 | 
+  4 | import CellBase
+    | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  5 | import Foundation
+  6 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/HavenRelationCellSupport.swift:17:5: warning: 'nonisolated' can not be applied to variable with non-'Sendable' type 'ISO8601DateFormatter'; this is an error in the Swift 6 language mode
+ 15 | nonisolated enum HavenValue {
+ 16 | 
+ 17 |     nonisolated static let isoFormatter: ISO8601DateFormatter = {
+    |     `- warning: 'nonisolated' can not be applied to variable with non-'Sendable' type 'ISO8601DateFormatter'; this is an error in the Swift 6 language mode
+ 18 |         let formatter = ISO8601DateFormatter()
+ 19 |         formatter.formatOptions = [.withInternetDateTime]
+
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/System/Library/Frameworks/Foundation.framework/Headers/NSISO8601DateFormatter.h:80:12: note: class 'ISO8601DateFormatter' does not conform to the 'Sendable' protocol
+ 78 | /// > In Swift, you can use ``Date/ISO8601FormatStyle`` rather than ``ISO8601DateFormatter``. The ``FormatStyle`` API offers a declarative idiom for customizing the formatting of various types. Also, Foundation caches identical ``FormatStyle`` instances, so you don't need to pass them around your app, or risk wasting memory with duplicate formatters.
+ 79 | API_AVAILABLE(macosx(10.12), ios(10.0), watchos(3.0), tvos(10.0))
+ 80 | @interface NSISO8601DateFormatter : NSFormatter <NSSecureCoding> {
+    |            `- note: class 'ISO8601DateFormatter' does not conform to the 'Sendable' protocol
+ 81 | @private
+ 82 |     CFDateFormatterRef _formatter;
+
+[#ActorIsolatedCall]: <https://docs.swift.org/compiler/documentation/diagnostics/actor-isolated-call>
+[#AddPreconcurrencyImport]: <https://docs.swift.org/compiler/documentation/diagnostics/add-preconcurrency-import>
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/IdentityLinkFlow.swift (in target 'HAVEN' from project 'Binding')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/NotificationCallbackClient.swift (in target 'HAVEN' from project 'Binding')
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/IdentityLinkFlow.swift:468:21: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 466 |                 } catch {
+ 467 |                     guard self.generation == token, !Task.isCancelled else { return }
+ 468 |                     await self.set(.failed(message: Self.message(for: error)))
+     |                     `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 469 |                     return
+ 470 |                 }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/IdentityLinkFlow.swift:474:17: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 472 |             }
+ 473 |             if !Task.isCancelled {
+ 474 |                 await self.set(.failed(message: "Ingen godkjenning kom innen tiden. Lag en ny kode og prøv igjen."))
+     |                 `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 475 |             }
+ 476 |         }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/IdentityLinkFlow.swift:744:83: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+ 741 | 
+ 742 |     private init() {
+ 743 |         Task {
+     |              |- note: 'self' implicitly strongly captured here
+     |              `- note: add 'self' as a capture list item to silence
+ 744 |             observerID = await IdentityLinkFlowCoordinator.shared.observe { [weak self] newState in
+     |                                                                                   |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+     |                                                                                   `- note: explicitly assign the capture list item to silence
+ 745 |                 Task { @MainActor in self?.state = newState }
+ 746 |             }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/IdentityLinkFlow.swift:745:38: warning: reference to captured var 'self' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+ 743 |         Task {
+ 744 |             observerID = await IdentityLinkFlowCoordinator.shared.observe { [weak self] newState in
+ 745 |                 Task { @MainActor in self?.state = newState }
+     |                                      `- warning: reference to captured var 'self' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+ 746 |             }
+ 747 |         }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/NotificationCallbackClient.swift:665:40: warning: main actor-isolated property 'defaultPrompt' can not be referenced from a nonisolated context
+663 |             "responseKind": .string("decision"),
+664 |             "decision": .string(decision.rawValue),
+665 |             "prompt": .string(decision.defaultPrompt)
+    |                                        `- warning: main actor-isolated property 'defaultPrompt' can not be referenced from a nonisolated context
+666 |         ]
+667 |         if let note = note?.trimmingCharacters(in: .whitespacesAndNewlines),
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/AgentConversationClient.swift:339:9: note: property declared here
+337 |     case rejected
+338 | 
+339 |     var defaultPrompt: String {
+    |         `- note: property declared here
+340 |         switch self {
+341 |         case .approved:
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/NotificationCallbackClient.swift:797:32: warning: main actor-isolated conformance of 'JSONValue' to 'Equatable' cannot be used in nonisolated context; this is an error in the Swift 6 language mode [#IsolatedConformances]
+795 |             }
+796 |         }
+797 |         if result["interests"] == nil,
+    |                                `- warning: main actor-isolated conformance of 'JSONValue' to 'Equatable' cannot be used in nonisolated context; this is an error in the Swift 6 language mode [#IsolatedConformances]
+798 |            case let .array(interests)? = action.payload["interests"] {
+799 |             result["interests"] = .array(interests)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/NotificationCallbackClient.swift:801:37: warning: main actor-isolated conformance of 'JSONValue' to 'Equatable' cannot be used in nonisolated context; this is an error in the Swift 6 language mode [#IsolatedConformances]
+799 |             result["interests"] = .array(interests)
+800 |         }
+801 |         if result["sourceTicketId"] == nil,
+    |                                     `- warning: main actor-isolated conformance of 'JSONValue' to 'Equatable' cannot be used in nonisolated context; this is an error in the Swift 6 language mode [#IsolatedConformances]
+802 |            let contactTicketId = stringValue(action.payload["contactTicketId"]) {
+803 |             result["sourceTicketId"] = .string(contactTicketId)
+
+[#ImplicitStrongCapture]: <https://docs.swift.org/compiler/documentation/diagnostics/implicit-strong-capture>
+[#IsolatedConformances]: <https://docs.swift.org/compiler/documentation/diagnostics/isolated-conformances>
+[#SendableClosureCaptures]: <https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures>
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/BindingStartupIdentityVault.swift (in target 'HAVEN' from project 'Binding')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/BootstrapView.swift (in target 'HAVEN' from project 'Binding')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/ButlerLanguageSupport.swift (in target 'HAVEN' from project 'Binding')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/CellConfigurationEndpointRetargeting.swift (in target 'HAVEN' from project 'Binding')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/ChatWorkbenchParityCells.swift (in target 'HAVEN' from project 'Binding')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/ChatWorkbenchProviderEvaluation.swift (in target 'HAVEN' from project 'Binding')
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/ChatWorkbenchParityCells.swift:9323:38: warning: main actor-isolated property 'objectValue' can not be referenced from a nonisolated context
+9321 |             "mode": .string(policy.mode.rawValue),
+9322 |             "automaticCaptureEnabled": .bool(false),
+9323 |             "policy": .object(policy.objectValue),
+     |                                      `- warning: main actor-isolated property 'objectValue' can not be referenced from a nonisolated context
+9324 |             "policySource": .string("default_off"),
+9325 |             "summary": .string(policy.summary),
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/PersonalChatChronicle.swift:47:9: note: property declared here
+ 45 |     }
+ 46 | 
+ 47 |     var objectValue: Object {
+    |         `- note: property declared here
+ 48 |         [
+ 49 |             "schema": .string(Self.schema),
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/ChatWorkbenchParityCells.swift:9325:39: warning: main actor-isolated property 'summary' can not be referenced from a nonisolated context
+9323 |             "policy": .object(policy.objectValue),
+9324 |             "policySource": .string("default_off"),
+9325 |             "summary": .string(policy.summary),
+     |                                       `- warning: main actor-isolated property 'summary' can not be referenced from a nonisolated context
+9326 |             "lastPersistenceStatus": .string("not_configured"),
+9327 |             "lastMessage": .string(policy.summary),
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/PersonalChatChronicle.swift:36:9: note: property declared here
+ 34 |     }
+ 35 | 
+ 36 |     var summary: String {
+    |         `- note: property declared here
+ 37 |         switch mode {
+ 38 |         case .off:
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/ChatWorkbenchParityCells.swift:9327:43: warning: main actor-isolated property 'summary' can not be referenced from a nonisolated context
+9325 |             "summary": .string(policy.summary),
+9326 |             "lastPersistenceStatus": .string("not_configured"),
+9327 |             "lastMessage": .string(policy.summary),
+     |                                           `- warning: main actor-isolated property 'summary' can not be referenced from a nonisolated context
+9328 |             "lastError": .null,
+9329 |             "lastRecordID": .null,
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/PersonalChatChronicle.swift:36:9: note: property declared here
+ 34 |     }
+ 35 | 
+ 36 |     var summary: String {
+    |         `- note: property declared here
+ 37 |         switch mode {
+ 38 |         case .off:
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/ChatWorkbenchParityCells.swift:9370:73: warning: main actor-isolated static property 'endpoint' can not be referenced from a nonisolated context
+3501 | private enum BindingContactEndpointContracts {
+3502 |     static let cellName = "ContactEndpoint"
+3503 |     static let endpoint = "cell:///ContactEndpoint"
+     |                `- note: static property declared here
+3504 |     static let requestSchema = "cellprotocol.contact.request.v1"
+3505 |     static let descriptorSchema = "cellprotocol.contactEndpoint.descriptor.v1"
+     :
+9368 |                 "status": .string("not_loaded"),
+9369 |                 "message": .string("Kontaktinnboksen er ikke hentet ennå."),
+9370 |                 "endpointCell": .string(BindingContactEndpointContracts.endpoint),
+     |                                                                         `- warning: main actor-isolated static property 'endpoint' can not be referenced from a nonisolated context
+9371 |                 "pendingCount": .integer(0),
+9372 |                 "selectedTicketID": .null,
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/ChatWorkbenchProviderEvaluation.swift:38:20: warning: call to main actor-isolated instance method 'helperIDMatchesExpected()' in a synchronous nonisolated context [#ActorIsolatedCall]
+ 36 |                 && classification.intentKind == expectedIntentKind
+ 37 |                 && classification.purposeRef == expectedPurposeRef
+ 38 |                 && helperIDMatchesExpected()
+    |                    `- warning: call to main actor-isolated instance method 'helperIDMatchesExpected()' in a synchronous nonisolated context [#ActorIsolatedCall]
+ 39 |                 && (expectedSuggestionStatus == nil || classification.status == expectedSuggestionStatus)
+ 40 |         } else if let forbiddenIntentKind {
+    :
+ 51 |     }
+ 52 | 
+ 53 |     private func helperIDMatchesExpected() -> Bool {
+    |                  `- note: calls to instance method 'helperIDMatchesExpected()' from outside of its actor context are implicitly asynchronous
+ 54 |         guard let expectedHelperID else {
+ 55 |             return classification.helperID.isEmpty
+
+[#ActorIsolatedCall]: <https://docs.swift.org/compiler/documentation/diagnostics/actor-isolated-call>
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[#IsolatedConformances]: <https://docs.swift.org/compiler/documentation/diagnostics/isolated-conformances>
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/SkeletonPresentationOverlayView.swift:159:9: warning: switch must be exhaustive
+157 | 
+158 |     static func modifiers(for element: SkeletonElement) -> SkeletonModifiers? {
+159 |         switch element {
+    |         |- warning: switch must be exhaustive
+    |         |- note: add missing case: '.Tree(_)'
+    |         |- note: add missing case: '.ComponentSurface(_)'
+    |         `- note: add missing cases
+160 |         case .Text(let value):
+161 |             return value.modifiers
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/SkeletonPresentationOverlayView.swift:636:9: warning: switch must be exhaustive
+634 | 
+635 |     private static func setting(modifiers: SkeletonModifiers?, on element: SkeletonElement) -> SkeletonElement {
+636 |         switch element {
+    |         |- warning: switch must be exhaustive
+    |         |- note: add missing case: '.Tree(_)'
+    |         |- note: add missing case: '.ComponentSurface(_)'
+    |         `- note: add missing cases
+637 |         case .Text(var value):
+638 |             value.modifiers = modifiers
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/WorkflowStudioSupport.swift:1125:98: warning: call to main actor-isolated static method 'nonEmptyString' in a synchronous nonisolated context [#ActorIsolatedCall]
+1123 |     static func transform(input: ValueType, configuration: Object) -> ValueType {
+1124 |         let strategy = WorkflowValueExtraction.nonEmptyString(configuration["strategy"]) ?? "fieldProjection"
+1125 |         let includeKeys = WorkflowValueExtraction.list(configuration["includeKeys"])?.compactMap(WorkflowValueExtraction.nonEmptyString) ?? []
+     |                                                                                                  `- warning: call to main actor-isolated static method 'nonEmptyString' in a synchronous nonisolated context [#ActorIsolatedCall]
+1126 | 
+1127 |         switch strategy {
+     :
+1317 | 
+1318 | enum WorkflowValueExtraction {
+1319 |     static func nonEmptyString(_ value: ValueType?) -> String? {
+     |                 `- note: calls to static method 'nonEmptyString' from outside of its actor context are implicitly asynchronous
+1320 |         guard case let .string(string)? = value else {
+1321 |             return nil
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/HavenRelationCellSupport.swift:17:5: warning: 'nonisolated' can not be applied to variable with non-'Sendable' type 'ISO8601DateFormatter'; this is an error in the Swift 6 language mode
+ 15 | nonisolated enum HavenValue {
+ 16 | 
+ 17 |     nonisolated static let isoFormatter: ISO8601DateFormatter = {
+    |     `- warning: 'nonisolated' can not be applied to variable with non-'Sendable' type 'ISO8601DateFormatter'; this is an error in the Swift 6 language mode
+ 18 |         let formatter = ISO8601DateFormatter()
+ 19 |         formatter.formatOptions = [.withInternetDateTime]
+
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/System/Library/Frameworks/Foundation.framework/Headers/NSISO8601DateFormatter.h:80:12: note: class 'ISO8601DateFormatter' does not conform to the 'Sendable' protocol
+ 78 | /// > In Swift, you can use ``Date/ISO8601FormatStyle`` rather than ``ISO8601DateFormatter``. The ``FormatStyle`` API offers a declarative idiom for customizing the formatting of various types. Also, Foundation caches identical ``FormatStyle`` instances, so you don't need to pass them around your app, or risk wasting memory with duplicate formatters.
+ 79 | API_AVAILABLE(macosx(10.12), ios(10.0), watchos(3.0), tvos(10.0))
+ 80 | @interface NSISO8601DateFormatter : NSFormatter <NSSecureCoding> {
+    |            `- note: class 'ISO8601DateFormatter' does not conform to the 'Sendable' protocol
+ 81 | @private
+ 82 |     CFDateFormatterRef _formatter;
+
+[#ActorIsolatedCall]: <https://docs.swift.org/compiler/documentation/diagnostics/actor-isolated-call>
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/AppleClaimArgumentPipeline.swift:386:30: warning: 'init(sampling:temperature:maximumResponseTokens:)' is deprecated: replaced by 'init(samplingMode:temperature:maximumResponseTokens:)' [#DeprecatedDeclaration]
+384 |                     generating: BindingAppleClaimPresenceAnswer.self,
+385 |                     includeSchemaInPrompt: true,
+386 |                     options: GenerationOptions(sampling: .greedy)
+    |                              |- warning: 'init(sampling:temperature:maximumResponseTokens:)' is deprecated: replaced by 'init(samplingMode:temperature:maximumResponseTokens:)' [#DeprecatedDeclaration]
+    |                              `- note: use 'init(samplingMode:temperature:maximumResponseTokens:)' instead
+387 |                 ) {
+388 |                     """
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/AppleClaimArgumentPipeline.swift:414:30: warning: 'init(sampling:temperature:maximumResponseTokens:)' is deprecated: replaced by 'init(samplingMode:temperature:maximumResponseTokens:)' [#DeprecatedDeclaration]
+412 |                     generating: BindingAppleClaimTypeAnswer.self,
+413 |                     includeSchemaInPrompt: true,
+414 |                     options: GenerationOptions(sampling: .greedy)
+    |                              |- warning: 'init(sampling:temperature:maximumResponseTokens:)' is deprecated: replaced by 'init(samplingMode:temperature:maximumResponseTokens:)' [#DeprecatedDeclaration]
+    |                              `- note: use 'init(samplingMode:temperature:maximumResponseTokens:)' instead
+415 |                 ) {
+416 |                     """
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/AddressBookCell.swift (in target 'HAVEN' from project 'Binding')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/ConfigurationCatalogCell.swift (in target 'HAVEN' from project 'Binding')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/ContactImportCell.swift (in target 'HAVEN' from project 'Binding')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/EntityResidencyCell.swift (in target 'HAVEN' from project 'Binding')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/EntityScaffoldExtensionCell.swift (in target 'HAVEN' from project 'Binding')
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/EntityResidencyCell.swift:1068:60: warning: main actor-isolated static property 'endpoint' can not be referenced from a nonisolated context
+  19 | 
+  20 | final class BindingEntityResidencyCell: GeneralCell {
+  21 |     static let endpoint = "cell:///EntityResidency"
+     |                `- note: static property declared here
+  22 |     static let sourceCellName = "BindingEntityResidencyCell"
+  23 | 
+     :
+1066 |             menuSlots: ["lowerRight"]
+1067 |         )
+1068 |         configuration.addReference(CellReference(endpoint: endpoint, subscribeFeed: false, label: "residency"))
+     |                                                            `- warning: main actor-isolated static property 'endpoint' can not be referenced from a nonisolated context
+1069 | 
+1070 |         var placementRow = SkeletonVStack(elements: [
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/EntityScaffoldExtensionCell.swift:854:33: warning: main actor-isolated static property 'endpoint' can not be referenced from a nonisolated context
+ 29 | 
+ 30 | final class BindingEntityScaffoldExtensionCell: GeneralCell {
+ 31 |     static let endpoint = "cell:///EntityScaffoldExtension"
+    |                `- note: static property declared here
+ 32 |     static let sourceCellName = "BindingEntityScaffoldExtensionCell"
+ 33 | 
+    :
+852 |         configuration.description = "Ta entiteten din med til en ny enhet eller et nytt scaffold. Ny nøkkel der, godkjenning her — ingen hemmeligheter flyttes."
+853 |         configuration.discovery = CellConfigurationDiscovery(
+854 |             sourceCellEndpoint: endpoint,
+    |                                 `- warning: main actor-isolated static property 'endpoint' can not be referenced from a nonisolated context
+855 |             sourceCellName: sourceCellName,
+856 |             purpose: "Utvid entiteten til nye scaffolds og enheter",
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/EntityScaffoldExtensionCell.swift:855:29: warning: main actor-isolated static property 'sourceCellName' can not be referenced from a nonisolated context
+ 30 | final class BindingEntityScaffoldExtensionCell: GeneralCell {
+ 31 |     static let endpoint = "cell:///EntityScaffoldExtension"
+ 32 |     static let sourceCellName = "BindingEntityScaffoldExtensionCell"
+    |                `- note: static property declared here
+ 33 | 
+ 34 |     private enum CodingKeys: String, CodingKey {
+    :
+853 |         configuration.discovery = CellConfigurationDiscovery(
+854 |             sourceCellEndpoint: endpoint,
+855 |             sourceCellName: sourceCellName,
+    |                             `- warning: main actor-isolated static property 'sourceCellName' can not be referenced from a nonisolated context
+856 |             purpose: "Utvid entiteten til nye scaffolds og enheter",
+857 |             purposeDescription: "Bygger på CellBase' enrollment-primitiver: signert forespørsel fra det nye stedet, godkjenning bundet til forespørselens hash fra et sted du allerede bruker, og en koblingspost begge sider kan trekke tilbake.",
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/EntityScaffoldExtensionCell.swift:870:60: warning: main actor-isolated static property 'endpoint' can not be referenced from a nonisolated context
+ 29 | 
+ 30 | final class BindingEntityScaffoldExtensionCell: GeneralCell {
+ 31 |     static let endpoint = "cell:///EntityScaffoldExtension"
+    |                `- note: static property declared here
+ 32 |     static let sourceCellName = "BindingEntityScaffoldExtensionCell"
+ 33 | 
+    :
+868 |             menuSlots: ["lowerRight"]
+869 |         )
+870 |         configuration.addReference(CellReference(endpoint: endpoint, subscribeFeed: false, label: "entityExtension"))
+    |                                                            `- warning: main actor-isolated static property 'endpoint' can not be referenced from a nonisolated context
+871 | 
+872 |         var linkRow = SkeletonVStack(elements: [
+
+[#ActorIsolatedCall]: <https://docs.swift.org/compiler/documentation/diagnostics/actor-isolated-call>
+[#IsolatedConformances]: <https://docs.swift.org/compiler/documentation/diagnostics/isolated-conformances>
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/ConferencePreviewShellLocalCells.swift (in target 'HAVEN' from project 'Binding')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/ContentView.swift (in target 'HAVEN' from project 'Binding')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/DeviceIngressRegistrationClient.swift (in target 'HAVEN' from project 'Binding')
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/ConferencePreviewShellLocalCells.swift:781:30: warning: main actor-isolated property 'discardedDraft' can not be referenced from a nonisolated context
+ 649 | final class ConferenceAdminPreviewShellLocalFallbackCell: GeneralCell {
+ 650 |     private var draftPublished = false
+ 651 |     private var discardedDraft = false
+     |                 `- note: property declared here
+ 652 |     private var lastEditSummary = "Redaktørutkastet er klart for gjennomgang."
+ 653 |     private var draftTitle = "AI & Digital Independence 2026"
+     :
+ 779 |         try super.encode(to: encoder)
+ 780 |         var container = encoder.container(keyedBy: ConferenceAdminPreviewCodingKeys.self)
+ 781 |         try container.encode(discardedDraft, forKey: .discardedDraft)
+     |                              `- warning: main actor-isolated property 'discardedDraft' can not be referenced from a nonisolated context
+ 782 |         try container.encode(draftPublished, forKey: .draftPublished)
+ 783 |         try container.encode(draftSubtitle, forKey: .draftSubtitle)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/ConferencePreviewShellLocalCells.swift:782:30: warning: main actor-isolated property 'draftPublished' can not be referenced from a nonisolated context
+ 648 | 
+ 649 | final class ConferenceAdminPreviewShellLocalFallbackCell: GeneralCell {
+ 650 |     private var draftPublished = false
+     |                 `- note: property declared here
+ 651 |     private var discardedDraft = false
+ 652 |     private var lastEditSummary = "Redaktørutkastet er klart for gjennomgang."
+     :
+ 780 |         var container = encoder.container(keyedBy: ConferenceAdminPreviewCodingKeys.self)
+ 781 |         try container.encode(discardedDraft, forKey: .discardedDraft)
+ 782 |         try container.encode(draftPublished, forKey: .draftPublished)
+     |                              `- warning: main actor-isolated property 'draftPublished' can not be referenced from a nonisolated context
+ 783 |         try container.encode(draftSubtitle, forKey: .draftSubtitle)
+ 784 |         try container.encode(draftTitle, forKey: .draftTitle)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/ConferencePreviewShellLocalCells.swift:783:30: warning: main actor-isolated property 'draftSubtitle' can not be referenced from a nonisolated context
+ 652 |     private var lastEditSummary = "Redaktørutkastet er klart for gjennomgang."
+ 653 |     private var draftTitle = "AI & Digital Independence 2026"
+ 654 |     private var draftSubtitle = "Sovereign AI, identity, governance, and infrastructure."
+     |                 `- note: property declared here
+ 655 |     private var requestedSurface = "conferencePublicShell"
+ 656 |     private var requestedWindowHours = "24"
+     :
+ 781 |         try container.encode(discardedDraft, forKey: .discardedDraft)
+ 782 |         try container.encode(draftPublished, forKey: .draftPublished)
+ 783 |         try container.encode(draftSubtitle, forKey: .draftSubtitle)
+     |                              `- warning: main actor-isolated property 'draftSubtitle' can not be referenced from a nonisolated context
+ 784 |         try container.encode(draftTitle, forKey: .draftTitle)
+ 785 |         try container.encode(lastEditSummary, forKey: .lastEditSummary)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/ConferencePreviewShellLocalCells.swift:784:30: warning: main actor-isolated property 'draftTitle' can not be referenced from a nonisolated context
+ 651 |     private var discardedDraft = false
+ 652 |     private var lastEditSummary = "Redaktørutkastet er klart for gjennomgang."
+ 653 |     private var draftTitle = "AI & Digital Independence 2026"
+     |                 `- note: property declared here
+ 654 |     private var draftSubtitle = "Sovereign AI, identity, governance, and infrastructure."
+ 655 |     private var requestedSurface = "conferencePublicShell"
+     :
+ 782 |         try container.encode(draftPublished, forKey: .draftPublished)
+ 783 |         try container.encode(draftSubtitle, forKey: .draftSubtitle)
+ 784 |         try container.encode(draftTitle, forKey: .draftTitle)
+     |                              `- warning: main actor-isolated property 'draftTitle' can not be referenced from a nonisolated context
+ 785 |         try container.encode(lastEditSummary, forKey: .lastEditSummary)
+ 786 |     }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/ConferencePreviewShellLocalCells.swift:785:30: warning: main actor-isolated property 'lastEditSummary' can not be referenced from a nonisolated context
+ 650 |     private var draftPublished = false
+ 651 |     private var discardedDraft = false
+ 652 |     private var lastEditSummary = "Redaktørutkastet er klart for gjennomgang."
+     |                 `- note: property declared here
+ 653 |     private var draftTitle = "AI & Digital Independence 2026"
+ 654 |     private var draftSubtitle = "Sovereign AI, identity, governance, and infrastructure."
+     :
+ 783 |         try container.encode(draftSubtitle, forKey: .draftSubtitle)
+ 784 |         try container.encode(draftTitle, forKey: .draftTitle)
+ 785 |         try container.encode(lastEditSummary, forKey: .lastEditSummary)
+     |                              `- warning: main actor-isolated property 'lastEditSummary' can not be referenced from a nonisolated context
+ 786 |     }
+ 787 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/ContentView.swift:6154:19: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+6152 |         guard let resolver = CellBase.defaultCellResolver as? CellResolver else { return }
+6153 |         for endpoint in remoteRegistrationEndpoints(in: configuration) {
+6154 |             guard await RemoteEndpointAccessSupport.authorizationKind(for: endpoint) != .none else {
+     |                   `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+6155 |                 continue
+6156 |             }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/DeviceIngressRegistrationClient.swift:226:36: warning: immutable value 'envelope' was never used; consider replacing with '_' or removing it [#NoUsage]
+ 224 |         _ lease: DeviceIngressCompletionEnvelopeLease
+ 225 |     ) throws {
+ 226 |         guard case let .leased(id, envelope) = state,
+     |                                    `- warning: immutable value 'envelope' was never used; consider replacing with '_' or removing it [#NoUsage]
+ 227 |               id == lease.id else {
+ 228 |             throw DeviceIngressRegistrationClientError
+
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/PendingActionInboxViewModel.swift:80:58: warning: main actor-isolated static property 'defaultStorageKey' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 62 | final class PendingActionInboxViewModel: ObservableObject {
+ 63 |     static let shared = PendingActionInboxViewModel()
+ 64 |     static let defaultStorageKey = "binding.pendingDeviceActions.v1"
+    |                `- note: static property declared here
+ 65 | #if DEBUG
+ 66 |     static let correspondenceApprovalUITestLaunchArgument =
+    :
+ 78 |     init(
+ 79 |         defaults: UserDefaults = .standard,
+ 80 |         storageKey: String = PendingActionInboxViewModel.defaultStorageKey,
+    |                                                          `- warning: main actor-isolated static property 'defaultStorageKey' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 81 |         launchArguments: [String] = ProcessInfo.processInfo.arguments
+ 82 |     ) {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/PendingAgentActionView.swift:97:54: warning: call to main actor-isolated static method 'date' in a synchronous nonisolated context [#ActorIsolatedCall]
+ 95 |             issues.append("Forespørselen bekrefter ikke executionAuthority=false.")
+ 96 |         }
+ 97 |         let requestExpiry = requestExpiresAt.flatMap(Self.date)
+    |                                                      `- warning: call to main actor-isolated static method 'date' in a synchronous nonisolated context [#ActorIsolatedCall]
+ 98 |         let grantExpiry = grantExpiresAt.flatMap(Self.date)
+ 99 |         if let requestExpiry {
+    :
+151 |     }
+152 | 
+153 |     private static func date(_ value: String) -> Date? {
+    |                         `- note: calls to static method 'date' from outside of its actor context are implicitly asynchronous
+154 |         let fractional = ISO8601DateFormatter()
+155 |         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/PendingAgentActionView.swift:98:50: warning: call to main actor-isolated static method 'date' in a synchronous nonisolated context [#ActorIsolatedCall]
+ 96 |         }
+ 97 |         let requestExpiry = requestExpiresAt.flatMap(Self.date)
+ 98 |         let grantExpiry = grantExpiresAt.flatMap(Self.date)
+    |                                                  `- warning: call to main actor-isolated static method 'date' in a synchronous nonisolated context [#ActorIsolatedCall]
+ 99 |         if let requestExpiry {
+100 |             if requestExpiry <= now {
+    :
+151 |     }
+152 | 
+153 |     private static func date(_ value: String) -> Date? {
+    |                         `- note: calls to static method 'date' from outside of its actor context are implicitly asynchronous
+154 |         let fractional = ISO8601DateFormatter()
+155 |         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/PendingAgentActionView.swift:137:34: warning: call to main actor-isolated static method 'string' in a synchronous nonisolated context [#ActorIsolatedCall]
+127 |     }
+128 | 
+129 |     private static func string(_ value: JSONValue?) -> String? {
+    |                         `- note: calls to static method 'string' from outside of its actor context are implicitly asynchronous
+130 |         guard case let .string(string)? = value else { return nil }
+131 |         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+    :
+135 |     private static func strings(_ value: JSONValue?) -> [String] {
+136 |         guard case let .array(values)? = value else { return [] }
+137 |         return values.compactMap(Self.string)
+    |                                  `- warning: call to main actor-isolated static method 'string' in a synchronous nonisolated context [#ActorIsolatedCall]
+138 |     }
+139 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/PersonEntityReadResult.swift:17:13: warning: stored property 'value' of 'Sendable'-conforming struct 'Fragment' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+ 15 |         let keypath: String
+ 16 |         let status: Status
+ 17 |         let value: ValueType?
+    |             `- warning: stored property 'value' of 'Sendable'-conforming struct 'Fragment' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+ 18 |         let sourceOrigin: String?
+ 19 |         let sourceReference: String?
+
+CellBase.ValueType:1:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 1 | indirect public enum ValueType : Codable {
+   |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 2 |     case flowElement(CellBase.FlowElement)
+ 3 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/PersonEntityReadResult.swift:4:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  2 | // SPDX-FileCopyrightText: Copyright (c) 2026 Stiftelsen Digipomps and HAVEN contributors
+  3 | 
+  4 | import CellBase
+    | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  5 | import Foundation
+  6 | 
+
+[#ActorIsolatedCall]: <https://docs.swift.org/compiler/documentation/diagnostics/actor-isolated-call>
+[#AddPreconcurrencyImport]: <https://docs.swift.org/compiler/documentation/diagnostics/add-preconcurrency-import>
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/InvitationCell.swift:144:88: warning: main actor-isolated static property 'default' can not be referenced from a nonisolated autoclosure
+ 103 |         }
+ 104 | 
+ 105 |         static let `default` = Settings()
+     |                    `- note: static property declared here
+ 106 |     }
+ 107 | 
+     :
+ 142 |         outbox = try container.decodeIfPresent([OutboxEntry].self, forKey: .outbox) ?? []
+ 143 |         revoked = try container.decodeIfPresent([RevocationEntry].self, forKey: .revoked) ?? []
+ 144 |         settings = try container.decodeIfPresent(Settings.self, forKey: .settings) ?? .default
+     |                                                                                        `- warning: main actor-isolated static property 'default' can not be referenced from a nonisolated autoclosure
+ 145 |         inbox = try container.decodeIfPresent([InboxEntry].self, forKey: .inbox) ?? []
+ 146 |         lastResult = try container.decodeIfPresent(Object.self, forKey: .lastResult) ?? [:]
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/PersonalAgendaContextCell.swift:73:118: warning: call to main actor-isolated static method 'permissionSnapshot()' in a synchronous nonisolated context [#ActorIsolatedCall]
+  71 |         lastQueryText = try container.decodeIfPresent(String.self, forKey: .lastQueryText) ?? ""
+  72 |         lastAnswer = try container.decodeIfPresent(Object.self, forKey: .lastAnswer) ?? [:]
+  73 |         lastPermissionSnapshot = try container.decodeIfPresent(Object.self, forKey: .lastPermissionSnapshot) ?? Self.permissionSnapshot()
+     |                                                                                                                      `- warning: call to main actor-isolated static method 'permissionSnapshot()' in a synchronous nonisolated context [#ActorIsolatedCall]
+  74 |         lastError = try container.decodeIfPresent(String.self, forKey: .lastError) ?? ""
+  75 | 
+     :
+ 692 | #endif
+ 693 | 
+ 694 |     private static func permissionSnapshot() -> Object {
+     |                         `- note: calls to static method 'permissionSnapshot()' from outside of its actor context are implicitly asynchronous
+ 695 | #if canImport(EventKit)
+ 696 |         return [
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/PersonalAgendaContextCell.swift:1038:32: warning: call to main actor-isolated static method 'string' in a synchronous nonisolated context [#ActorIsolatedCall]
+1028 |     }
+1029 | 
+1030 |     private static func string(_ value: ValueType?) -> String? {
+     |                         `- note: calls to static method 'string' from outside of its actor context are implicitly asynchronous
+1031 |         guard case let .string(text)? = value else { return nil }
+1032 |         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+     :
+1036 |     private static func stringList(_ value: ValueType?) -> [String] {
+1037 |         guard case let .list(list)? = value else { return [] }
+1038 |         return list.compactMap(string)
+     |                                `- warning: call to main actor-isolated static method 'string' in a synchronous nonisolated context [#ActorIsolatedCall]
+1039 |     }
+1040 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/RelationEntityStore.swift:34:87: warning: main actor-isolated static property 'inferredTagPrefix' can not be referenced from a nonisolated context
+ 32 |         now: Date = Date()
+ 33 |     ) -> EntityRelationRecord {
+ 34 |         let declared = record.contextTags.filter { !$0.hasPrefix(BindingRelationsCell.inferredTagPrefix) }
+    |                                                                                       `- warning: main actor-isolated static property 'inferredTagPrefix' can not be referenced from a nonisolated context
+ 35 |         let inferred = record.contextTags
+ 36 |             .filter { $0.hasPrefix(BindingRelationsCell.inferredTagPrefix) }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/RelationsCell.swift:1201:16: note: static property declared here
+1199 |     /// person chose is evidence; a guess from their job title is a hypothesis,
+1200 |     /// and the graph should not weigh them the same.
+1201 |     static let inferredTagPrefix = "antatt:"
+     |                `- note: static property declared here
+1202 | 
+1203 |     /// Compatibility entrypoint for legacy tag importers. The adapter creates
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/RelationEntityStore.swift:36:57: warning: main actor-isolated static property 'inferredTagPrefix' can not be referenced from a nonisolated context
+ 34 |         let declared = record.contextTags.filter { !$0.hasPrefix(BindingRelationsCell.inferredTagPrefix) }
+ 35 |         let inferred = record.contextTags
+ 36 |             .filter { $0.hasPrefix(BindingRelationsCell.inferredTagPrefix) }
+    |                                                         `- warning: main actor-isolated static property 'inferredTagPrefix' can not be referenced from a nonisolated context
+ 37 |             .map { String($0.dropFirst(BindingRelationsCell.inferredTagPrefix.count)) }
+ 38 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/RelationsCell.swift:1201:16: note: static property declared here
+1199 |     /// person chose is evidence; a guess from their job title is a hypothesis,
+1200 |     /// and the graph should not weigh them the same.
+1201 |     static let inferredTagPrefix = "antatt:"
+     |                `- note: static property declared here
+1202 | 
+1203 |     /// Compatibility entrypoint for legacy tag importers. The adapter creates
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/RelationEntityStore.swift:37:61: warning: main actor-isolated static property 'inferredTagPrefix' can not be referenced from a nonisolated context
+ 35 |         let inferred = record.contextTags
+ 36 |             .filter { $0.hasPrefix(BindingRelationsCell.inferredTagPrefix) }
+ 37 |             .map { String($0.dropFirst(BindingRelationsCell.inferredTagPrefix.count)) }
+    |                                                             `- warning: main actor-isolated static property 'inferredTagPrefix' can not be referenced from a nonisolated context
+ 38 | 
+ 39 |         var channels: [EntityRelationChannel] = record.endpoints.compactMap { endpoint in
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/RelationsCell.swift:1201:16: note: static property declared here
+1199 |     /// person chose is evidence; a guess from their job title is a hypothesis,
+1200 |     /// and the graph should not weigh them the same.
+1201 |     static let inferredTagPrefix = "antatt:"
+     |                `- note: static property declared here
+1202 | 
+1203 |     /// Compatibility entrypoint for legacy tag importers. The adapter creates
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/RelationsCell.swift:77:94: warning: call to main actor-isolated static method 'emptySearch()' in a synchronous nonisolated context [#ActorIsolatedCall]
+  75 |         let container = try decoder.container(keyedBy: CodingKeys.self)
+  76 |         records = try container.decodeIfPresent([HavenRelationRecord].self, forKey: .records) ?? []
+  77 |         lastSearch = try container.decodeIfPresent(Object.self, forKey: .lastSearch) ?? Self.emptySearch()
+     |                                                                                              `- warning: call to main actor-isolated static method 'emptySearch()' in a synchronous nonisolated context [#ActorIsolatedCall]
+  78 |         lastMutation = try container.decodeIfPresent(Object.self, forKey: .lastMutation) ?? [:]
+  79 |         region = try container.decodeIfPresent(String.self, forKey: .region) ?? HavenRelationNormalizer.defaultPhoneRegion
+     :
+1616 |     }
+1617 | 
+1618 |     private static func emptySearch() -> Object {
+     |                         `- note: calls to static method 'emptySearch()' from outside of its actor context are implicitly asynchronous
+1619 |         [
+1620 |             "schema": .string("haven.relations.search.v1"),
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/RelationsCell.swift:1311:13: warning: variable 'rhs' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1309 |     private static func entityRecordDiffers(_ lhs: EntityRelationRecord?, _ rhs: EntityRelationRecord) -> Bool {
+1310 |         guard var lhs else { return true }
+1311 |         var rhs = rhs
+     |             `- warning: variable 'rhs' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1312 |         lhs.updatedAt = rhs.updatedAt
+1313 |         lhs.revision = rhs.revision
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/WorkflowStudioCell.swift:49:133: warning: call to main actor-isolated static method 'documentPipeline()' in a synchronous nonisolated context [#ActorIsolatedCall]
+  47 |     nonisolated required init(from decoder: Decoder) throws {
+  48 |         let container = try decoder.container(keyedBy: CodingKeys.self)
+  49 |         workflowDefinition = try container.decodeIfPresent(WorkflowDefinition.self, forKey: .workflowDefinition) ?? WorkflowCatalog.documentPipeline()
+     |                                                                                                                                     `- warning: call to main actor-isolated static method 'documentPipeline()' in a synchronous nonisolated context [#ActorIsolatedCall]
+  50 |         workflowRevision = try container.decodeIfPresent(Int.self, forKey: .workflowRevision) ?? 1
+  51 |         selectedNodeID = try container.decodeIfPresent(String.self, forKey: .selectedNodeID)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/WorkflowStudioSupport.swift:542:17: note: calls to static method 'documentPipeline()' from outside of its actor context are implicitly asynchronous
+ 540 |     }
+ 541 | 
+ 542 |     static func documentPipeline() -> WorkflowDefinition {
+     |                 `- note: calls to static method 'documentPipeline()' from outside of its actor context are implicitly asynchronous
+ 543 |         var start = WorkflowNodeFactory.makeNode(kind: .start, title: "Document Input")
+ 544 |         start.configuration["seedText"] = .string("Meeting Notes\nSpeaker: HAVEN Team\n- Add parser cell\n- Normalize output\n- Summarize with local AI\nLink: https://haven.example/demo")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/WorkflowStudioCell.swift:53:137: warning: call to main actor-isolated static method 'workbenchConfiguration()' in a synchronous nonisolated context [#ActorIsolatedCall]
+  51 |         selectedNodeID = try container.decodeIfPresent(String.self, forKey: .selectedNodeID)
+  52 |         runInputText = try container.decodeIfPresent(String.self, forKey: .runInputText) ?? "Analyze NVDA and return a compact company summary."
+  53 |         storedConfiguration = try container.decodeIfPresent(CellConfiguration.self, forKey: .storedConfiguration) ?? WorkflowStudioCell.workbenchConfiguration()
+     |                                                                                                                                         `- warning: call to main actor-isolated static method 'workbenchConfiguration()' in a synchronous nonisolated context [#ActorIsolatedCall]
+  54 |         configurationRevision = try container.decodeIfPresent(Int.self, forKey: .configurationRevision) ?? 1
+  55 |         lastRunState = try container.decodeIfPresent(WorkflowRunState.self, forKey: .lastRunState)
+     :
+ 922 |     }
+ 923 | 
+ 924 |     static func workbenchConfiguration() -> CellConfiguration {
+     |                 `- note: calls to static method 'workbenchConfiguration()' from outside of its actor context are implicitly asynchronous
+ 925 |         var configuration = CellConfiguration(name: "Workflow Studio")
+ 926 |         configuration.description = "Cell-native workflow authoring for typed agent pipelines, deterministic parser cells, transform cells, and approvals."
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/WorkflowStudioCell.swift:1083:13: warning: variable 'nodeTitle' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1081 |         )
+1082 | 
+1083 |         var nodeTitle = inspectorField(
+     |             `- warning: variable 'nodeTitle' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1084 |             sourceKeypath: "\(sourceLabel).state.selectedNode.title",
+1085 |             targetKeypath: "\(sourceLabel).workflow.setSelectedNodeTitle",
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/WorkflowStudioCell.swift:1088:13: warning: variable 'nodeInstructions' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1086 |             placeholder: "Selected node title"
+1087 |         )
+1088 |         var nodeInstructions = inspectorArea(
+     |             `- warning: variable 'nodeInstructions' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1089 |             sourceKeypath: "\(sourceLabel).state.selectedNode.instructions",
+1090 |             targetKeypath: "\(sourceLabel).workflow.setSelectedNodeInstructions",
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/WorkflowStudioCell.swift:1095:13: warning: variable 'nodeProvider' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1093 |             maxLines: 6
+1094 |         )
+1095 |         var nodeProvider = inspectorField(
+     |             `- warning: variable 'nodeProvider' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1096 |             sourceKeypath: "\(sourceLabel).state.selectedNode.provider",
+1097 |             targetKeypath: "\(sourceLabel).workflow.setSelectedNodeProvider",
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/WorkflowStudioCell.swift:1100:13: warning: variable 'nodeModel' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1098 |             placeholder: "Provider"
+1099 |         )
+1100 |         var nodeModel = inspectorField(
+     |             `- warning: variable 'nodeModel' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1101 |             sourceKeypath: "\(sourceLabel).state.selectedNode.model",
+1102 |             targetKeypath: "\(sourceLabel).workflow.setSelectedNodeModel",
+
+[#ActorIsolatedCall]: <https://docs.swift.org/compiler/documentation/diagnostics/actor-isolated-call>
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1827:20: warning: main actor-isolated property 'helperID' can not be referenced from a nonisolated context
+1825 | 
+1826 |         let baselineExactHits = zip(cases, baseline).filter { item, result in
+1827 |             result.helperID == item.expectedHelperID
+     |                    `- warning: main actor-isolated property 'helperID' can not be referenced from a nonisolated context
+1828 |                 && result.purposeRef == item.expectedPurposeRef
+1829 |                 && result.shouldSuggest
+
+Binding.BindingChatIntentClassification.helperID:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var helperID: String}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1828:27: warning: main actor-isolated property 'purposeRef' can not be referenced from a nonisolated autoclosure
+1826 |         let baselineExactHits = zip(cases, baseline).filter { item, result in
+1827 |             result.helperID == item.expectedHelperID
+1828 |                 && result.purposeRef == item.expectedPurposeRef
+     |                           `- warning: main actor-isolated property 'purposeRef' can not be referenced from a nonisolated autoclosure
+1829 |                 && result.shouldSuggest
+1830 |         }.count
+
+Binding.BindingChatIntentClassification.purposeRef:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var purposeRef: String}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1832:20: warning: main actor-isolated property 'helperID' can not be referenced from a nonisolated context
+1830 |         }.count
+1831 |         let perspectiveExactHits = zip(cases, withPerspective).filter { item, result in
+1832 |             result.helperID == item.expectedHelperID
+     |                    `- warning: main actor-isolated property 'helperID' can not be referenced from a nonisolated context
+1833 |                 && result.purposeRef == item.expectedPurposeRef
+1834 |                 && result.shouldSuggest
+
+Binding.BindingChatIntentClassification.helperID:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var helperID: String}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1833:27: warning: main actor-isolated property 'purposeRef' can not be referenced from a nonisolated autoclosure
+1831 |         let perspectiveExactHits = zip(cases, withPerspective).filter { item, result in
+1832 |             result.helperID == item.expectedHelperID
+1833 |                 && result.purposeRef == item.expectedPurposeRef
+     |                           `- warning: main actor-isolated property 'purposeRef' can not be referenced from a nonisolated autoclosure
+1834 |                 && result.shouldSuggest
+1835 |         }.count
+
+Binding.BindingChatIntentClassification.purposeRef:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var purposeRef: String}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1838:72: warning: main actor-isolated property 'confidence' can not be referenced from a nonisolated context
+1836 |         let baselineSuggestions = baseline.filter(\.shouldSuggest).count
+1837 |         let perspectiveSuggestions = withPerspective.filter(\.shouldSuggest).count
+1838 |         let averageBaselineConfidence = baseline.reduce(0.0) { $0 + $1.confidence } / Double(cases.count)
+     |                                                                        `- warning: main actor-isolated property 'confidence' can not be referenced from a nonisolated context
+1839 |         let averagePerspectiveConfidence = withPerspective.reduce(0.0) { $0 + $1.confidence } / Double(cases.count)
+1840 | 
+
+Binding.BindingChatIntentClassification.confidence:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var confidence: Double}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1839:82: warning: main actor-isolated property 'confidence' can not be referenced from a nonisolated context
+1837 |         let perspectiveSuggestions = withPerspective.filter(\.shouldSuggest).count
+1838 |         let averageBaselineConfidence = baseline.reduce(0.0) { $0 + $1.confidence } / Double(cases.count)
+1839 |         let averagePerspectiveConfidence = withPerspective.reduce(0.0) { $0 + $1.confidence } / Double(cases.count)
+     |                                                                                  `- warning: main actor-isolated property 'confidence' can not be referenced from a nonisolated context
+1840 | 
+1841 |         #expect(baselineExactHits == 0)
+
+Binding.BindingChatIntentClassification.confidence:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var confidence: Double}
+  |                         `- note: property declared here
+3 | 
+
+macro expansion #expect:1:41: warning: main actor-isolated property 'negativeIntent' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1857:59: note: expanded code originates here
+1855 |         )
+1856 |         #expect(negative.shouldSuggest == false)
+1857 |         #expect(negative.negativeIntent == "idea_capture")
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkBinaryOperation(negative.negativeIntent,{ $0 == $1() },"idea_capture",expression: .__fromBinaryOperation(.__fromSyntaxNode("negative.negativeIntent"),"==",.__fromStringLiteral(#""idea_capture""#, "idea_capture")),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                                         `- warning: main actor-isolated property 'negativeIntent' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+     +------------------------------------------------------------------
+1858 |     }
+1859 | 
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/PersonEntityReadClientTests.swift:115:52: warning: reference to captured var 'other' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+113 |         var other = Identity(UUID().uuidString, displayName: "synthetic-other", identityVault: otherVault)
+114 |         await otherVault.addIdentity(identity: &other, for: "private")
+115 |         let client = PersonEntityReadClient { _ in other }
+    |                                                    `- warning: reference to captured var 'other' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+116 |         do { try await client.connect(entry: entry); XCTFail("different key must not connect") }
+117 |         catch { XCTAssertEqual(error as? C.Failure, .denied) }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/PersonEntityReadTLSIntegrationTests.swift:35:71: warning: left side of nil coalescing operator '??' has non-optional type '[String]', so the right side is never used
+ 33 |             throw FixtureFailure.invalidSetup
+ 34 |         }
+ 35 |         guard Set(Host(name: "staging.haven.digipomps.org").addresses ?? []) == ["127.0.0.1"] else {
+    |                                                                       `- warning: left side of nil coalescing operator '??' has non-optional type '[String]', so the right side is never used
+ 36 |             throw FixtureFailure.notLoopback
+ 37 |         }
+
+[#SendableClosureCaptures]: <https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures>
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/AgentConversationClientTests.swift (in target 'BindingTests' from project 'Binding')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/AppStoreMetadataTests.swift (in target 'BindingTests' from project 'Binding')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/AuthenticationAttemptTests.swift (in target 'BindingTests' from project 'Binding')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/BindingTests.swift (in target 'BindingTests' from project 'Binding')
+macro expansion #expect:2:7: warning: result of call to 'contains' is unused [#NoUsage]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/BindingTests.swift:1383:95: note: expanded code originates here
+ 1381 |         #expect(!BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(agenda))
+ 1382 |         #expect(BindingPersonalCopilotV1Policy.referencedEndpoints(in: agenda).contains("cell:///PersonalAgendaContext"))
+ 1383 |         #expect((agenda.discovery?.interests ?? []).contains("policyCategory=agenda-context"))
+      |         `- note: in expansion of macro 'expect' here
+      +--- macro expansion #expect -------------------------------------
+      |1 | Testing.__checkFunctionCall((agenda.discovery?.interests ?? []).self,calling: {
+      |2 |   $0?.contains($1)
+      |  |       `- warning: result of call to 'contains' is unused [#NoUsage]
+      |3 | },"policyCategory=agenda-context",expression: .__fromFunctionCall(.__fromSyntaxNode("(agenda.discovery?.interests ?? [])"),"contains",(nil,.__fromStringLiteral(#""policyCategory=agenda-context""#, "policyCategory=agenda-context"))),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+      +-----------------------------------------------------------------
+ 1384 |         #expect((agenda.discovery?.interests ?? []).contains("nativePermissionRequests=calendar,reminders"))
+ 1385 |         if let skeleton = agenda.skeleton {
+
+macro expansion #expect:1:58: warning: left side of nil coalescing operator '??' has non-optional type '[String]?', so the right side is never used
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/BindingTests.swift:1383:95: note: expanded code originates here
+ 1381 |         #expect(!BindingPersonalCopilotV1Policy.isAllowedInPersonalCopilotV1(agenda))
+ 1382 |         #expect(BindingPersonalCopilotV1Policy.referencedEndpoints(in: agenda).contains("cell:///PersonalAgendaContext"))
+ 1383 |         #expect((agenda.discovery?.interests ?? []).contains("policyCategory=agenda-context"))
+      |         `- note: in expansion of macro 'expect' here
+      +--- macro expansion #expect -------------------------------------
+      |1 | Testing.__checkFunctionCall((agenda.discovery?.interests ?? []).self,calling: {
+      |  |                                                          `- warning: left side of nil coalescing operator '??' has non-optional type '[String]?', so the right side is never used
+      |2 |   $0?.contains($1)
+      |3 | },"policyCategory=agenda-context",expression: .__fromFunctionCall(.__fromSyntaxNode("(agenda.discovery?.interests ?? [])"),"contains",(nil,.__fromStringLiteral(#""policyCategory=agenda-context""#, "policyCategory=agenda-context"))),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+      +-----------------------------------------------------------------
+ 1384 |         #expect((agenda.discovery?.interests ?? []).contains("nativePermissionRequests=calendar,reminders"))
+ 1385 |         if let skeleton = agenda.skeleton {
+
+macro expansion #expect:2:7: warning: result of call to 'contains' is unused [#NoUsage]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/BindingTests.swift:1384:109: note: expanded code originates here
+ 1382 |         #expect(BindingPersonalCopilotV1Policy.referencedEndpoints(in: agenda).contains("cell:///PersonalAgendaContext"))
+ 1383 |         #expect((agenda.discovery?.interests ?? []).contains("policyCategory=agenda-context"))
+ 1384 |         #expect((agenda.discovery?.interests ?? []).contains("nativePermissionRequests=calendar,reminders"))
+      |         `- note: in expansion of macro 'expect' here
+      +--- macro expansion #expect -------------------------------------
+      |1 | Testing.__checkFunctionCall((agenda.discovery?.interests ?? []).self,calling: {
+      |2 |   $0?.contains($1)
+      |  |       `- warning: result of call to 'contains' is unused [#NoUsage]
+      |3 | },"nativePermissionRequests=calendar,reminders",expression: .__fromFunctionCall(.__fromSyntaxNode("(agenda.discovery?.interests ?? [])"),"contains",(nil,.__fromStringLiteral(#""nativePermissionRequests=calendar,reminders""#, "nativePermissionRequests=calendar,reminders"))),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+      +-----------------------------------------------------------------
+ 1385 |         if let skeleton = agenda.skeleton {
+ 1386 |             for keypath in [
+
+macro expansion #expect:1:58: warning: left side of nil coalescing operator '??' has non-optional type '[String]?', so the right side is never used
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/BindingTests.swift:1384:109: note: expanded code originates here
+ 1382 |         #expect(BindingPersonalCopilotV1Policy.referencedEndpoints(in: agenda).contains("cell:///PersonalAgendaContext"))
+ 1383 |         #expect((agenda.discovery?.interests ?? []).contains("policyCategory=agenda-context"))
+ 1384 |         #expect((agenda.discovery?.interests ?? []).contains("nativePermissionRequests=calendar,reminders"))
+      |         `- note: in expansion of macro 'expect' here
+      +--- macro expansion #expect -------------------------------------
+      |1 | Testing.__checkFunctionCall((agenda.discovery?.interests ?? []).self,calling: {
+      |  |                                                          `- warning: left side of nil coalescing operator '??' has non-optional type '[String]?', so the right side is never used
+      |2 |   $0?.contains($1)
+      |3 | },"nativePermissionRequests=calendar,reminders",expression: .__fromFunctionCall(.__fromSyntaxNode("(agenda.discovery?.interests ?? [])"),"contains",(nil,.__fromStringLiteral(#""nativePermissionRequests=calendar,reminders""#, "nativePermissionRequests=calendar,reminders"))),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+      +-----------------------------------------------------------------
+ 1385 |         if let skeleton = agenda.skeleton {
+ 1386 |             for keypath in [
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/BindingTests.swift:10120:32: warning: conformance of 'CellType' to protocol 'Emit' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+10118 |     ) async {
+10119 |         do {
+10120 |             try await resolver.addCellResolve(
+      |                                `- warning: conformance of 'CellType' to protocol 'Emit' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+10121 |                 name: name,
+10122 |                 cellScope: scope,
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/BindingTests.swift:10120:32: warning: conformance of 'CellType' to protocol 'OwnerInstantiable' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+10118 |     ) async {
+10119 |         do {
+10120 |             try await resolver.addCellResolve(
+      |                                `- warning: conformance of 'CellType' to protocol 'OwnerInstantiable' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+10121 |                 name: name,
+10122 |                 cellScope: scope,
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/BindingTests.swift:11579:19: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+11577 |     ) async throws {
+11578 |         for endpoint in remoteRegistrationEndpoints(in: configuration) {
+11579 |             guard await RemoteEndpointAccessSupport.authorizationKind(for: endpoint) != .none else {
+      |                   `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+11580 |                 continue
+11581 |             }
+
+[#IsolatedConformances]: <https://docs.swift.org/compiler/documentation/diagnostics/isolated-conformances>
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/IdentityLinkFlowTests.swift:97:33: warning: reference to captured var 'phone' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+ 95 |             transport: transport,
+ 96 |             outbox: MemoryIdentityLinkOutbox(),
+ 97 |             identityProvider: { phone },
+    |                                 `- warning: reference to captured var 'phone' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+ 98 |             completionSaver: { envelope, record, origin, reference in await transport.remember(envelope: envelope, record: record, origin: origin, reference: reference) },
+ 99 |             localRuntimeAvailable: { false }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/IdentityLinkFlowTests.swift:137:133: warning: reference to captured var 'phone' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+135 |         let ticket = try makeTicket(origin: origin, audience: "staging.haven.digipomps.org", expiresIn: 600)
+136 |         let transport = FakeRendezvous(issuer: web, ticket: ticket, tamperChallenge: true)
+137 |         let coordinator = IdentityLinkFlowCoordinator(transport: transport, outbox: MemoryIdentityLinkOutbox(), identityProvider: { phone }, completionSaver: { _, _, _, _ in }, localRuntimeAvailable: { false })
+    |                                                                                                                                     `- warning: reference to captured var 'phone' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+138 | 
+139 |         let failed = expectation(description: "failed")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/IdentityLinkFlowTests.swift:160:137: warning: reference to captured var 'phone' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+158 |             let ticket = try makeTicket(origin: origin, audience: "staging.haven.digipomps.org", expiresIn: 600)
+159 |             let transport = FakeRendezvous(issuer: web, ticket: ticket, tamper: tamper)
+160 |             let coordinator = IdentityLinkFlowCoordinator(transport: transport, outbox: MemoryIdentityLinkOutbox(), identityProvider: { phone },
+    |                                                                                                                                         `- warning: reference to captured var 'phone' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+161 |                 completionSaver: { _, _, _, _ in XCTFail("Must not persist a mismatched approval") }, localRuntimeAvailable: { false })
+162 |             let failed = expectation(description: "reject mismatched response")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/IdentityLinkFlowTests.swift:239:33: warning: reference to captured var 'phone' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+237 |         let transport = FakeRendezvous(issuer: web, ticket: ticket, failFirstCompletion: true, outbox: outbox)
+238 |         let first = IdentityLinkFlowCoordinator(transport: transport, outbox: outbox,
+239 |             identityProvider: { phone }, completionSaver: { _, _, _, _ in XCTFail("Lost response cannot activate locally") }, localRuntimeAvailable: { false })
+    |                                 `- warning: reference to captured var 'phone' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+240 |         let pending = expectation(description: "durable recovery offered")
+241 |         let observer = await first.observe {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/IdentityLinkFlowTests.swift:256:33: warning: reference to captured var 'phone' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+254 |         XCTAssertNotNil(recovered)
+255 |         let second = IdentityLinkFlowCoordinator(transport: transport, outbox: restarted,
+256 |             identityProvider: { phone }, completionSaver: { envelope, record, origin, reference in
+    |                                 `- warning: reference to captured var 'phone' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+257 |                 await transport.remember(envelope: envelope, record: record, origin: origin, reference: reference)
+258 |             }, localRuntimeAvailable: { false })
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/IdentityLinkFlowTests.swift:280:33: warning: reference to captured var 'phone' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+278 |         let transport = FakeRendezvous(issuer: web, ticket: ticket, failFirstCompletion: true, outbox: outbox)
+279 |         let coordinator = IdentityLinkFlowCoordinator(transport: transport, outbox: outbox,
+280 |             identityProvider: { phone }, completionSaver: { _, _, _, _ in XCTFail("Revoked completion persisted") },
+    |                                 `- warning: reference to captured var 'phone' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+281 |             localRuntimeAvailable: { XCTFail("Revoked completion reached local runtime"); return false })
+282 |         let pending = expectation(description: "lost response")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/IdentityLinkFlowTests.swift:291:24: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+289 |         guard case let .recovery(_, _, canRetry) = await coordinator.state else { return XCTFail("Expected rejection") }
+290 |         XCTAssertFalse(canRetry)
+291 |         let retained = try await outbox.load()
+    |                        `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+292 |         XCTAssertNotNil(retained, "Do not silently destroy recovery evidence")
+293 |         await coordinator.discardPendingCompletion()
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/IdentityLinkFlowTests.swift:294:25: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+292 |         XCTAssertNotNil(retained, "Do not silently destroy recovery evidence")
+293 |         await coordinator.discardPendingCompletion()
+294 |         let discarded = try await outbox.load()
+    |                         `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+295 |         XCTAssertNil(discarded)
+296 |     }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/IdentityLinkFlowTests.swift:155:25: warning: 'phone' mutated after capture by sendable closure
+152 |         for tamper in [FakeRendezvous.Tamper.pollURL, .completeURL, .presentationDomain] {
+153 |             let vault = EphemeralIdentityVault()
+154 |             var phone = Identity(UUID().uuidString, displayName: "phone", identityVault: vault)
+    |                 `- note: variable defined here
+155 |             await vault.addIdentity(identity: &phone, for: "private")
+    |                         `- warning: 'phone' mutated after capture by sendable closure
+156 |             var web = Identity(UUID().uuidString, displayName: "web", identityVault: vault)
+157 |             await vault.addIdentity(identity: &web, for: "web")
+158 |             let ticket = try makeTicket(origin: origin, audience: "staging.haven.digipomps.org", expiresIn: 600)
+159 |             let transport = FakeRendezvous(issuer: web, ticket: ticket, tamper: tamper)
+160 |             let coordinator = IdentityLinkFlowCoordinator(transport: transport, outbox: MemoryIdentityLinkOutbox(), identityProvider: { phone },
+    |                                                                                                                                       | `- note: capturing use
+    |                                                                                                                                       `- note: variable captured by sendable closure
+161 |                 completionSaver: { _, _, _, _ in XCTFail("Must not persist a mismatched approval") }, localRuntimeAvailable: { false })
+162 |             let failed = expectation(description: "reject mismatched response")
+
+[#SendableClosureCaptures]: <https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures>
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+macro expansion #expect:1:134: warning: main actor-isolated static property 'schema' can not be referenced from a nonisolated autoclosure
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:633:114: note: expanded code originates here
+ 631 |         let apple = await BindingAppleIntelligenceProviderCell(owner: owner)
+ 632 |         let state = try #require(asObject(try await apple.get(keypath: "ai.state", requester: owner)))
+ 633 |         #expect(asString(state["purposeDecompositionSchema"]) == BindingApplePurposeDecompositionPipeline.schema)
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkBinaryOperation(asString(state["purposeDecompositionSchema"]),{ $0 == $1() },BindingApplePurposeDecompositionPipeline.schema,expression: .__fromBinaryOperation(.__fromSyntaxNode(#"asString(state["purposeDecompositionSchema"])"#),"==",.__fromSyntaxNode("BindingApplePurposeDecompositionPipeline.schema")),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                                                                                                                                      `- warning: main actor-isolated static property 'schema' can not be referenced from a nonisolated autoclosure
+     +------------------------------------------------------------------
+ 634 |         #expect(asBool(state["modelMayInventPurposeRefs"]) == false)
+ 635 | 
+
+Binding.BindingApplePurposeDecompositionPipeline.schema:2:32: note: static property declared here
+1 | enum BindingApplePurposeDecompositionPipeline {
+2 | @MainActor internal static let schema: String}
+  |                                `- note: static property declared here
+3 | 
+
+macro expansion #expect:1:122: warning: main actor-isolated static property 'schema' can not be referenced from a nonisolated autoclosure
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:648:102: note: expanded code originates here
+ 646 | 
+ 647 |         let decomposition = try #require(asObject(classified["purposeDecomposition"]))
+ 648 |         #expect(asString(decomposition["schema"]) == BindingApplePurposeDecompositionPipeline.schema)
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkBinaryOperation(asString(decomposition["schema"]),{ $0 == $1() },BindingApplePurposeDecompositionPipeline.schema,expression: .__fromBinaryOperation(.__fromSyntaxNode(#"asString(decomposition["schema"])"#),"==",.__fromSyntaxNode("BindingApplePurposeDecompositionPipeline.schema")),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                                                                                                                          `- warning: main actor-isolated static property 'schema' can not be referenced from a nonisolated autoclosure
+     +------------------------------------------------------------------
+ 649 |         #expect(asString(decomposition["source"]) == "fixture_deterministic_fallback")
+ 650 |         #expect(asBool(decomposition["sideEffectFree"]) == true)
+
+Binding.BindingApplePurposeDecompositionPipeline.schema:2:32: note: static property declared here
+1 | enum BindingApplePurposeDecompositionPipeline {
+2 | @MainActor internal static let schema: String}
+  |                                `- note: static property declared here
+3 | 
+
+macro expansion #expect:1:115: warning: main actor-isolated static property 'gatePolicyID' can not be referenced from a nonisolated autoclosure
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:655:101: note: expanded code originates here
+ 653 |         #expect(asStringList(decomposition["candidatePurposeRefs"]).contains("personal.chat.assist.todo"))
+ 654 |         let gate = try #require(asObject(decomposition["gatePolicy"]))
+ 655 |         #expect(asString(gate["policyID"]) == BindingApplePurposeDecompositionPipeline.gatePolicyID)
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkBinaryOperation(asString(gate["policyID"]),{ $0 == $1() },BindingApplePurposeDecompositionPipeline.gatePolicyID,expression: .__fromBinaryOperation(.__fromSyntaxNode(#"asString(gate["policyID"])"#),"==",.__fromSyntaxNode("BindingApplePurposeDecompositionPipeline.gatePolicyID")),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                                                                                                                   `- warning: main actor-isolated static property 'gatePolicyID' can not be referenced from a nonisolated autoclosure
+     +------------------------------------------------------------------
+ 656 |         #expect(asBool(gate["modelMayInventPurposeRefs"]) == false)
+ 657 |     }
+
+Binding.BindingApplePurposeDecompositionPipeline.gatePolicyID:2:32: note: static property declared here
+1 | enum BindingApplePurposeDecompositionPipeline {
+2 | @MainActor internal static let gatePolicyID: String}
+  |                                `- note: static property declared here
+3 | 
+
+macro expansion #expect:1:93: warning: expression of type 'Bool?' is unused [#NoUsage]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:697:67: note: expanded code originates here
+ 695 |         #expect(asString(claims.first?["sourceAuditStatus"]) == "source_missing")
+ 696 |         #expect(asString(claims.first?["purposeRef"]) == "purpose://claim-analysis-smoke")
+ 697 |         #expect((asList(claims.first?["supports"]) ?? []).isEmpty)
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkPropertyAccess((asList(claims.first?["supports"]) ?? []).self,getting: { $0?.isEmpty },expression: .__fromPropertyAccess(.__fromSyntaxNode(#"(asList(claims.first?["supports"]) ?? [])"#),.__fromSyntaxNode("isEmpty")),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                                                                                             `- warning: expression of type 'Bool?' is unused [#NoUsage]
+     +------------------------------------------------------------------
+ 698 |     }
+ 699 | 
+
+macro expansion #expect:1:66: warning: left side of nil coalescing operator '??' has non-optional type 'ValueTypeList?' (aka 'Optional<Array<ValueType>>'), so the right side is never used
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:697:67: note: expanded code originates here
+ 695 |         #expect(asString(claims.first?["sourceAuditStatus"]) == "source_missing")
+ 696 |         #expect(asString(claims.first?["purposeRef"]) == "purpose://claim-analysis-smoke")
+ 697 |         #expect((asList(claims.first?["supports"]) ?? []).isEmpty)
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkPropertyAccess((asList(claims.first?["supports"]) ?? []).self,getting: { $0?.isEmpty },expression: .__fromPropertyAccess(.__fromSyntaxNode(#"(asList(claims.first?["supports"]) ?? [])"#),.__fromSyntaxNode("isEmpty")),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                                                                  `- warning: left side of nil coalescing operator '??' has non-optional type 'ValueTypeList?' (aka 'Optional<Array<ValueType>>'), so the right side is never used
+     +------------------------------------------------------------------
+ 698 |     }
+ 699 | 
+
+macro expansion #expect:1:65: warning: main actor-isolated property 'requiresUserApproval' can not be referenced from a nonisolated context
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1446:53: note: expanded code originates here
+1444 |         #expect(recommendation.kind == "agenda_context")
+1445 |         #expect(recommendation.endpoint == "cell:///PersonalAgendaContext")
+1446 |         #expect(recommendation.requiresUserApproval)
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkPropertyAccess(recommendation.self,getting: { $0.requiresUserApproval },expression: .__fromPropertyAccess(.__fromSyntaxNode("recommendation"),.__fromSyntaxNode("requiresUserApproval")),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                                                                 `- warning: main actor-isolated property 'requiresUserApproval' can not be referenced from a nonisolated context
+     +------------------------------------------------------------------
+1447 |     }
+1448 | 
+
+Binding.BindingChatProviderDescriptor.requiresUserApproval:2:25: note: property declared here
+1 | struct BindingChatProviderDescriptor {
+2 | @MainActor internal var requiresUserApproval: Bool}
+  |                         `- note: property declared here
+3 | 
+
+macro expansion #expect:1:47: warning: main actor-isolated property 'kind' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1444:57: note: expanded code originates here
+1442 |             providers: []
+1443 |         )
+1444 |         #expect(recommendation.kind == "agenda_context")
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkBinaryOperation(recommendation.kind,{ $0 == $1() },"agenda_context",expression: .__fromBinaryOperation(.__fromSyntaxNode("recommendation.kind"),"==",.__fromStringLiteral(#""agenda_context""#, "agenda_context")),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                                               `- warning: main actor-isolated property 'kind' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+     +------------------------------------------------------------------
+1445 |         #expect(recommendation.endpoint == "cell:///PersonalAgendaContext")
+1446 |         #expect(recommendation.requiresUserApproval)
+
+macro expansion #expect:1:47: warning: main actor-isolated property 'endpoint' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1445:76: note: expanded code originates here
+1443 |         )
+1444 |         #expect(recommendation.kind == "agenda_context")
+1445 |         #expect(recommendation.endpoint == "cell:///PersonalAgendaContext")
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkBinaryOperation(recommendation.endpoint,{ $0 == $1() },"cell:///PersonalAgendaContext",expression: .__fromBinaryOperation(.__fromSyntaxNode("recommendation.endpoint"),"==",.__fromStringLiteral(#""cell:///PersonalAgendaContext""#, "cell:///PersonalAgendaContext")),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                                               `- warning: main actor-isolated property 'endpoint' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+     +------------------------------------------------------------------
+1446 |         #expect(recommendation.requiresUserApproval)
+1447 |     }
+
+macro expansion #expect:1:38: warning: main actor-isolated property 'status' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1692:50: note: expanded code originates here
+1690 | 
+1691 |         let plain = BindingChatIntentClassifier.classify(prompt: "legg dette inn")
+1692 |         #expect(plain.status == "low_confidence")
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkBinaryOperation(plain.status,{ $0 == $1() },"low_confidence",expression: .__fromBinaryOperation(.__fromSyntaxNode("plain.status"),"==",.__fromStringLiteral(#""low_confidence""#, "low_confidence")),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                                      `- warning: main actor-isolated property 'status' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+     +------------------------------------------------------------------
+1693 |         #expect(plain.helperID.isEmpty)
+1694 | 
+
+macro expansion #expect:1:37: warning: main actor-isolated property 'helperID' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1693:40: note: expanded code originates here
+1691 |         let plain = BindingChatIntentClassifier.classify(prompt: "legg dette inn")
+1692 |         #expect(plain.status == "low_confidence")
+1693 |         #expect(plain.helperID.isEmpty)
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkPropertyAccess(plain.helperID.self,getting: { $0.isEmpty },expression: .__fromPropertyAccess(.__fromSyntaxNode("plain.helperID"),.__fromSyntaxNode("isEmpty")),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                                     `- warning: main actor-isolated property 'helperID' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+     +------------------------------------------------------------------
+1694 | 
+1695 |         await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1827:20: warning: main actor-isolated property 'helperID' can not be referenced from a nonisolated context
+1825 | 
+1826 |         let baselineExactHits = zip(cases, baseline).filter { item, result in
+1827 |             result.helperID == item.expectedHelperID
+     |                    `- warning: main actor-isolated property 'helperID' can not be referenced from a nonisolated context
+1828 |                 && result.purposeRef == item.expectedPurposeRef
+1829 |                 && result.shouldSuggest
+
+Binding.BindingChatIntentClassification.helperID:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var helperID: String}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1828:27: warning: main actor-isolated property 'purposeRef' can not be referenced from a nonisolated autoclosure
+1826 |         let baselineExactHits = zip(cases, baseline).filter { item, result in
+1827 |             result.helperID == item.expectedHelperID
+1828 |                 && result.purposeRef == item.expectedPurposeRef
+     |                           `- warning: main actor-isolated property 'purposeRef' can not be referenced from a nonisolated autoclosure
+1829 |                 && result.shouldSuggest
+1830 |         }.count
+
+Binding.BindingChatIntentClassification.purposeRef:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var purposeRef: String}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1832:20: warning: main actor-isolated property 'helperID' can not be referenced from a nonisolated context
+1830 |         }.count
+1831 |         let perspectiveExactHits = zip(cases, withPerspective).filter { item, result in
+1832 |             result.helperID == item.expectedHelperID
+     |                    `- warning: main actor-isolated property 'helperID' can not be referenced from a nonisolated context
+1833 |                 && result.purposeRef == item.expectedPurposeRef
+1834 |                 && result.shouldSuggest
+
+Binding.BindingChatIntentClassification.helperID:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var helperID: String}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1833:27: warning: main actor-isolated property 'purposeRef' can not be referenced from a nonisolated autoclosure
+1831 |         let perspectiveExactHits = zip(cases, withPerspective).filter { item, result in
+1832 |             result.helperID == item.expectedHelperID
+1833 |                 && result.purposeRef == item.expectedPurposeRef
+     |                           `- warning: main actor-isolated property 'purposeRef' can not be referenced from a nonisolated autoclosure
+1834 |                 && result.shouldSuggest
+1835 |         }.count
+
+Binding.BindingChatIntentClassification.purposeRef:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var purposeRef: String}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1838:72: warning: main actor-isolated property 'confidence' can not be referenced from a nonisolated context
+1836 |         let baselineSuggestions = baseline.filter(\.shouldSuggest).count
+1837 |         let perspectiveSuggestions = withPerspective.filter(\.shouldSuggest).count
+1838 |         let averageBaselineConfidence = baseline.reduce(0.0) { $0 + $1.confidence } / Double(cases.count)
+     |                                                                        `- warning: main actor-isolated property 'confidence' can not be referenced from a nonisolated context
+1839 |         let averagePerspectiveConfidence = withPerspective.reduce(0.0) { $0 + $1.confidence } / Double(cases.count)
+1840 | 
+
+Binding.BindingChatIntentClassification.confidence:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var confidence: Double}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1839:82: warning: main actor-isolated property 'confidence' can not be referenced from a nonisolated context
+1837 |         let perspectiveSuggestions = withPerspective.filter(\.shouldSuggest).count
+1838 |         let averageBaselineConfidence = baseline.reduce(0.0) { $0 + $1.confidence } / Double(cases.count)
+1839 |         let averagePerspectiveConfidence = withPerspective.reduce(0.0) { $0 + $1.confidence } / Double(cases.count)
+     |                                                                                  `- warning: main actor-isolated property 'confidence' can not be referenced from a nonisolated context
+1840 | 
+1841 |         #expect(baselineExactHits == 0)
+
+Binding.BindingChatIntentClassification.confidence:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var confidence: Double}
+  |                         `- note: property declared here
+3 | 
+
+macro expansion #expect:1:41: warning: main actor-isolated property 'negativeIntent' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1857:59: note: expanded code originates here
+1855 |         )
+1856 |         #expect(negative.shouldSuggest == false)
+1857 |         #expect(negative.negativeIntent == "idea_capture")
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkBinaryOperation(negative.negativeIntent,{ $0 == $1() },"idea_capture",expression: .__fromBinaryOperation(.__fromSyntaxNode("negative.negativeIntent"),"==",.__fromStringLiteral(#""idea_capture""#, "idea_capture")),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                                         `- warning: main actor-isolated property 'negativeIntent' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+     +------------------------------------------------------------------
+1858 |     }
+1859 | 
+
+macro expansion #expect:2:7: warning: result of call to 'contains' is unused [#NoUsage]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:2520:104: note: expanded code originates here
+2518 |         #expect(asString(latestRows.first?["body"]) == "Hva skjer på arendalsuka?")
+2519 |         #expect(asString(latestRows.last?["role"]) == "assistant")
+2520 |         #expect((asString(latestRows.last?["body"]) ?? "").contains("Arendalsuka Participant Program"))
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkFunctionCall((asString(latestRows.last?["body"]) ?? "").self,calling: {
+     |2 |   $0?.contains($1)
+     |  |       `- warning: result of call to 'contains' is unused [#NoUsage]
+     |3 | },"Arendalsuka Participant Program",expression: .__fromFunctionCall(.__fromSyntaxNode(#"(asString(latestRows.last?["body"]) ?? "")"#),"contains",(nil,.__fromStringLiteral(#""Arendalsuka Participant Program""#, "Arendalsuka Participant Program"))),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     +------------------------------------------------------------------
+2521 | 
+2522 |         let configuration = ConfigurationCatalogCell.arendalsukaParticipantProgramAppStoreConfiguration()
+
+macro expansion #expect:1:65: warning: left side of nil coalescing operator '??' has non-optional type 'String?', so the right side is never used
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:2520:104: note: expanded code originates here
+2518 |         #expect(asString(latestRows.first?["body"]) == "Hva skjer på arendalsuka?")
+2519 |         #expect(asString(latestRows.last?["role"]) == "assistant")
+2520 |         #expect((asString(latestRows.last?["body"]) ?? "").contains("Arendalsuka Participant Program"))
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkFunctionCall((asString(latestRows.last?["body"]) ?? "").self,calling: {
+     |  |                                                                 `- warning: left side of nil coalescing operator '??' has non-optional type 'String?', so the right side is never used
+     |2 |   $0?.contains($1)
+     |3 | },"Arendalsuka Participant Program",expression: .__fromFunctionCall(.__fromSyntaxNode(#"(asString(latestRows.last?["body"]) ?? "")"#),"contains",(nil,.__fromStringLiteral(#""Arendalsuka Participant Program""#, "Arendalsuka Participant Program"))),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     +------------------------------------------------------------------
+2521 | 
+2522 |         let configuration = ConfigurationCatalogCell.arendalsukaParticipantProgramAppStoreConfiguration()
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:2655:44: warning: cannot form key path to main actor-isolated property 'caseID'; this is an error in the Swift 6 language mode
+2653 |             let outcomes = try await BindingChatPromptEvaluationRunner.evaluate(suiteData: data, provider: provider)
+2654 |             let failures = outcomes.filter { !$0.matchesExpected }
+2655 |             let failedIDs = failures.map(\.caseID).joined(separator: ", ")
+     |                                            `- warning: cannot form key path to main actor-isolated property 'caseID'; this is an error in the Swift 6 language mode
+2656 |             #expect(failures.isEmpty, "\(provider.rawValue) failed \(failures.count) prompt-eval cases: \(failedIDs)")
+2657 |         }
+
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ButlerLanguageSupportTests.swift:123:32: warning: main actor-isolated property 'failure' can not be referenced from a nonisolated autoclosure
+121 |         for (prompt, helper) in cases {
+122 |             let reply = await ButlerLanguageSupport.respond(to: .init(prompt: prompt, conversation: "", resources: []))
+123 |             XCTAssertNil(reply.failure)
+    |                                `- warning: main actor-isolated property 'failure' can not be referenced from a nonisolated autoclosure
+124 |             XCTAssertEqual(reply.helper, helper, prompt)
+125 |             XCTAssertGreaterThan(reply.answer.count, 30)
+
+Binding.ButlerLanguageSupport.Reply.failure:3:25: note: property declared here
+1 | enum ButlerLanguageSupport {
+2 |   struct Reply {
+3 | @MainActor internal var failure: String?  }
+  |                         `- note: property declared here
+4 | }
+5 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ButlerLanguageSupportTests.swift:124:34: warning: main actor-isolated property 'helper' can not be referenced from a nonisolated autoclosure
+122 |             let reply = await ButlerLanguageSupport.respond(to: .init(prompt: prompt, conversation: "", resources: []))
+123 |             XCTAssertNil(reply.failure)
+124 |             XCTAssertEqual(reply.helper, helper, prompt)
+    |                                  `- warning: main actor-isolated property 'helper' can not be referenced from a nonisolated autoclosure
+125 |             XCTAssertGreaterThan(reply.answer.count, 30)
+126 |             XCTAssertFalse(reply.answer.contains("Ingen trygg chat-helper"))
+
+Binding.ButlerLanguageSupport.Reply.helper:3:25: note: property declared here
+1 | enum ButlerLanguageSupport {
+2 |   struct Reply {
+3 | @MainActor internal var helper: String  }
+  |                         `- note: property declared here
+4 | }
+5 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ButlerLanguageSupportTests.swift:125:40: warning: main actor-isolated property 'answer' can not be referenced from a nonisolated autoclosure
+123 |             XCTAssertNil(reply.failure)
+124 |             XCTAssertEqual(reply.helper, helper, prompt)
+125 |             XCTAssertGreaterThan(reply.answer.count, 30)
+    |                                        `- warning: main actor-isolated property 'answer' can not be referenced from a nonisolated autoclosure
+126 |             XCTAssertFalse(reply.answer.contains("Ingen trygg chat-helper"))
+127 |             print("LIVE BUTLER: \(prompt)\nHELPER: \(reply.helper)\nANSWER: \(reply.answer)")
+
+Binding.ButlerLanguageSupport.Reply.answer:3:25: note: property declared here
+1 | enum ButlerLanguageSupport {
+2 |   struct Reply {
+3 | @MainActor internal var answer: String  }
+  |                         `- note: property declared here
+4 | }
+5 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ButlerLanguageSupportTests.swift:126:34: warning: main actor-isolated property 'answer' can not be referenced from a nonisolated autoclosure
+124 |             XCTAssertEqual(reply.helper, helper, prompt)
+125 |             XCTAssertGreaterThan(reply.answer.count, 30)
+126 |             XCTAssertFalse(reply.answer.contains("Ingen trygg chat-helper"))
+    |                                  `- warning: main actor-isolated property 'answer' can not be referenced from a nonisolated autoclosure
+127 |             print("LIVE BUTLER: \(prompt)\nHELPER: \(reply.helper)\nANSWER: \(reply.answer)")
+128 |         }
+
+Binding.ButlerLanguageSupport.Reply.answer:3:25: note: property declared here
+1 | enum ButlerLanguageSupport {
+2 |   struct Reply {
+3 | @MainActor internal var answer: String  }
+  |                         `- note: property declared here
+4 | }
+5 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ButlerLanguageSupportTests.swift:127:60: warning: main actor-isolated property 'helper' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+125 |             XCTAssertGreaterThan(reply.answer.count, 30)
+126 |             XCTAssertFalse(reply.answer.contains("Ingen trygg chat-helper"))
+127 |             print("LIVE BUTLER: \(prompt)\nHELPER: \(reply.helper)\nANSWER: \(reply.answer)")
+    |                                                            `- warning: main actor-isolated property 'helper' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+128 |         }
+129 |     }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ButlerLanguageSupportTests.swift:127:85: warning: main actor-isolated property 'answer' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+125 |             XCTAssertGreaterThan(reply.answer.count, 30)
+126 |             XCTAssertFalse(reply.answer.contains("Ingen trygg chat-helper"))
+127 |             print("LIVE BUTLER: \(prompt)\nHELPER: \(reply.helper)\nANSWER: \(reply.answer)")
+    |                                                                                     `- warning: main actor-isolated property 'answer' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+128 |         }
+129 |     }
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/RemoteSurfaceRenderAuditXCTest.swift:738:61: warning: main actor-isolated property 'errorCount' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+ 736 |                 }
+ 737 |                 record.loadMs = report.loadMilliseconds
+ 738 |                 record.validationErrors = report.validation.errorCount
+     |                                                             `- warning: main actor-isolated property 'errorCount' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+ 739 |                 record.validationWarnings = report.validation.warningCount
+ 740 |                 record.rootProbeCount = report.rootProbeResolutions.count
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/RemoteSurfaceRenderAuditXCTest.swift:739:63: warning: main actor-isolated property 'warningCount' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+ 737 |                 record.loadMs = report.loadMilliseconds
+ 738 |                 record.validationErrors = report.validation.errorCount
+ 739 |                 record.validationWarnings = report.validation.warningCount
+     |                                                               `- warning: main actor-isolated property 'warningCount' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+ 740 |                 record.rootProbeCount = report.rootProbeResolutions.count
+ 741 |                 let unresolved = report.unresolvedReferences.map {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/RemoteSurfaceRenderAuditXCTest.swift:760:38: warning: main actor-isolated property 'errorCount' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+ 758 |                     detail += "; unreadableRoots=\(unreadable.count)/\(report.rootProbeResolutions.count)"
+ 759 |                 }
+ 760 |                 if report.validation.errorCount > 0 {
+     |                                      `- warning: main actor-isolated property 'errorCount' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+ 761 |                     detail += "; validationErrors=\(report.validation.errorCount)"
+ 762 |                 }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/RemoteSurfaceRenderAuditXCTest.swift:761:71: warning: main actor-isolated property 'errorCount' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+ 759 |                 }
+ 760 |                 if report.validation.errorCount > 0 {
+ 761 |                     detail += "; validationErrors=\(report.validation.errorCount)"
+     |                                                                       `- warning: main actor-isolated property 'errorCount' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+ 762 |                 }
+ 763 |                 record.detail = detail
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/StartupIdentityVaultTests.swift:15:21: warning: main actor-isolated initializer 'init()' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+ 13 | 
+ 14 |     @Test func theSamePersonComesBackOnTheNextLaunch() async throws {
+ 15 |         let store = BindingInMemoryStartupIdentityStore()
+    |                     `- warning: main actor-isolated initializer 'init()' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+ 16 |         let firstLaunch = BindingStartupIdentityVault(durable: true, store: store)
+ 17 |         let secondLaunch = BindingStartupIdentityVault(durable: true, store: store)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/StartupIdentityVaultTests.swift:30:21: warning: main actor-isolated initializer 'init()' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+ 28 |     /// restored identity cannot sign for the data it wrote.
+ 29 |     @Test func theRestoredIdentityStillHoldsItsOwnPrivateKey() async throws {
+ 30 |         let store = BindingInMemoryStartupIdentityStore()
+    |                     `- warning: main actor-isolated initializer 'init()' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+ 31 |         let firstLaunch = BindingStartupIdentityVault(durable: true, store: store)
+ 32 |         let first = try #require(await firstLaunch.identity(for: "private", makeNewIfNotFound: true))
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/StartupIdentityVaultTests.swift:48:21: warning: main actor-isolated initializer 'init()' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+ 46 |     /// the stored one, not overwrite the keys and orphan the data.
+ 47 |     @Test func addingADefaultIdentityAdoptsTheStoredOneInsteadOfMintingOver() async throws {
+ 48 |         let store = BindingInMemoryStartupIdentityStore()
+    |                     `- warning: main actor-isolated initializer 'init()' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+ 49 |         let firstLaunch = BindingStartupIdentityVault(durable: true, store: store)
+ 50 |         let first = try #require(await firstLaunch.identity(for: "private", makeNewIfNotFound: true))
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/StartupIdentityVaultTests.swift:61:21: warning: main actor-isolated initializer 'init()' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+ 59 | 
+ 60 |     @Test func anEphemeralVaultForgetsOnPurpose() async throws {
+ 61 |         let store = BindingInMemoryStartupIdentityStore()
+    |                     `- warning: main actor-isolated initializer 'init()' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+ 62 |         let firstLaunch = BindingStartupIdentityVault(durable: false, store: store)
+ 63 |         let secondLaunch = BindingStartupIdentityVault(durable: false, store: store)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/StartupIdentityVaultTests.swift:81:21: warning: main actor-isolated initializer 'init(failReads:)' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+ 79 | 
+ 80 |     @Test func anUnreadableStoreDoesNotCreateAReplacementIdentity() async {
+ 81 |         let store = FailingStartupIdentityStore(failReads: true)
+    |                     `- warning: main actor-isolated initializer 'init(failReads:)' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+ 82 |         let vault = BindingStartupIdentityVault(durable: true, store: store)
+ 83 |         #expect(await vault.identity(for: "private", makeNewIfNotFound: true) == nil)
+
+macro expansion #expect:1:38: warning: main actor-isolated property 'writeCount' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/StartupIdentityVaultTests.swift:87:39: note: expanded code originates here
+ 85 |         await vault.addIdentity(identity: &offered, for: "private")
+ 86 |         #expect(!(await vault.identityExistInVault(offered)))
+ 87 |         #expect(store.writeCount == 0)
+    |         `- note: in expansion of macro 'expect' here
+    +--- macro expansion #expect ---------------------------------------
+    |1 | Testing.__checkBinaryOperation(store.writeCount,{ $0 == $1() },0,expression: .__fromBinaryOperation(.__fromSyntaxNode("store.writeCount"),"==",.__fromSyntaxNode("0")),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+    |  |                                      `- warning: main actor-isolated property 'writeCount' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+    +-------------------------------------------------------------------
+ 88 |     }
+ 89 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/StartupIdentityVaultTests.swift:91:21: warning: main actor-isolated initializer 'init(failReads:)' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+ 89 | 
+ 90 |     @Test func aFailedWriteDoesNotAdvertiseADurableIdentity() async {
+ 91 |         let store = FailingStartupIdentityStore(failReads: false)
+    |                     `- warning: main actor-isolated initializer 'init(failReads:)' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+ 92 |         let vault = BindingStartupIdentityVault(durable: true, store: store)
+ 93 |         #expect(await vault.identity(for: "private", makeNewIfNotFound: true) == nil)
+
+macro expansion #expect:1:38: warning: main actor-isolated property 'writeCount' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/StartupIdentityVaultTests.swift:95:39: note: expanded code originates here
+ 93 |         #expect(await vault.identity(for: "private", makeNewIfNotFound: true) == nil)
+ 94 |         #expect(await vault.identity(for: "private", makeNewIfNotFound: false) == nil)
+ 95 |         #expect(store.writeCount == 1)
+    |         `- note: in expansion of macro 'expect' here
+    +--- macro expansion #expect ---------------------------------------
+    |1 | Testing.__checkBinaryOperation(store.writeCount,{ $0 == $1() },1,expression: .__fromBinaryOperation(.__fromSyntaxNode("store.writeCount"),"==",.__fromSyntaxNode("1")),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+    |  |                                      `- warning: main actor-isolated property 'writeCount' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+    +-------------------------------------------------------------------
+ 96 |     }
+ 97 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/StartupIdentityVaultTests.swift:99:21: warning: main actor-isolated initializer 'init()' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+ 97 | 
+ 98 |     @Test func aCorruptRecordIsPreservedWithoutMintingNewKeys() async {
+ 99 |         let store = BindingInMemoryStartupIdentityStore()
+    |                     `- warning: main actor-isolated initializer 'init()' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+100 |         let corrupt = Data("invalid stored identity".utf8)
+101 |         store.write(account: "private", data: corrupt)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/StartupIdentityVaultTests.swift:101:15: warning: main actor-isolated instance method 'write(account:data:)' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+ 99 |         let store = BindingInMemoryStartupIdentityStore()
+100 |         let corrupt = Data("invalid stored identity".utf8)
+101 |         store.write(account: "private", data: corrupt)
+    |               `- warning: main actor-isolated instance method 'write(account:data:)' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+102 |         let vault = BindingStartupIdentityVault(durable: true, store: store)
+103 |         #expect(await vault.identity(for: "private", makeNewIfNotFound: true) == nil)
+
+macro expansion #expect:1:38: warning: main actor-isolated instance method 'read(account:)' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/StartupIdentityVaultTests.swift:104:59: note: expanded code originates here
+102 |         let vault = BindingStartupIdentityVault(durable: true, store: store)
+103 |         #expect(await vault.identity(for: "private", makeNewIfNotFound: true) == nil)
+104 |         #expect(store.read(account: "private") == corrupt)
+    |         `- note: in expansion of macro 'expect' here
+    +--- macro expansion #expect ---------------------------------------
+    |1 | Testing.__checkBinaryOperation(store.read(account: "private"),{ $0 == $1() },corrupt,expression: .__fromBinaryOperation(.__fromSyntaxNode(#"store.read(account: "private")"#),"==",.__fromSyntaxNode("corrupt")),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+    |  |                                      `- warning: main actor-isolated instance method 'read(account:)' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+    +-------------------------------------------------------------------
+105 |     }
+106 | }
+macro expansion #expect:1:26: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:47:61: note: expanded code originates here
+  45 |         #expect(receipt.deviceIdentityUUID == fixture.subject.uuid)
+  46 |         #expect(await transport.sawPersistedExpectationBeforeSubmit())
+  47 |         #expect(try await store.pendingExpectation() == nil)
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkValue(try await store.pendingExpectation() == nil,expression: .__fromSyntaxNode("try await store.pendingExpectation() == nil"),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                          `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+     +------------------------------------------------------------------
+  48 |         #expect(try await store.verifiedEvidence() != nil)
+  49 |         #expect(fixture.entityLinkAuthorization.retainsEnvelopeForTesting() == false)
+
+macro expansion #expect:1:26: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:48:59: note: expanded code originates here
+  46 |         #expect(await transport.sawPersistedExpectationBeforeSubmit())
+  47 |         #expect(try await store.pendingExpectation() == nil)
+  48 |         #expect(try await store.verifiedEvidence() != nil)
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkValue(try await store.verifiedEvidence() != nil,expression: .__fromSyntaxNode("try await store.verifiedEvidence() != nil"),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                          `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+     +------------------------------------------------------------------
+  49 |         #expect(fixture.entityLinkAuthorization.retainsEnvelopeForTesting() == false)
+  50 | 
+
+macro expansion #expect:1:26: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:220:61: note: expanded code originates here
+ 218 |             )
+ 219 |         }
+ 220 |         #expect(try await store.pendingExpectation() != nil)
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkValue(try await store.pendingExpectation() != nil,expression: .__fromSyntaxNode("try await store.pendingExpectation() != nil"),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                          `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+     +------------------------------------------------------------------
+ 221 |         #expect(try await store.verifiedEvidence() == nil)
+ 222 |         #expect(await transport.submitCount() == 1)
+
+macro expansion #expect:1:26: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:221:59: note: expanded code originates here
+ 219 |         }
+ 220 |         #expect(try await store.pendingExpectation() != nil)
+ 221 |         #expect(try await store.verifiedEvidence() == nil)
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkValue(try await store.verifiedEvidence() == nil,expression: .__fromSyntaxNode("try await store.verifiedEvidence() == nil"),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                          `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+     +------------------------------------------------------------------
+ 222 |         #expect(await transport.submitCount() == 1)
+ 223 | 
+
+macro expansion #expect:1:26: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:340:61: note: expanded code originates here
+ 338 |         }
+ 339 |         #expect(await transport.submitCount() == 0)
+ 340 |         #expect(try await store.pendingExpectation() == nil)
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkValue(try await store.pendingExpectation() == nil,expression: .__fromSyntaxNode("try await store.pendingExpectation() == nil"),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                          `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+     +------------------------------------------------------------------
+ 341 |     }
+ 342 | 
+
+macro expansion #expect:1:26: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:596:73: note: expanded code originates here
+ 594 |             directoryURL: fixture.evidenceDirectory
+ 595 |         )
+ 596 |         #expect(try await store.containsRegistrationEvidence() == false)
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkValue(try await store.containsRegistrationEvidence() == false,expression: .__fromSyntaxNode("try await store.containsRegistrationEvidence() == false"),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                          `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+     +------------------------------------------------------------------
+ 597 |         let pendingURL = fixture.evidenceDirectory
+ 598 |             .appendingPathComponent("registration-state-journal.json")
+
+macro expansion #expect:2:17: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:609:10: note: expanded code originates here
+ 603 |         )
+ 604 | 
+ 605 |         await #expect(
+     |               `- note: in expansion of macro 'expect' here
+ 606 |             throws: DeviceIngressEvidenceFileError.metadataRejected(reason: "not-regular")
+ 607 |         ) {
+ 608 |             try await store.pendingExpectation()
+ 609 |         }
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkClosureCall(throws: DeviceIngressEvidenceFileError.metadataRejected(reason: "not-regular"),performing: {
+     |2 |             try await store.pendingExpectation()
+     |  |                 `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+     |3 |         },expression: .__fromSyntaxNode(#"DeviceIngressEvidenceFileError.metadataRejected(reason: "not-regular")"#),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     +------------------------------------------------------------------
+ 610 |     }
+ 611 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:620:13: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 618 |         let consent = try makeConsentEvidence()
+ 619 |         try store.persistTermsAcceptance(consent)
+ 620 |         try await store.persistPending(
+     |             `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 621 |             try await makeExpectation(fixture),
+ 622 |             consentEvidence: consent
+
+macro expansion #expect:2:17: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:635:10: note: expanded code originates here
+ 629 |         )
+ 630 | 
+ 631 |         await #expect(
+     |               `- note: in expansion of macro 'expect' here
+ 632 |             throws: DeviceIngressEvidenceFileError.metadataRejected(reason: "file-link-count")
+ 633 |         ) {
+ 634 |             try await store.pendingExpectation()
+ 635 |         }
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkClosureCall(throws: DeviceIngressEvidenceFileError.metadataRejected(reason: "file-link-count"),performing: {
+     |2 |             try await store.pendingExpectation()
+     |  |                 `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+     |3 |         },expression: .__fromSyntaxNode(#"DeviceIngressEvidenceFileError.metadataRejected(reason: "file-link-count")"#),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     +------------------------------------------------------------------
+ 636 |     }
+ 637 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:646:13: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 644 |         let consent = try makeConsentEvidence()
+ 645 |         try store.persistTermsAcceptance(consent)
+ 646 |         try await store.persistPending(
+     |             `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 647 |             try await makeExpectation(fixture),
+ 648 |             consentEvidence: consent
+
+macro expansion #expect:2:17: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:658:10: note: expanded code originates here
+ 652 |         #expect(Darwin.chmod(path, 0o640) == 0)
+ 653 | 
+ 654 |         await #expect(
+     |               `- note: in expansion of macro 'expect' here
+ 655 |             throws: DeviceIngressEvidenceFileError.metadataRejected(reason: "file-mode")
+ 656 |         ) {
+ 657 |             try await store.pendingExpectation()
+ 658 |         }
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkClosureCall(throws: DeviceIngressEvidenceFileError.metadataRejected(reason: "file-mode"),performing: {
+     |2 |             try await store.pendingExpectation()
+     |  |                 `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+     |3 |         },expression: .__fromSyntaxNode(#"DeviceIngressEvidenceFileError.metadataRejected(reason: "file-mode")"#),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     +------------------------------------------------------------------
+ 659 |     }
+ 660 | 
+
+macro expansion #expect:2:17: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:794:10: note: expanded code originates here
+ 788 |         )
+ 789 | 
+ 790 |         await #expect(
+     |               `- note: in expansion of macro 'expect' here
+ 791 |             throws: DeviceIngressEvidenceFileError.metadataRejected(reason: "not-regular")
+ 792 |         ) {
+ 793 |             try await store.pendingExpectation()
+ 794 |         }
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkClosureCall(throws: DeviceIngressEvidenceFileError.metadataRejected(reason: "not-regular"),performing: {
+     |2 |             try await store.pendingExpectation()
+     |  |                 `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+     |3 |         },expression: .__fromSyntaxNode(#"DeviceIngressEvidenceFileError.metadataRejected(reason: "not-regular")"#),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     +------------------------------------------------------------------
+ 795 |     }
+ 796 | 
+
+macro expansion #expect:1:26: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:803:73: note: expanded code originates here
+ 801 |             directoryURL: fixture.evidenceDirectory
+ 802 |         )
+ 803 |         #expect(try await store.containsRegistrationEvidence() == false)
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkValue(try await store.containsRegistrationEvidence() == false,expression: .__fromSyntaxNode("try await store.containsRegistrationEvidence() == false"),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                          `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+     +------------------------------------------------------------------
+ 804 |         let displaced = fixture.evidenceDirectory
+ 805 |             .deletingLastPathComponent()
+
+macro expansion #expect:2:17: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:812:10: note: expanded code originates here
+ 808 |         try createPrivateDirectory(fixture.evidenceDirectory)
+ 809 | 
+ 810 |         await #expect(throws: DeviceIngressEvidenceFileError.pathIdentityChanged) {
+     |               `- note: in expansion of macro 'expect' here
+ 811 |             try await store.pendingExpectation()
+ 812 |         }
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkClosureCall(throws: DeviceIngressEvidenceFileError.pathIdentityChanged,performing: {
+     |2 |             try await store.pendingExpectation()
+     |  |                 `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+     |3 |         },expression: .__fromSyntaxNode("DeviceIngressEvidenceFileError.pathIdentityChanged"),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     +------------------------------------------------------------------
+ 813 |     }
+ 814 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:827:13: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 825 |         let consent = try makeConsentEvidence()
+ 826 |         try store.persistTermsAcceptance(consent)
+ 827 |         try await store.persistPending(
+     |             `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 828 |             try await makeExpectation(fixture),
+ 829 |             consentEvidence: consent
+
+macro expansion #expect:2:17: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:837:10: note: expanded code originates here
+ 831 |         observer.arm()
+ 832 | 
+ 833 |         await #expect(
+     |               `- note: in expansion of macro 'expect' here
+ 834 |             throws: DeviceIngressEvidenceFileError.contentChangedDuringAccess
+ 835 |         ) {
+ 836 |             try await store.pendingExpectation()
+ 837 |         }
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkClosureCall(throws: DeviceIngressEvidenceFileError.contentChangedDuringAccess,performing: {
+     |2 |             try await store.pendingExpectation()
+     |  |                 `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+     |3 |         },expression: .__fromSyntaxNode("DeviceIngressEvidenceFileError.contentChangedDuringAccess"),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     +------------------------------------------------------------------
+ 838 |         #expect(observer.didMutate)
+ 839 |     }
+
+macro expansion #expect:2:17: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:854:10: note: expanded code originates here
+ 850 |         )
+ 851 | 
+ 852 |         await #expect(throws: DeviceIngressEvidenceFileError.pathIdentityChanged) {
+     |               `- note: in expansion of macro 'expect' here
+ 853 |             try await store.containsRegistrationEvidence()
+ 854 |         }
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkClosureCall(throws: DeviceIngressEvidenceFileError.pathIdentityChanged,performing: {
+     |2 |             try await store.containsRegistrationEvidence()
+     |  |                 `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+     |3 |         },expression: .__fromSyntaxNode("DeviceIngressEvidenceFileError.pathIdentityChanged"),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     +------------------------------------------------------------------
+ 855 |         #expect(observer.didReplace)
+ 856 |     }
+
+macro expansion #expect:2:17: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:984:10: note: expanded code originates here
+ 977 | 
+ 978 |         #expect(clearedLocalState)
+ 979 |         await #expect(throws: DeviceIngressRegistrationClientError.preRegistrationDeclined) {
+     |               `- note: in expansion of macro 'expect' here
+ 980 |             try await store.persistPending(
+ 981 |                 expectation,
+ 982 |                 consentEvidence: consent
+ 983 |             )
+ 984 |         }
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkClosureCall(throws: DeviceIngressRegistrationClientError.preRegistrationDeclined,performing: {
+     |2 |             try await store.persistPending(
+     |  |                 `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+     |3 |                 expectation,
+     |4 |                 consentEvidence: consent
+     +------------------------------------------------------------------
+ 985 | 
+ 986 |         try store.persistTermsAcceptance(consent)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:987:13: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 985 | 
+ 986 |         try store.persistTermsAcceptance(consent)
+ 987 |         try await store.persistPending(
+     |             `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 988 |             expectation,
+ 989 |             consentEvidence: consent
+
+macro expansion #expect:1:26: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:991:69: note: expanded code originates here
+ 989 |             consentEvidence: consent
+ 990 |         )
+ 991 |         #expect(try await store.pendingExpectation() == expectation)
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkValue(try await store.pendingExpectation() == expectation,expression: .__fromSyntaxNode("try await store.pendingExpectation() == expectation"),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                          `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+     +------------------------------------------------------------------
+ 992 |     }
+ 993 | 
+
+macro expansion #expect:1:62: warning: main actor-isolated conformance of 'JSONValue' to 'Equatable' cannot be used in nonisolated context; this is an error in the Swift 6 language mode [#IsolatedConformances]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:1137:85: note: expanded code originates here
+1135 |         )
+1136 | 
+1137 |         #expect(payload["participantId"] == .string("entity-pairwise:test-binding"))
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkBinaryOperation(payload["participantId"],{ $0 == $1() },.string("entity-pairwise:test-binding"),expression: .__fromBinaryOperation(.__fromSyntaxNode(#"payload["participantId"]"#),"==",.__fromSyntaxNode(#".string("entity-pairwise:test-binding")"#)),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                                                              `- warning: main actor-isolated conformance of 'JSONValue' to 'Equatable' cannot be used in nonisolated context; this is an error in the Swift 6 language mode [#IsolatedConformances]
+     +------------------------------------------------------------------
+1138 |         #expect(payload["deviceId"] == .string("device-identity"))
+1139 |         #expect(payload["termsAccepted"] == nil)
+
+macro expansion #expect:1:57: warning: main actor-isolated conformance of 'JSONValue' to 'Equatable' cannot be used in nonisolated context; this is an error in the Swift 6 language mode [#IsolatedConformances]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:1138:67: note: expanded code originates here
+1136 | 
+1137 |         #expect(payload["participantId"] == .string("entity-pairwise:test-binding"))
+1138 |         #expect(payload["deviceId"] == .string("device-identity"))
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkBinaryOperation(payload["deviceId"],{ $0 == $1() },.string("device-identity"),expression: .__fromBinaryOperation(.__fromSyntaxNode(#"payload["deviceId"]"#),"==",.__fromSyntaxNode(#".string("device-identity")"#)),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                                                         `- warning: main actor-isolated conformance of 'JSONValue' to 'Equatable' cannot be used in nonisolated context; this is an error in the Swift 6 language mode [#IsolatedConformances]
+     +------------------------------------------------------------------
+1139 |         #expect(payload["termsAccepted"] == nil)
+1140 |         #expect(payload["termsConsentState"] == .string("accepted"))
+
+macro expansion #expect:1:66: warning: main actor-isolated conformance of 'JSONValue' to 'Equatable' cannot be used in nonisolated context; this is an error in the Swift 6 language mode [#IsolatedConformances]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:1140:69: note: expanded code originates here
+1138 |         #expect(payload["deviceId"] == .string("device-identity"))
+1139 |         #expect(payload["termsAccepted"] == nil)
+1140 |         #expect(payload["termsConsentState"] == .string("accepted"))
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkBinaryOperation(payload["termsConsentState"],{ $0 == $1() },.string("accepted"),expression: .__fromBinaryOperation(.__fromSyntaxNode(#"payload["termsConsentState"]"#),"==",.__fromSyntaxNode(#".string("accepted")"#)),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                                                                  `- warning: main actor-isolated conformance of 'JSONValue' to 'Equatable' cannot be used in nonisolated context; this is an error in the Swift 6 language mode [#IsolatedConformances]
+     +------------------------------------------------------------------
+1141 |         #expect(
+1142 |             payload["termsAcceptanceEvidence"]
+
+macro expansion #expect:1:72: warning: main actor-isolated conformance of 'JSONValue' to 'Equatable' cannot be used in nonisolated context; this is an error in the Swift 6 language mode [#IsolatedConformances]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:1144:10: note: expanded code originates here
+1139 |         #expect(payload["termsAccepted"] == nil)
+1140 |         #expect(payload["termsConsentState"] == .string("accepted"))
+1141 |         #expect(
+     |         `- note: in expansion of macro 'expect' here
+1142 |             payload["termsAcceptanceEvidence"]
+1143 |                 == .object(consent.registrationObject)
+1144 |         )
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkBinaryOperation(payload["termsAcceptanceEvidence"],{ $0 == $1() },.object(consent.registrationObject),expression: .__fromBinaryOperation(.__fromSyntaxNode(#"payload["termsAcceptanceEvidence"]"#),"==",.__fromSyntaxNode(".object(consent.registrationObject)")),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                                                                        `- warning: main actor-isolated conformance of 'JSONValue' to 'Equatable' cannot be used in nonisolated context; this is an error in the Swift 6 language mode [#IsolatedConformances]
+     +------------------------------------------------------------------
+1145 |     }
+1146 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:1342:33: warning: result of call to 'fetchRegisterChallenge(subject:canonicalEntityLink:)' is unused [#NoUsage]
+1340 | 
+1341 |         do {
+1342 |             try await transport.fetchRegisterChallenge(
+     |                                 `- warning: result of call to 'fetchRegisterChallenge(subject:canonicalEntityLink:)' is unused [#NoUsage]
+1343 |                 subject: subject,
+1344 |                 canonicalEntityLink: Data("entity-link".utf8)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:1717:37: warning: '#require(_:_:)' is redundant because 'try await subject.sign(data: payload)' never equals 'nil' (from macro 'require')
+1715 |             algorithm: subjectDescriptor.algorithm,
+1716 |             curveType: subjectDescriptor.curveType,
+1717 |             signature: try #require(try await subject.sign(data: payload))
+     |                                     `- warning: '#require(_:_:)' is redundant because 'try await subject.sign(data: payload)' never equals 'nil' (from macro 'require')
+1718 |         )
+1719 |         let approval = try await IdentityLinkProtocolService.approveEnrollmentRequest(
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:2085:9: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+2083 |         canonicalEntityLink: Data
+2084 |     ) async throws -> Data {
+2085 |         try await underlying.fetchRegisterChallenge(
+     |         `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+2086 |             subject: subject,
+2087 |             canonicalEntityLink: canonicalEntityLink
+
+macro expansion #require:1:22: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift:2187:81: note: expanded code originates here
+2185 |     ) async throws -> Data {
+2186 |         submits += 1
+2187 |         let expectation = try #require(await evidenceStore.pendingExpectation())
+     |                               `- note: in expansion of macro 'require' here
+     +--- macro expansion #require -------------------------------------
+     |1 | Testing.__checkValue(await evidenceStore.pendingExpectation(),expression: .__fromSyntaxNode("await evidenceStore.pendingExpectation()"),comments: [],isRequired: true,sourceLocation: Testing.SourceLocation.__here()).__required()
+     |  |                      `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+     +------------------------------------------------------------------
+2188 |         expectationWasPresent = true
+2189 |         var response = try await Self.signedRegistrationResponse(
+
+[#IsolatedConformances]: <https://docs.swift.org/compiler/documentation/diagnostics/isolated-conformances>
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+warning: could not open directory 'Binding.xcworkspace/xcshareddata/swiftpm/configuration/': Operation not permitted
+swift-driver version: 1.168.6 
+note: Run script build phase 'Embed Build Provenance' will be run during every build because the option to run the script phase "Based on dependency analysis" is unchecked. (in target 'HAVEN' from project 'Binding')

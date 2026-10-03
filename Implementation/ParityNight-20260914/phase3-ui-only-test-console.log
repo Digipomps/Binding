@@ -1,0 +1,863 @@
+Workspace:      Binding/Binding.xcodeproj
+Scheme:         HAVEN
+Configuration:  Debug
+Destination:    platform=iOS Simulator,id=1F9CB294-13BC-4D49-B8C7-E969D4BFFA11
+Mode:           ios-ui-tests
+DerivedData:    /private/tmp/haven-xcode-derived/Binding-Parity
+Log:            ../phase3-ui-only-test-logs/xcode-ios-ui-tests-latest.log
+
+Build capacity: 139.2 GiB free (15%); reserving 10 GiB leaves 129.2 GiB (13%).
++ xcodebuild -jobs 2 -derivedDataPath /private/tmp/haven-xcode-derived/Binding-Parity -project Binding/Binding.xcodeproj -scheme HAVEN -configuration Debug -destination platform=iOS Simulator,id=1F9CB294-13BC-4D49-B8C7-E969D4BFFA11 -disableAutomaticPackageResolution -onlyUsePackageVersionsFromResolvedFile -testPlan HAVEN-Parity-UI -parallel-testing-enabled NO -only-testing:BindingUITests/ParityNightUITests -resultBundlePath ../phase3-ui-only-test-logs/parity-ui-tests.xcresult CONFIGURATION_BUILD_DIR=/private/tmp/haven-parity-ios-products CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO TOOLCHAIN_DIR=$(DT_TOOLCHAIN_DIR) test
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -jobs 2 -derivedDataPath /private/tmp/haven-xcode-derived/Binding-Parity -project Binding/Binding.xcodeproj -scheme HAVEN -configuration Debug -destination "platform=iOS Simulator,id=1F9CB294-13BC-4D49-B8C7-E969D4BFFA11" -disableAutomaticPackageResolution -onlyUsePackageVersionsFromResolvedFile -testPlan HAVEN-Parity-UI -parallel-testing-enabled NO "-only-testing:BindingUITests/ParityNightUITests" -resultBundlePath ../phase3-ui-only-test-logs/parity-ui-tests.xcresult CONFIGURATION_BUILD_DIR=/private/tmp/haven-parity-ios-products CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO "TOOLCHAIN_DIR=$(DT_TOOLCHAIN_DIR)" test
+
+Build settings from command line:
+    CODE_SIGNING_ALLOWED = NO
+    CODE_SIGNING_REQUIRED = NO
+    CONFIGURATION_BUILD_DIR = /private/tmp/haven-parity-ios-products
+    TOOLCHAIN_DIR = $(DT_TOOLCHAIN_DIR)
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  swift-algorithms: https://github.com/apple/swift-algorithms.git @ 1.2.1
+  swift-system: https://github.com/apple/swift-system.git @ 1.6.4
+  swift-distributed-tracing: https://github.com/apple/swift-distributed-tracing.git @ 1.4.1
+  vapor: https://github.com/vapor/vapor.git @ 4.121.3
+  swift-collections: https://github.com/apple/swift-collections.git @ 1.4.1
+  swift-certificates: https://github.com/apple/swift-certificates.git @ 1.18.0
+  swift-async-algorithms: https://github.com/apple/swift-async-algorithms.git @ 1.1.3
+  swift-http-types: https://github.com/apple/swift-http-types.git @ 1.5.1
+  async-http-client: https://github.com/swift-server/async-http-client.git @ 1.32.1
+  swift-http-structured-headers: https://github.com/apple/swift-http-structured-headers.git @ 1.6.0
+  CryptoSwift: https://github.com/krzyzanowskim/CryptoSwift.git @ 1.9.0
+  swift-nio: https://github.com/apple/swift-nio @ 2.96.0
+  CFileUtils: https://github.com/Digipomps/FileUtils-c.git @ main (26f365c)
+  swift-log: https://github.com/apple/swift-log.git @ 1.10.1
+  swift-crypto: https://github.com/apple/swift-crypto.git @ 3.15.1
+  swift-atomics: https://github.com/apple/swift-atomics.git @ 1.3.0
+  swift-service-context: https://github.com/apple/swift-service-context.git @ 1.3.0
+  swift-nio-extras: https://github.com/apple/swift-nio-extras.git @ 1.33.0
+  swift-metrics: https://github.com/apple/swift-metrics.git @ 2.8.0
+  console-kit: https://github.com/vapor/console-kit.git @ 4.15.2
+  swift-nio-http2: https://github.com/apple/swift-nio-http2.git @ 1.41.0
+  swift-asn1: https://github.com/apple/swift-asn1.git @ 1.6.0
+  CellProtocol: /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/CellProtocol @ local
+  random-swift: https://github.com/GiacomoLeopizzi/random-swift @ 1.0.0
+  routing-kit: https://github.com/vapor/routing-kit.git @ 4.9.3
+  BigInt: https://github.com/attaswift/BigInt.git @ 5.7.0
+  swift-configuration: https://github.com/apple/swift-configuration.git @ 1.2.0
+  swift-nio-transport-services: https://github.com/apple/swift-nio-transport-services.git @ 1.26.0
+  swift-service-lifecycle: https://github.com/swift-server/swift-service-lifecycle.git @ 2.10.1
+  multipart-kit: https://github.com/vapor/multipart-kit.git @ 4.7.1
+  swift-numerics: https://github.com/apple/swift-numerics.git @ 1.1.1
+  websocket-kit: https://github.com/vapor/websocket-kit.git @ 2.16.1
+  swift-nio-ssl: https://github.com/apple/swift-nio-ssl @ 2.36.1
+  async-kit: https://github.com/vapor/async-kit.git @ 1.22.0
+  OpenCombine: https://github.com/OpenCombine/OpenCombine.git @ 0.14.0
+
+Writing result bundle at path:
+	/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/phase3-ui-only-test-logs/parity-ui-tests.xcresult
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS Simulator, arch:arm64, id:1F9CB294-13BC-4D49-B8C7-E969D4BFFA11, OS:26.2, name:iPhone 16e }
+{ platform:iOS Simulator, arch:x86_64, id:1F9CB294-13BC-4D49-B8C7-E969D4BFFA11, OS:26.2, name:iPhone 16e }
+Build Preparation
+Build task concurrency set to 2 via user default IDEBuildOperationMaxNumberOfConcurrentCompileTasks
+
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (70 targets)
+    Target 'BindingUITests' in project 'Binding'
+        ➜ Explicit dependency on target 'HAVEN' in project 'Binding'
+    Target 'HAVEN' in project 'Binding'
+        ➜ Explicit dependency on target 'CellBase' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'CellApple' in project 'CellProtocol'
+    Target 'CellApple' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'CellApple' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'CellProtocol_CellApple' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'HavenCoreSchemas' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'CombineHelpers' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'CodableHelpers' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'TaxonomyResolver' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'KeyPathResolver' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'CellBase' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'OpenCombine' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombineFoundation' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombineDispatch' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'Random' in project 'random-swift'
+        ➜ Explicit dependency on target 'CryptoSwift' in project 'CryptoSwift'
+        ➜ Explicit dependency on target 'Collections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'BigInt' in project 'BigInt'
+        ➜ Explicit dependency on target 'CFileUtils' in project 'CFileUtils'
+    Target 'CellApple' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'CellProtocol_CellApple' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'HavenCoreSchemas' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'CombineHelpers' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'CodableHelpers' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'TaxonomyResolver' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'KeyPathResolver' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'CellBase' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'OpenCombine' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombineFoundation' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombineDispatch' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'Random' in project 'random-swift'
+        ➜ Explicit dependency on target 'CryptoSwift' in project 'CryptoSwift'
+        ➜ Explicit dependency on target 'Collections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'BigInt' in project 'BigInt'
+        ➜ Explicit dependency on target 'CFileUtils' in project 'CFileUtils'
+    Target 'CFileUtils' in project 'CFileUtils'
+        ➜ Explicit dependency on target 'CFileUtils' in project 'CFileUtils'
+    Target 'CFileUtils' in project 'CFileUtils' (no dependencies)
+    Target 'CellProtocol_CellApple' in project 'CellProtocol' (no dependencies)
+    Target 'CellBase' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'CellBase' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'HavenCoreSchemas' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'CombineHelpers' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'CodableHelpers' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'TaxonomyResolver' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'KeyPathResolver' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'OpenCombine' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombineFoundation' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombineDispatch' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'Random' in project 'random-swift'
+        ➜ Explicit dependency on target 'CryptoSwift' in project 'CryptoSwift'
+        ➜ Explicit dependency on target 'Collections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'BigInt' in project 'BigInt'
+    Target 'CellBase' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'HavenCoreSchemas' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'CombineHelpers' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'CodableHelpers' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'TaxonomyResolver' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'KeyPathResolver' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'OpenCombine' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombineFoundation' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombineDispatch' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'Random' in project 'random-swift'
+        ➜ Explicit dependency on target 'CryptoSwift' in project 'CryptoSwift'
+        ➜ Explicit dependency on target 'Collections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'BigInt' in project 'BigInt'
+    Target 'BigInt' in project 'BigInt'
+        ➜ Explicit dependency on target 'BigInt' in project 'BigInt'
+    Target 'BigInt' in project 'BigInt' (no dependencies)
+    Target 'Collections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Collections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+        ➜ Explicit dependency on target 'BitCollections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'ContainersPreview' in project 'swift-collections'
+        ➜ Explicit dependency on target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'HashTreeCollections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'HeapModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'OrderedCollections' in project 'swift-collections'
+        ➜ Explicit dependency on target '_RopeModule' in project 'swift-collections'
+    Target 'Collections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+        ➜ Explicit dependency on target 'BitCollections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'ContainersPreview' in project 'swift-collections'
+        ➜ Explicit dependency on target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'HashTreeCollections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'HeapModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'OrderedCollections' in project 'swift-collections'
+        ➜ Explicit dependency on target '_RopeModule' in project 'swift-collections'
+    Target '_RopeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+    Target 'OrderedCollections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+    Target 'HeapModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+    Target 'HashTreeCollections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+    Target 'BitCollections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+    Target 'CryptoSwift' in project 'CryptoSwift'
+        ➜ Explicit dependency on target 'CryptoSwift' in project 'CryptoSwift'
+        ➜ Explicit dependency on target 'CryptoSwift_CryptoSwift' in project 'CryptoSwift'
+    Target 'CryptoSwift' in project 'CryptoSwift'
+        ➜ Explicit dependency on target 'CryptoSwift_CryptoSwift' in project 'CryptoSwift'
+    Target 'CryptoSwift_CryptoSwift' in project 'CryptoSwift' (no dependencies)
+    Target 'Random' in project 'random-swift'
+        ➜ Explicit dependency on target 'Random' in project 'random-swift'
+        ➜ Explicit dependency on target 'NIO' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOSSL' in project 'swift-nio-ssl'
+    Target 'Random' in project 'random-swift'
+        ➜ Explicit dependency on target 'NIO' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOSSL' in project 'swift-nio-ssl'
+    Target 'NIOSSL' in project 'swift-nio-ssl'
+        ➜ Explicit dependency on target 'NIOSSL' in project 'swift-nio-ssl'
+        ➜ Explicit dependency on target 'swift-nio-ssl_NIOSSL' in project 'swift-nio-ssl'
+        ➜ Explicit dependency on target 'CNIOBoringSSL' in project 'swift-nio-ssl'
+        ➜ Explicit dependency on target 'CNIOBoringSSLShims' in project 'swift-nio-ssl'
+        ➜ Explicit dependency on target 'NIO' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOTLS' in project 'swift-nio'
+    Target 'NIOSSL' in project 'swift-nio-ssl'
+        ➜ Explicit dependency on target 'swift-nio-ssl_NIOSSL' in project 'swift-nio-ssl'
+        ➜ Explicit dependency on target 'CNIOBoringSSL' in project 'swift-nio-ssl'
+        ➜ Explicit dependency on target 'CNIOBoringSSLShims' in project 'swift-nio-ssl'
+        ➜ Explicit dependency on target 'NIO' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOTLS' in project 'swift-nio'
+    Target 'NIOTLS' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOTLS' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOEmbedded' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIO' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics' in project 'swift-atomics'
+    Target 'NIOTLS' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOEmbedded' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIO' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics' in project 'swift-atomics'
+    Target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+    Target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics' in project 'swift-atomics'
+    Target 'CNIOBoringSSLShims' in project 'swift-nio-ssl'
+        ➜ Explicit dependency on target 'CNIOBoringSSL' in project 'swift-nio-ssl'
+    Target 'CNIOBoringSSL' in project 'swift-nio-ssl' (no dependencies)
+    Target 'swift-nio-ssl_NIOSSL' in project 'swift-nio-ssl' (no dependencies)
+    Target 'NIO' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIO' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOEmbedded' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics' in project 'swift-atomics'
+    Target 'NIO' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOEmbedded' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics' in project 'swift-atomics'
+    Target 'NIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'swift-nio_NIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics' in project 'swift-atomics'
+    Target 'swift-nio_NIOPosix' in project 'swift-nio' (no dependencies)
+    Target 'CNIOPosix' in project 'swift-nio' (no dependencies)
+    Target 'NIOEmbedded' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics' in project 'swift-atomics'
+    Target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics' in project 'swift-atomics'
+    Target 'Atomics' in project 'swift-atomics'
+        ➜ Explicit dependency on target 'Atomics' in project 'swift-atomics'
+        ➜ Explicit dependency on target '_AtomicsShims' in project 'swift-atomics'
+    Target 'Atomics' in project 'swift-atomics'
+        ➜ Explicit dependency on target '_AtomicsShims' in project 'swift-atomics'
+    Target '_AtomicsShims' in project 'swift-atomics' (no dependencies)
+    Target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+        ➜ Explicit dependency on target 'ContainersPreview' in project 'swift-collections'
+    Target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+        ➜ Explicit dependency on target 'ContainersPreview' in project 'swift-collections'
+    Target 'ContainersPreview' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+    Target 'InternalCollectionsUtilities' in project 'swift-collections' (no dependencies)
+    Target '_NIODataStructures' in project 'swift-nio' (no dependencies)
+    Target 'CNIOWASI' in project 'swift-nio' (no dependencies)
+    Target 'CNIOWindows' in project 'swift-nio' (no dependencies)
+    Target 'CNIOLinux' in project 'swift-nio' (no dependencies)
+    Target 'CNIODarwin' in project 'swift-nio' (no dependencies)
+    Target 'CNIOOpenBSD' in project 'swift-nio' (no dependencies)
+    Target '_NIOBase64' in project 'swift-nio' (no dependencies)
+    Target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+    Target 'CNIOAtomics' in project 'swift-nio' (no dependencies)
+    Target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'swift-crypto_Crypto' in project 'swift-crypto'
+    Target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'swift-crypto_Crypto' in project 'swift-crypto'
+    Target 'swift-crypto_Crypto' in project 'swift-crypto' (no dependencies)
+    Target 'KeyPathResolver' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'HavenCoreSchemas' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'TaxonomyResolver' in project 'CellProtocol'
+    Target 'TaxonomyResolver' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'HavenCoreSchemas' in project 'CellProtocol'
+    Target 'CodableHelpers' in project 'CellProtocol' (no dependencies)
+    Target 'CombineHelpers' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'OpenCombine' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombineFoundation' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombineDispatch' in project 'OpenCombine'
+    Target 'OpenCombineDispatch' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombineDispatch' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'COpenCombineHelpers' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombine' in project 'OpenCombine'
+    Target 'OpenCombineDispatch' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'COpenCombineHelpers' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombine' in project 'OpenCombine'
+    Target 'OpenCombineFoundation' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombineFoundation' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'COpenCombineHelpers' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombine' in project 'OpenCombine'
+    Target 'OpenCombineFoundation' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'COpenCombineHelpers' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombine' in project 'OpenCombine'
+    Target 'OpenCombine' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombine' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'COpenCombineHelpers' in project 'OpenCombine'
+    Target 'OpenCombine' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'COpenCombineHelpers' in project 'OpenCombine'
+    Target 'COpenCombineHelpers' in project 'OpenCombine' (no dependencies)
+    Target 'HavenCoreSchemas' in project 'CellProtocol' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc --version
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -x c++ -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --print-asset-tag-combinations --output-format xml1 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/Assets.xcassets
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+
+ReadFileContents /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/share/docc/features.json
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -x assembler-with-cpp -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --version --output-format xml1
+
+Build description signature: 2f69a7aec80f269eacc49ae30a7c70bf
+Build description path: /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/XCBuildData/2f69a7aec80f269eacc49ae30a7c70bf.xcbuilddata
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk /tmp/haven-xcode-derived/Binding-Parity/SDKStatCaches.noindex/iphonesimulator26.2-23C57-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding.xcodeproj
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -o /tmp/haven-xcode-derived/Binding-Parity/SDKStatCaches.noindex/iphonesimulator26.2-23C57-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache
+
+ProcessInfoPlistFile /private/tmp/haven-parity-ios-products/swift-nio_NIOPosix.bundle/Info.plist /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/swift-nio_NIOPosix.build/empty-swift-nio_NIOPosix.plist (in target 'swift-nio_NIOPosix' from project 'swift-nio')
+    cd /tmp/haven-xcode-derived/Binding-Parity/SourcePackages/checkouts/swift-nio
+    builtin-infoPlistUtility /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/swift-nio_NIOPosix.build/empty-swift-nio_NIOPosix.plist -producttype com.apple.product-type.bundle -expandbuildsettings -format binary -platform iphonesimulator -o /private/tmp/haven-parity-ios-products/swift-nio_NIOPosix.bundle/Info.plist
+
+ProcessInfoPlistFile /private/tmp/haven-parity-ios-products/swift-nio-ssl_NIOSSL.bundle/Info.plist /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio-ssl.build/Debug-iphonesimulator/swift-nio-ssl_NIOSSL.build/empty-swift-nio-ssl_NIOSSL.plist (in target 'swift-nio-ssl_NIOSSL' from project 'swift-nio-ssl')
+    cd /tmp/haven-xcode-derived/Binding-Parity/SourcePackages/checkouts/swift-nio-ssl
+    builtin-infoPlistUtility /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio-ssl.build/Debug-iphonesimulator/swift-nio-ssl_NIOSSL.build/empty-swift-nio-ssl_NIOSSL.plist -producttype com.apple.product-type.bundle -expandbuildsettings -format binary -platform iphonesimulator -o /private/tmp/haven-parity-ios-products/swift-nio-ssl_NIOSSL.bundle/Info.plist
+
+ProcessInfoPlistFile /private/tmp/haven-parity-ios-products/swift-crypto_Crypto.bundle/Info.plist /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/swift-crypto_Crypto.build/empty-swift-crypto_Crypto.plist (in target 'swift-crypto_Crypto' from project 'swift-crypto')
+    cd /tmp/haven-xcode-derived/Binding-Parity/SourcePackages/checkouts/swift-crypto
+    builtin-infoPlistUtility /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/swift-crypto_Crypto.build/empty-swift-crypto_Crypto.plist -producttype com.apple.product-type.bundle -expandbuildsettings -format binary -platform iphonesimulator -o /private/tmp/haven-parity-ios-products/swift-crypto_Crypto.bundle/Info.plist
+
+ProcessInfoPlistFile /private/tmp/haven-parity-ios-products/CryptoSwift_CryptoSwift.bundle/Info.plist /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CryptoSwift.build/Debug-iphonesimulator/CryptoSwift_CryptoSwift.build/empty-CryptoSwift_CryptoSwift.plist (in target 'CryptoSwift_CryptoSwift' from project 'CryptoSwift')
+    cd /tmp/haven-xcode-derived/Binding-Parity/SourcePackages/checkouts/CryptoSwift
+    builtin-infoPlistUtility /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CryptoSwift.build/Debug-iphonesimulator/CryptoSwift_CryptoSwift.build/empty-CryptoSwift_CryptoSwift.plist -producttype com.apple.product-type.bundle -expandbuildsettings -format binary -platform iphonesimulator -o /private/tmp/haven-parity-ios-products/CryptoSwift_CryptoSwift.bundle/Info.plist
+
+ProcessInfoPlistFile /private/tmp/haven-parity-ios-products/CellProtocol_CellApple.bundle/Info.plist /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CellProtocol.build/Debug-iphonesimulator/CellProtocol_CellApple.build/empty-CellProtocol_CellApple.plist (in target 'CellProtocol_CellApple' from project 'CellProtocol')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/CellProtocol
+    builtin-infoPlistUtility /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CellProtocol.build/Debug-iphonesimulator/CellProtocol_CellApple.build/empty-CellProtocol_CellApple.plist -producttype com.apple.product-type.bundle -expandbuildsettings -format binary -platform iphonesimulator -o /private/tmp/haven-parity-ios-products/CellProtocol_CellApple.bundle/Info.plist
+
+RegisterExecutionPolicyException /private/tmp/haven-parity-ios-products/CellApple.o (in target 'CellApple' from project 'CellProtocol')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/CellProtocol
+    builtin-RegisterExecutionPolicyException /private/tmp/haven-parity-ios-products/CellApple.o
+
+Ld /private/tmp/haven-parity-ios-products/HAVEN.app/__preview.dylib normal (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios18.0-simulator -dynamiclib -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -O0 -L/private/tmp/haven-parity-ios-products -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products -install_name @rpath/HAVEN.debug.dylib -dead_strip -rdynamic -Xlinker -no_deduplicate -Xlinker -objc_abi_version -Xlinker 2 -Xlinker -debug_variant -Xlinker -dependency_info -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/Objects-normal/arm64/HAVEN_dependency_info.dat -o /private/tmp/haven-parity-ios-products/HAVEN.app/__preview.dylib
+
+Ld /private/tmp/haven-parity-ios-products/HAVEN.app/HAVEN.debug.dylib normal (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios18.0-simulator -dynamiclib -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -O0 -L/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -L/private/tmp/haven-parity-ios-products -F/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products -filelist /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/Objects-normal/arm64/HAVEN.LinkFileList -install_name @rpath/HAVEN.debug.dylib -Xlinker -rpath -Xlinker /usr/lib/swift -Xlinker -rpath -Xlinker /private/tmp/haven-parity-ios-products/PackageFrameworks -Xlinker -rpath -Xlinker @executable_path/Frameworks -dead_strip -Xlinker -object_path_lto -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/Objects-normal/arm64/HAVEN_lto.o -rdynamic -Xlinker -no_deduplicate -Xlinker -objc_abi_version -Xlinker 2 -Xlinker -debug_variant -Xlinker -dependency_info -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/Objects-normal/arm64/HAVEN_dependency_info.dat -fobjc-link-runtime -fprofile-instr-generate -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphonesimulator -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/Objects-normal/arm64/Binding.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/Objects-normal/arm64/Binding-linker-args.resp -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -lc++ -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -lc++ -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Xlinker -alias -Xlinker _main -Xlinker ___debug_main_executable_dylib_entry_point -framework NearbyInteraction -framework MultipeerConnectivity -o /private/tmp/haven-parity-ios-products/HAVEN.app/HAVEN.debug.dylib -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CellProtocol.build/Debug-iphonesimulator/CellBase.build/Objects-normal/arm64/CellBase.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CellProtocol.build/Debug-iphonesimulator/CellBase.build/Objects-normal/arm64/CellBase-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CellProtocol.build/Debug-iphonesimulator/HavenCoreSchemas.build/Objects-normal/arm64/HavenCoreSchemas.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CellProtocol.build/Debug-iphonesimulator/HavenCoreSchemas.build/Objects-normal/arm64/HavenCoreSchemas-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/OpenCombine.build/Debug-iphonesimulator/OpenCombine.build/Objects-normal/arm64/OpenCombine.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/OpenCombine.build/Debug-iphonesimulator/OpenCombine.build/Objects-normal/arm64/OpenCombine-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/OpenCombine.build/Debug-iphonesimulator/OpenCombineFoundation.build/Objects-normal/arm64/OpenCombineFoundation.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/OpenCombine.build/Debug-iphonesimulator/OpenCombineFoundation.build/Objects-normal/arm64/OpenCombineFoundation-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/OpenCombine.build/Debug-iphonesimulator/OpenCombineDispatch.build/Objects-normal/arm64/OpenCombineDispatch.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/OpenCombine.build/Debug-iphonesimulator/OpenCombineDispatch.build/Objects-normal/arm64/OpenCombineDispatch-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CellProtocol.build/Debug-iphonesimulator/CombineHelpers.build/Objects-normal/arm64/CombineHelpers.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CellProtocol.build/Debug-iphonesimulator/CombineHelpers.build/Objects-normal/arm64/CombineHelpers-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CellProtocol.build/Debug-iphonesimulator/CodableHelpers.build/Objects-normal/arm64/CodableHelpers.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CellProtocol.build/Debug-iphonesimulator/CodableHelpers.build/Objects-normal/arm64/CodableHelpers-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CellProtocol.build/Debug-iphonesimulator/TaxonomyResolver.build/Objects-normal/arm64/TaxonomyResolver.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CellProtocol.build/Debug-iphonesimulator/TaxonomyResolver.build/Objects-normal/arm64/TaxonomyResolver-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CellProtocol.build/Debug-iphonesimulator/KeyPathResolver.build/Objects-normal/arm64/KeyPathResolver.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CellProtocol.build/Debug-iphonesimulator/KeyPathResolver.build/Objects-normal/arm64/KeyPathResolver-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/Crypto.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/Crypto.build/Objects-normal/arm64/Crypto-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/random-swift.build/Debug-iphonesimulator/Random.build/Objects-normal/arm64/Random.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/random-swift.build/Debug-iphonesimulator/Random.build/Objects-normal/arm64/Random-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/NIO.build/Objects-normal/arm64/NIO.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/NIO.build/Objects-normal/arm64/NIO-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/NIOConcurrencyHelpers.build/Objects-normal/arm64/NIOConcurrencyHelpers.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/NIOConcurrencyHelpers.build/Objects-normal/arm64/NIOConcurrencyHelpers-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/_NIOBase64.build/Objects-normal/arm64/_NIOBase64.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/_NIOBase64.build/Objects-normal/arm64/_NIOBase64-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/_NIODataStructures.build/Objects-normal/arm64/_NIODataStructures.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/_NIODataStructures.build/Objects-normal/arm64/_NIODataStructures-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-collections.build/Debug-iphonesimulator/DequeModule.build/Objects-normal/arm64/DequeModule.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-collections.build/Debug-iphonesimulator/DequeModule.build/Objects-normal/arm64/DequeModule-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-collections.build/Debug-iphonesimulator/InternalCollectionsUtilities.build/Objects-normal/arm64/InternalCollectionsUtilities.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-collections.build/Debug-iphonesimulator/InternalCollectionsUtilities.build/Objects-normal/arm64/InternalCollectionsUtilities-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-collections.build/Debug-iphonesimulator/ContainersPreview.build/Objects-normal/arm64/ContainersPreview.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-collections.build/Debug-iphonesimulator/ContainersPreview.build/Objects-normal/arm64/ContainersPreview-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-atomics.build/Debug-iphonesimulator/Atomics.build/Objects-normal/arm64/Atomics.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-atomics.build/Debug-iphonesimulator/Atomics.build/Objects-normal/arm64/Atomics-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/NIOCore.build/Objects-normal/arm64/NIOCore.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/NIOCore.build/Objects-normal/arm64/NIOCore-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/NIOEmbedded.build/Objects-normal/arm64/NIOEmbedded.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/NIOEmbedded.build/Objects-normal/arm64/NIOEmbedded-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/NIOPosix.build/Objects-normal/arm64/NIOPosix.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/NIOPosix.build/Objects-normal/arm64/NIOPosix-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio-ssl.build/Debug-iphonesimulator/NIOSSL.build/Objects-normal/arm64/NIOSSL.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio-ssl.build/Debug-iphonesimulator/NIOSSL.build/Objects-normal/arm64/NIOSSL-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/NIOTLS.build/Objects-normal/arm64/NIOTLS.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/NIOTLS.build/Objects-normal/arm64/NIOTLS-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CryptoSwift.build/Debug-iphonesimulator/CryptoSwift.build/Objects-normal/arm64/CryptoSwift.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CryptoSwift.build/Debug-iphonesimulator/CryptoSwift.build/Objects-normal/arm64/CryptoSwift-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-collections.build/Debug-iphonesimulator/Collections.build/Objects-normal/arm64/Collections.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-collections.build/Debug-iphonesimulator/Collections.build/Objects-normal/arm64/Collections-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-collections.build/Debug-iphonesimulator/BitCollections.build/Objects-normal/arm64/BitCollections.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-collections.build/Debug-iphonesimulator/BitCollections.build/Objects-normal/arm64/BitCollections-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-collections.build/Debug-iphonesimulator/HashTreeCollections.build/Objects-normal/arm64/HashTreeCollections.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-collections.build/Debug-iphonesimulator/HashTreeCollections.build/Objects-normal/arm64/HashTreeCollections-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-collections.build/Debug-iphonesimulator/HeapModule.build/Objects-normal/arm64/HeapModule.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-collections.build/Debug-iphonesimulator/HeapModule.build/Objects-normal/arm64/HeapModule-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-collections.build/Debug-iphonesimulator/OrderedCollections.build/Objects-normal/arm64/OrderedCollections.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-collections.build/Debug-iphonesimulator/OrderedCollections.build/Objects-normal/arm64/OrderedCollections-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-collections.build/Debug-iphonesimulator/_RopeModule.build/Objects-normal/arm64/_RopeModule.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/swift-collections.build/Debug-iphonesimulator/_RopeModule.build/Objects-normal/arm64/_RopeModule-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/BigInt.build/Debug-iphonesimulator/BigInt.build/Objects-normal/arm64/BigInt.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/BigInt.build/Debug-iphonesimulator/BigInt.build/Objects-normal/arm64/BigInt-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CellProtocol.build/Debug-iphonesimulator/CellApple.build/Objects-normal/arm64/CellApple.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/CellProtocol.build/Debug-iphonesimulator/CellApple.build/Objects-normal/arm64/CellApple-linker-args.resp
+
+CpResource /private/tmp/haven-parity-ios-products/HAVEN.app/text-state.json /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/text-state.json (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/text-state.json /private/tmp/haven-parity-ios-products/HAVEN.app
+
+CpResource /private/tmp/haven-parity-ios-products/HAVEN.app/text-configuration.json /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/text-configuration.json (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/text-configuration.json /private/tmp/haven-parity-ios-products/HAVEN.app
+
+CpResource /private/tmp/haven-parity-ios-products/HAVEN.app/list-state.json /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/list-state.json (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/list-state.json /private/tmp/haven-parity-ios-products/HAVEN.app
+
+CpResource /private/tmp/haven-parity-ios-products/HAVEN.app/list-configuration.json /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/list-configuration.json (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/list-configuration.json /private/tmp/haven-parity-ios-products/HAVEN.app
+
+CpResource /private/tmp/haven-parity-ios-products/HAVEN.app/grid-state.json /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/grid-state.json (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/grid-state.json /private/tmp/haven-parity-ios-products/HAVEN.app
+
+CpResource /private/tmp/haven-parity-ios-products/HAVEN.app/grid-configuration.json /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/grid-configuration.json (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/grid-configuration.json /private/tmp/haven-parity-ios-products/HAVEN.app
+
+CpResource /private/tmp/haven-parity-ios-products/HAVEN.app/form-state.json /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/form-state.json (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/form-state.json /private/tmp/haven-parity-ios-products/HAVEN.app
+
+CpResource /private/tmp/haven-parity-ios-products/HAVEN.app/form-configuration.json /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/form-configuration.json (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/form-configuration.json /private/tmp/haven-parity-ios-products/HAVEN.app
+
+CpResource /private/tmp/haven-parity-ios-products/HAVEN.app/chat-state.json /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/chat-state.json (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/chat-state.json /private/tmp/haven-parity-ios-products/HAVEN.app
+
+CpResource /private/tmp/haven-parity-ios-products/HAVEN.app/chat-configuration.json /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/chat-configuration.json (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/ParityFixtures/chat-configuration.json /private/tmp/haven-parity-ios-products/HAVEN.app
+
+CpResource /private/tmp/haven-parity-ios-products/HAVEN.app/SkeletonElements_Detailed.md /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Documentation/SkeletonElements_Detailed.md (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Documentation/SkeletonElements_Detailed.md /private/tmp/haven-parity-ios-products/HAVEN.app
+
+CpResource /private/tmp/haven-parity-ios-products/HAVEN.app/PrivacyInfo.xcprivacy /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/PrivacyInfo.xcprivacy (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/PrivacyInfo.xcprivacy /private/tmp/haven-parity-ios-products/HAVEN.app
+
+CpResource /private/tmp/haven-parity-ios-products/HAVEN.app/HowTo_CreateCell.md /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Documentation/HowTo_CreateCell.md (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Documentation/HowTo_CreateCell.md /private/tmp/haven-parity-ios-products/HAVEN.app
+
+CpResource /private/tmp/haven-parity-ios-products/HAVEN.app/CONTRIBUTING.md /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Prompts/CONTRIBUTING.md (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Prompts/CONTRIBUTING.md /private/tmp/haven-parity-ios-products/HAVEN.app
+
+CpResource /private/tmp/haven-parity-ios-products/HAVEN.app/AppleIntelligence_Workflow.md /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Documentation/AppleIntelligence_Workflow.md (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Documentation/AppleIntelligence_Workflow.md /private/tmp/haven-parity-ios-products/HAVEN.app
+
+Copy /private/tmp/haven-parity-ios-products/HAVEN.app/swift-nio_NIOPosix.bundle /private/tmp/haven-parity-ios-products/swift-nio_NIOPosix.bundle (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /private/tmp/haven-parity-ios-products/swift-nio_NIOPosix.bundle /private/tmp/haven-parity-ios-products/HAVEN.app
+
+Copy /private/tmp/haven-parity-ios-products/HAVEN.app/swift-nio-ssl_NIOSSL.bundle /private/tmp/haven-parity-ios-products/swift-nio-ssl_NIOSSL.bundle (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /private/tmp/haven-parity-ios-products/swift-nio-ssl_NIOSSL.bundle /private/tmp/haven-parity-ios-products/HAVEN.app
+
+Copy /private/tmp/haven-parity-ios-products/HAVEN.app/swift-crypto_Crypto.bundle /private/tmp/haven-parity-ios-products/swift-crypto_Crypto.bundle (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /private/tmp/haven-parity-ios-products/swift-crypto_Crypto.bundle /private/tmp/haven-parity-ios-products/HAVEN.app
+
+Copy /private/tmp/haven-parity-ios-products/HAVEN.app/CryptoSwift_CryptoSwift.bundle /private/tmp/haven-parity-ios-products/CryptoSwift_CryptoSwift.bundle (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /private/tmp/haven-parity-ios-products/CryptoSwift_CryptoSwift.bundle /private/tmp/haven-parity-ios-products/HAVEN.app
+
+Copy /private/tmp/haven-parity-ios-products/HAVEN.app/CellProtocol_CellApple.bundle /private/tmp/haven-parity-ios-products/CellProtocol_CellApple.bundle (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /private/tmp/haven-parity-ios-products/CellProtocol_CellApple.bundle /private/tmp/haven-parity-ios-products/HAVEN.app
+
+ProcessInfoPlistFile /private/tmp/haven-parity-ios-products/HAVEN.app/Info.plist /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/Info.plist (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-infoPlistUtility /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding/Binding/Info.plist -producttype com.apple.product-type.application -genpkginfo /private/tmp/haven-parity-ios-products/HAVEN.app/PkgInfo -expandbuildsettings -format binary -platform iphonesimulator -additionalcontentfile /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/assetcatalog_generated_info.plist -scanforprivacyfile /private/tmp/haven-parity-ios-products/HAVEN.app/CellProtocol_CellApple.bundle -scanforprivacyfile /private/tmp/haven-parity-ios-products/HAVEN.app/CryptoSwift_CryptoSwift.bundle -scanforprivacyfile /private/tmp/haven-parity-ios-products/HAVEN.app/swift-crypto_Crypto.bundle -scanforprivacyfile /private/tmp/haven-parity-ios-products/HAVEN.app/swift-nio-ssl_NIOSSL.bundle -scanforprivacyfile /private/tmp/haven-parity-ios-products/HAVEN.app/swift-nio_NIOPosix.bundle -o /private/tmp/haven-parity-ios-products/HAVEN.app/Info.plist
+
+ConstructStubExecutorLinkFileList /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/HAVEN-ExecutorLinkFileList-normal-arm64.txt (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    construct-stub-executor-link-file-list /private/tmp/haven-parity-ios-products/HAVEN.app/HAVEN.debug.dylib /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libPreviewsJITStubExecutor_no_swift_entry_point.a /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libPreviewsJITStubExecutor.a --output /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/HAVEN-ExecutorLinkFileList-normal-arm64.txt
+note: Using stub executor library with Swift entry point. (in target 'HAVEN' from project 'Binding')
+
+Ld /private/tmp/haven-parity-ios-products/HAVEN.app/HAVEN normal (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios18.0-simulator -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -O0 -L/private/tmp/haven-parity-ios-products -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products/PackageFrameworks -F/private/tmp/haven-parity-ios-products -Xlinker -rpath -Xlinker @executable_path -Xlinker -rpath -Xlinker /private/tmp/haven-parity-ios-products/PackageFrameworks -Xlinker -rpath -Xlinker @executable_path/Frameworks -rdynamic -Xlinker -no_deduplicate -Xlinker -objc_abi_version -Xlinker 2 -Xlinker -debug_variant -e ___debug_blank_executor_main -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __debug_dylib -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/HAVEN-DebugDylibPath-normal-arm64.txt -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __debug_instlnm -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/HAVEN-DebugDylibInstallName-normal-arm64.txt -Xlinker -filelist -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/HAVEN-ExecutorLinkFileList-normal-arm64.txt /private/tmp/haven-parity-ios-products/HAVEN.app/HAVEN.debug.dylib -o /private/tmp/haven-parity-ios-products/HAVEN.app/HAVEN
+
+CopySwiftLibs /private/tmp/haven-parity-ios-products/HAVEN.app (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-swiftStdLibTool --copy --verbose --scan-executable /private/tmp/haven-parity-ios-products/HAVEN.app/HAVEN.debug.dylib --scan-folder /private/tmp/haven-parity-ios-products/HAVEN.app/Frameworks --scan-folder /private/tmp/haven-parity-ios-products/HAVEN.app/PlugIns --scan-folder /private/tmp/haven-parity-ios-products/HAVEN.app/SystemExtensions --scan-folder /private/tmp/haven-parity-ios-products/HAVEN.app/Extensions --scan-folder /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/NearbyInteraction.framework --scan-folder /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/MultipeerConnectivity.framework --platform iphonesimulator --toolchain /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /private/tmp/haven-parity-ios-products/HAVEN.app/Frameworks --strip-bitcode --strip-bitcode-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os
+Ignoring --strip-bitcode because --sign was not passed
+
+ExtractAppIntentsMetadata (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --module-name Binding --sdk-root /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk --xcode-version 17C519 --platform-family iOS --deployment-target 18.0 --bundle-identifier org.digipomps.haven.parity-night-test --output /private/tmp/haven-parity-ios-products/HAVEN.app --target-triple arm64-apple-ios18.0-simulator --binary-file /private/tmp/haven-parity-ios-products/HAVEN.app/HAVEN --dependency-file /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/Objects-normal/arm64/HAVEN_dependency_info.dat --stringsdata-file /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/Objects-normal/arm64/HAVEN.SwiftFileList --metadata-file-list /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/HAVEN.DependencyMetadataFileList --static-metadata-file-list /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/HAVEN.DependencyStaticMetadataFileList --swift-const-vals-list /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/Objects-normal/arm64/HAVEN.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization
+2026-09-15 05:13:56.516 appintentsmetadataprocessor[77148:109018446] Starting appintentsmetadataprocessor export
+2026-09-15 05:13:56.580 appintentsmetadataprocessor[77148:109018446] Extracted no relevant App Intents symbols, skipping writing output
+
+ProcessInfoPlistFile /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest/Info.plist /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/BindingUITests.build/empty-BindingUITests.plist (in target 'BindingUITests' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-infoPlistUtility /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/BindingUITests.build/empty-BindingUITests.plist -producttype com.apple.product-type.bundle.ui-testing -expandbuildsettings -format binary -platform iphonesimulator -additionalcontentfile /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/BindingUITests.build/ProductTypeInfoPlistAdditions.plist -o /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest/Info.plist
+
+Ld /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest/BindingUITests normal (in target 'BindingUITests' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios18.0-simulator -bundle -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -O0 -L/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -L/private/tmp/haven-parity-ios-products -L/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib -F/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -F/private/tmp/haven-parity-ios-products -iframework /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks -iframework /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk/Developer/Library/Frameworks -filelist /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/BindingUITests.build/Objects-normal/arm64/BindingUITests.LinkFileList -Xlinker -rpath -Xlinker /usr/lib/swift -Xlinker -rpath -Xlinker @loader_path/Frameworks -dead_strip -Xlinker -object_path_lto -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/BindingUITests.build/Objects-normal/arm64/BindingUITests_lto.o -rdynamic -Xlinker -no_deduplicate -Xlinker -objc_abi_version -Xlinker 2 -Xlinker -debug_variant -Xlinker -dependency_info -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/BindingUITests.build/Objects-normal/arm64/BindingUITests_dependency_info.dat -fobjc-link-runtime -fprofile-instr-generate -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphonesimulator -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/BindingUITests.build/Objects-normal/arm64/BindingUITests.swiftmodule @/tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/BindingUITests.build/Objects-normal/arm64/BindingUITests-linker-args.resp -Xlinker -needed_framework -Xlinker XCTest -framework XCTest -Xlinker -needed-lXCTestSwiftSupport -lXCTestSwiftSupport -o /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest/BindingUITests
+
+CopySwiftLibs /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest (in target 'BindingUITests' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-swiftStdLibTool --copy --verbose --scan-executable /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest/BindingUITests --scan-folder /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest/Frameworks --scan-folder /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest/PlugIns --scan-folder /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest/SystemExtensions --scan-folder /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest/Extensions --platform iphonesimulator --toolchain /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest/Frameworks --strip-bitcode --scan-executable /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libXCTestSwiftSupport.dylib --strip-bitcode-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/BindingUITests.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os
+Ignoring --strip-bitcode because --sign was not passed
+
+ExtractAppIntentsMetadata (in target 'BindingUITests' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --module-name BindingUITests --sdk-root /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk --xcode-version 17C519 --platform-family iOS --deployment-target 18.0 --bundle-identifier com.digipomps.BindingUITests --output /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest --target-triple arm64-apple-ios18.0-simulator --binary-file /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest/BindingUITests --dependency-file /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/BindingUITests.build/Objects-normal/arm64/BindingUITests_dependency_info.dat --stringsdata-file /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/BindingUITests.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/BindingUITests.build/Objects-normal/arm64/BindingUITests.SwiftFileList --metadata-file-list /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/BindingUITests.build/BindingUITests.DependencyMetadataFileList --static-metadata-file-list /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/BindingUITests.build/BindingUITests.DependencyStaticMetadataFileList --swift-const-vals-list /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/BindingUITests.build/Objects-normal/arm64/BindingUITests.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization
+2026-09-15 05:13:56.701 appintentsmetadataprocessor[77151:109018463] Starting appintentsmetadataprocessor export
+2026-09-15 05:13:56.701 appintentsmetadataprocessor[77151:109018463] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+
+AppIntentsSSUTraining (in target 'BindingUITests' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsnltrainingprocessor --infoplist-path /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest/Info.plist --temp-dir-path /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/BindingUITests.build/ssu --bundle-id com.digipomps.BindingUITests --product-path /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest --extracted-metadata-path /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest/Metadata.appintents --metadata-file-list /tmp/haven-xcode-derived/Binding-Parity/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/BindingUITests.build/BindingUITests.DependencyMetadataFileList --archive-ssu-assets
+2026-09-15 05:13:56.714 appintentsnltrainingprocessor[77152:109018464] Parsing options for appintentsnltrainingprocessor
+2026-09-15 05:13:56.714 appintentsnltrainingprocessor[77152:109018464] No AppShortcuts found - Skipping.
+
+Copy /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PkgInfo /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Xcode/Agents/XCTRunner.app/PkgInfo (in target 'BindingUITests' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Xcode/Agents/XCTRunner.app/PkgInfo /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app
+
+CopyPlistFile /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/Info.plist /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Xcode/Agents/XCTRunner.app/Info.plist (in target 'BindingUITests' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copyPlist --validate --convert xml1 --macro-expansion WRAPPEDPRODUCTNAME BindingUITests-Runner --macro-expansion WRAPPEDPRODUCTBUNDLEIDENTIFIER com.digipomps.BindingUITests.xctrunner --macro-expansion TESTPRODUCTNAME BindingUITests --macro-expansion TESTPRODUCTBUNDLEIDENTIFIER com.digipomps.BindingUITests --copy-value UIDeviceFamily /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest/Info.plist --outdir /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app -- /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Xcode/Agents/XCTRunner.app/Info.plist
+
+MkDir /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app (in target 'BindingUITests' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    /bin/mkdir -p /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app
+
+CopyAndPreserveArchs /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/BindingUITests-Runner (in target 'BindingUITests' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/lipo /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Xcode/Agents/XCTRunner.app/XCTRunner -output /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/BindingUITests-Runner -extract arm64
+
+Copy /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/Frameworks/libXCTestSwiftSupport.dylib /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libXCTestSwiftSupport.dylib (in target 'BindingUITests' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libXCTestSwiftSupport.dylib /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/Frameworks
+
+Copy /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/Frameworks/XCUnit.framework /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/PrivateFrameworks/XCUnit.framework (in target 'BindingUITests' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/PrivateFrameworks/XCUnit.framework /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/Frameworks
+
+Copy /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/Frameworks/XCUIAutomation.framework /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks/XCUIAutomation.framework (in target 'BindingUITests' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks/XCUIAutomation.framework /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/Frameworks
+
+Copy /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/Frameworks/XCTestSupport.framework /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/PrivateFrameworks/XCTestSupport.framework (in target 'BindingUITests' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/PrivateFrameworks/XCTestSupport.framework /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/Frameworks
+
+Copy /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/Frameworks/XCTestCore.framework /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/PrivateFrameworks/XCTestCore.framework (in target 'BindingUITests' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/PrivateFrameworks/XCTestCore.framework /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/Frameworks
+
+Copy /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/Frameworks/XCTest.framework /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks/XCTest.framework (in target 'BindingUITests' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks/XCTest.framework /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/Frameworks
+
+Copy /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/Frameworks/XCTAutomationSupport.framework /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/PrivateFrameworks/XCTAutomationSupport.framework (in target 'BindingUITests' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/PrivateFrameworks/XCTAutomationSupport.framework /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/Frameworks
+
+Copy /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/Frameworks/Testing.framework /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks/Testing.framework (in target 'BindingUITests' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks/Testing.framework /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/Frameworks
+
+RegisterExecutionPolicyException /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest (in target 'BindingUITests' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    builtin-RegisterExecutionPolicyException /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest
+
+Touch /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest (in target 'BindingUITests' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/Binding
+    /usr/bin/touch -c /private/tmp/haven-parity-ios-products/BindingUITests-Runner.app/PlugIns/BindingUITests.xctest
+
+warning: Stale file '/private/tmp/haven-parity-ios-products/HAVEN.app/Frameworks' is located outside of the allowed root paths.
+
+warning: Stale file '/private/tmp/haven-parity-ios-products/HAVEN.app/Frameworks/Testing.framework' is located outside of the allowed root paths.
+
+warning: Stale file '/private/tmp/haven-parity-ios-products/HAVEN.app/Frameworks/XCTAutomationSupport.framework' is located outside of the allowed root paths.
+
+warning: Stale file '/private/tmp/haven-parity-ios-products/HAVEN.app/Frameworks/XCTest.framework' is located outside of the allowed root paths.
+
+warning: Stale file '/private/tmp/haven-parity-ios-products/HAVEN.app/Frameworks/XCTestCore.framework' is located outside of the allowed root paths.
+
+warning: Stale file '/private/tmp/haven-parity-ios-products/HAVEN.app/Frameworks/XCTestSupport.framework' is located outside of the allowed root paths.
+
+warning: Stale file '/private/tmp/haven-parity-ios-products/HAVEN.app/Frameworks/XCUIAutomation.framework' is located outside of the allowed root paths.
+
+warning: Stale file '/private/tmp/haven-parity-ios-products/HAVEN.app/Frameworks/XCUnit.framework' is located outside of the allowed root paths.
+
+warning: Stale file '/private/tmp/haven-parity-ios-products/HAVEN.app/Frameworks/libXCTestBundleInject.dylib' is located outside of the allowed root paths.
+
+warning: Stale file '/private/tmp/haven-parity-ios-products/HAVEN.app/Frameworks/libXCTestSwiftSupport.dylib' is located outside of the allowed root paths.
+
+warning: Stale file '/private/tmp/haven-parity-ios-products/HAVEN.app/PlugIns' is located outside of the allowed root paths.
+
+2026-09-15 05:14:01.569151+0200 BindingUITests-Runner[77206:109019032] [Default] Running tests...
+2026-09-15 05:14:01.621499+0200 BindingUITests-Runner[77206:109019266] [General] Failed to send CA Event for app launch measurements for ca_event_type: 0 event_name: com.apple.app_launch_measurement.FirstFramePresentationMetric
+2026-09-15 05:14:01.661970+0200 BindingUITests-Runner[77206:109019267] [General] Failed to send CA Event for app launch measurements for ca_event_type: 1 event_name: com.apple.app_launch_measurement.ExtendedLaunchMetrics
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-09-15 05:14:03.917.
+Test Suite 'BindingUITests.xctest' started at 2026-09-15 05:14:03.918.
+Test Suite 'ParityNightUITests' started at 2026-09-15 05:14:03.918.
+Test Case '-[BindingUITests.ParityNightUITests testFormFieldsAreEditableAndButtonPaddingReceivesTap]' started.
+    t =     0.00s Start Test at 2026-09-15 05:14:03.918
+    t =     0.16s Set Up
+    t =     0.16s Open org.digipomps.haven.parity-night-test
+    t =     0.16s     Launch org.digipomps.haven.parity-night-test
+    t =     2.87s         Setting up automation session
+    t =     3.48s         Wait for org.digipomps.haven.parity-night-test to idle
+    t =     4.97s Waiting 10.0s for TextField (First Match) to exist
+    t =     6.05s     Checking `Expect predicate `existsNoRetry == 1` for object TextField (First Match)`
+    t =     6.05s         Checking existence of `TextField (First Match)`
+    t =     6.08s Checking existence of `TextView (First Match)`
+    t =     6.08s Find the TextField (First Match)
+    t =     6.09s Find the TextView (First Match)
+    t =     6.09s Find the Target Application 'org.digipomps.haven.parity-night-test'
+    t =     6.16s Added attachment named 'form-controls-before-edit'
+    t =     6.16s Tap "Type a deterministic title" TextField
+    t =     6.16s     Wait for org.digipomps.haven.parity-night-test to idle
+    t =     6.16s     Find the "Type a deterministic title" TextField
+    t =     6.17s     Check for interrupting elements affecting "Type a deterministic title" TextField
+    t =     6.18s     Synthesize event
+    t =     6.57s     Wait for org.digipomps.haven.parity-night-test to idle
+    t =     6.94s Type ' edited' into "Type a deterministic title" TextField
+    t =     6.94s     Wait for org.digipomps.haven.parity-night-test to idle
+    t =     7.32s     Find the "Type a deterministic title" TextField
+    t =     7.34s     Check for interrupting elements affecting "Type a deterministic title" TextField
+    t =     7.36s     Synthesize event
+    t =     7.68s     Wait for org.digipomps.haven.parity-night-test to idle
+    t =     7.68s Find the "Type a deterministic title" TextField
+    t =     7.69s Tap "Line one from the staging fixture.
+Line two keeps wrapping deterministic." TextView
+    t =     7.69s     Wait for org.digipomps.haven.parity-night-test to idle
+    t =     7.69s     Find the "Line one from the staging fixture.
+Line two keeps wrapping deterministic." TextView
+    t =     7.71s     Check for interrupting elements affecting "Line one from the staging fixture.
+Line two keeps wrapping deterministic." TextView
+    t =     7.72s     Synthesize event
+    t =     8.00s     Wait for org.digipomps.haven.parity-night-test to idle
+    t =     8.01s Type '
+Visible local edit' into "Line one from the staging fixture.
+Line two keeps wrapping deterministic." TextView
+    t =     8.01s     Wait for org.digipomps.haven.parity-night-test to idle
+    t =     8.01s     Find the "Line one from the staging fixture.
+Line two keeps wrapping deterministic." TextView
+    t =     8.02s     Check for interrupting elements affecting "Line one from the staging fixture.
+Line two keeps wrapping deterministic." TextView
+    t =     8.04s     Synthesize event
+    t =     8.55s     Wait for org.digipomps.haven.parity-night-test to idle
+    t =     8.55s Find the "Line one from the staging fixture.
+Line two keeps wrapping deterministic." TextView
+    t =     8.56s Find the Target Application 'org.digipomps.haven.parity-night-test'
+    t =     8.63s Added attachment named 'form-edit-with-keyboard'
+    t =     8.63s Find the "Save draft" Button
+    t =     8.65s Find the "skeleton.button.98882AF7-9392-4B56-B11B-9D2D1826041C" Button
+    t =     8.67s Tap "skeleton.button.98882AF7-9392-4B56-B11B-9D2D1826041C" Button[0.05, 0.50]
+    t =     8.67s     Wait for org.digipomps.haven.parity-night-test to idle
+    t =     8.67s     Find the "skeleton.button.98882AF7-9392-4B56-B11B-9D2D1826041C" Button
+    t =     8.68s     Check for interrupting elements affecting "skeleton.button.98882AF7-9392-4B56-B11B-9D2D1826041C" Button
+    t =     8.70s     Synthesize event
+    t =     8.70s         Find the "skeleton.button.98882AF7-9392-4B56-B11B-9D2D1826041C" Button
+    t =     8.71s         Find the "skeleton.button.98882AF7-9392-4B56-B11B-9D2D1826041C" Button
+    t =     8.73s         Find the "skeleton.button.98882AF7-9392-4B56-B11B-9D2D1826041C" Button
+    t =     9.02s     Wait for org.digipomps.haven.parity-night-test to idle
+    t =    10.10s Checking `Expect predicate `value == "Failed"` for object "skeleton.button.98882AF7-9392-4B56-B11B-9D2D1826041C" Button`
+    t =    10.10s     Find the "skeleton.button.98882AF7-9392-4B56-B11B-9D2D1826041C" Button
+    t =    10.11s     Capturing element debug description
+    t =    10.13s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+    t =    10.14s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+    t =    10.15s         Find: Descendants matching type Button
+    t =    10.15s         Find: Elements matching predicate '"Save draft" IN identifiers'
+    t =    10.15s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+    t =    10.15s         Find: Descendants matching type Button
+    t =    10.16s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+    t =    11.04s Checking `Expect predicate `value == "Failed"` for object "skeleton.button.98882AF7-9392-4B56-B11B-9D2D1826041C" Button`
+    t =    11.04s     Find the "skeleton.button.1F124D87-9132-46F9-8547-23B8EDCA117E" Button
+    t =    11.04s     Capturing element debug description
+    t =    11.06s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+    t =    11.07s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+    t =    11.08s         Find: Descendants matching type Button
+    t =    11.08s         Find: Elements matching predicate '"Save draft" IN identifiers'
+    t =    11.08s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+    t =    11.08s         Find: Descendants matching type Button
+    t =    11.08s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+    t =    12.06s Checking `Expect predicate `value == "Failed"` for object "skeleton.button.98882AF7-9392-4B56-B11B-9D2D1826041C" Button`
+    t =    12.06s     Find the "skeleton.button.1F124D87-9132-46F9-8547-23B8EDCA117E" Button
+    t =    12.07s     Capturing element debug description
+    t =    12.09s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+    t =    12.10s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+    t =    12.10s         Find: Descendants matching type Button
+    t =    12.10s         Find: Elements matching predicate '"Save draft" IN identifiers'
+    t =    12.10s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+    t =    12.11s         Find: Descendants matching type Button
+    t =    12.11s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+    t =    13.09s Checking `Expect predicate `value == "Failed"` for object "skeleton.button.98882AF7-9392-4B56-B11B-9D2D1826041C" Button`
+    t =    13.09s     Find the "skeleton.button.1F124D87-9132-46F9-8547-23B8EDCA117E" Button
+    t =    13.09s     Capturing element debug description
+    t =    13.12s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+    t =    13.12s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+    t =    13.13s         Find: Descendants matching type Button
+    t =    13.13s         Find: Elements matching predicate '"Save draft" IN identifiers'
+    t =    13.13s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+    t =    13.13s         Find: Descendants matching type Button
+    t =    13.14s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+    t =    14.03s Checking `Expect predicate `value == "Failed"` for object "skeleton.button.98882AF7-9392-4B56-B11B-9D2D1826041C" Button`
+    t =    14.03s     Find the "skeleton.button.1F124D87-9132-46F9-8547-23B8EDCA117E" Button
+    t =    14.04s     Capturing element debug description
+    t =    14.07s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+    t =    14.07s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+    t =    14.08s         Find: Descendants matching type Button
+    t =    14.08s         Find: Elements matching predicate '"Save draft" IN identifiers'
+    t =    14.08s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+    t =    14.08s         Find: Descendants matching type Button
+    t =    14.08s         Requesting snapshot of accessibility hierarchy for app with pid 77259
+<unknown>:0: error: -[BindingUITests.ParityNightUITests testFormFieldsAreEditableAndButtonPaddingReceivesTap] : Asynchronous wait failed: Exceeded timeout of 5 seconds, with unfulfilled expectations: "Expect predicate `value == "Failed"` for object "skeleton.button.98882AF7-9392-4B56-B11B-9D2D1826041C" Button".
+    t =    14.11s Tear Down
+Test Case '-[BindingUITests.ParityNightUITests testFormFieldsAreEditableAndButtonPaddingReceivesTap]' failed (14.323 seconds).
+Test Case '-[BindingUITests.ParityNightUITests testLibraryAuthenticationFailureCanRetryAndClose]' started.
+    t =     0.00s Start Test at 2026-09-15 05:14:18.241
+    t =     0.02s Set Up
+    t =     0.02s Open org.digipomps.haven.parity-night-test
+    t =     0.02s     Launch org.digipomps.haven.parity-night-test
+    t =     0.02s         Terminate org.digipomps.haven.parity-night-test:77259
+    t =     1.33s         Setting up automation session
+    t =     1.86s         Wait for org.digipomps.haven.parity-night-test to idle
+    t =     3.32s Waiting 12.0s for "Autentisering stoppet. Trykk Oppdater for å prøve igjen." StaticText to exist
+    t =     4.40s     Checking `Expect predicate `existsNoRetry == 1` for object "Autentisering stoppet. Trykk Oppdater for å prøve igjen." StaticText`
+    t =     4.40s         Checking existence of `"Autentisering stoppet. Trykk Oppdater for å prøve igjen." StaticText`
+    t =     4.49s Find the Target Application 'org.digipomps.haven.parity-night-test'
+    t =     4.58s Added attachment named 'library-auth-stopped-initial'
+    t =     4.58s Checking existence of `"Skjul tastatur" Button`
+    t =     4.63s Find the "Skjul tastatur" Button
+    t =     4.68s Tap "keyboard.chevron.compact.down" Button
+    t =     4.68s     Wait for org.digipomps.haven.parity-night-test to idle
+    t =     4.69s     Find the "keyboard.chevron.compact.down" Button
+    t =     4.74s     Check for interrupting elements affecting "keyboard.chevron.compact.down" Button
+    t =     4.76s     Synthesize event
+    t =     5.04s     Wait for org.digipomps.haven.parity-night-test to idle
+    t =     5.87s Find the "Oppdater" Button
+    t =     5.91s Find the "Oppdater" Button
+    t =     5.93s Tap "Oppdater" Button
+    t =     5.93s     Wait for org.digipomps.haven.parity-night-test to idle
+    t =     5.93s     Find the "Oppdater" Button
+    t =     5.95s     Check for interrupting elements affecting "Oppdater" Button
+    t =     5.96s     Synthesize event
+    t =     6.25s     Wait for org.digipomps.haven.parity-night-test to idle
+    t =     6.25s Checking existence of `"Autentisering stoppet. Trykk Oppdater for å prøve igjen." StaticText`
+    t =     6.28s Find the Target Application 'org.digipomps.haven.parity-night-test'
+    t =     6.36s Added attachment named 'library-auth-stopped-after-retry'
+    t =     6.36s Find the "Lukk" Button
+    t =     6.39s Tap "Lukk" Button
+    t =     6.39s     Wait for org.digipomps.haven.parity-night-test to idle
+    t =     6.39s     Find the "Lukk" Button
+    t =     6.40s     Check for interrupting elements affecting "Lukk" Button
+    t =     6.41s     Synthesize event
+    t =     6.70s     Wait for org.digipomps.haven.parity-night-test to idle
+    t =     7.06s Waiting 5.0s for "Bootstrap attempts: 2" StaticText to exist
+    t =     8.14s     Checking `Expect predicate `existsNoRetry == 1` for object "Bootstrap attempts: 2" StaticText`
+    t =     8.14s         Checking existence of `"Bootstrap attempts: 2" StaticText`
+    t =     8.15s Checking existence of `"Autentisering stoppet. Trykk Oppdater for å prøve igjen." StaticText`
+    t =     8.16s Find the Target Application 'org.digipomps.haven.parity-night-test'
+    t =     8.23s Added attachment named 'library-closed-with-two-auth-attempts'
+    t =     8.23s Terminate org.digipomps.haven.parity-night-test:77321
+    t =     9.32s Tear Down
+Test Case '-[BindingUITests.ParityNightUITests testLibraryAuthenticationFailureCanRetryAndClose]' passed (9.357 seconds).
+Test Suite 'ParityNightUITests' failed at 2026-09-15 05:14:27.599.
+	 Executed 2 tests, with 1 failure (0 unexpected) in 23.680 (23.681) seconds
+Test Suite 'BindingUITests.xctest' failed at 2026-09-15 05:14:27.599.
+	 Executed 2 tests, with 1 failure (0 unexpected) in 23.680 (23.681) seconds
+Test Suite 'Selected tests' failed at 2026-09-15 05:14:27.599.
+	 Executed 2 tests, with 1 failure (0 unexpected) in 23.680 (23.682) seconds
+2026-09-15 05:14:43.304 xcodebuild[76703:109016189] [MT] IDETestOperationsObserverDebug: 46.533 elapsed -- Testing started completed.
+2026-09-15 05:14:43.304 xcodebuild[76703:109016189] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-09-15 05:14:43.304 xcodebuild[76703:109016189] [MT] IDETestOperationsObserverDebug: 46.533 sec, +46.533 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/phase3-ui-only-test-logs/parity-ui-tests.xcresult
+
+** TEST FAILED **
+
+Testing started

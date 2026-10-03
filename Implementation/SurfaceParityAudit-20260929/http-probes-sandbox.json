@@ -1,0 +1,96 @@
+{
+  "observedAt": "2026-09-29T12:28:12.467138+00:00",
+  "scope": "Unauthenticated public GET and WebSocket handshake only; no user state or actions",
+  "responses": [
+    {
+      "host": "staging.haven.digipomps.org",
+      "path": "/health/build",
+      "status": "000",
+      "body": "",
+      "error": "curl: (6) Could not resolve host: staging.haven.digipomps.org\n",
+      "exit": 6,
+      "kind": "http"
+    },
+    {
+      "host": "staging.haven.digipomps.org",
+      "path": "/skeleton-parity/api/catalog",
+      "status": "000",
+      "body": "",
+      "error": "curl: (6) Could not resolve host: staging.haven.digipomps.org\n",
+      "exit": 6,
+      "kind": "http"
+    },
+    {
+      "host": "staging.haven.digipomps.org",
+      "path": "/personal-copilot-v1/api/catalog",
+      "status": "000",
+      "body": "",
+      "error": "curl: (6) Could not resolve host: staging.haven.digipomps.org\n",
+      "exit": 6,
+      "kind": "http"
+    },
+    {
+      "host": "staging.haven.digipomps.org",
+      "path": "/personal-copilot-v1/chat/api/configuration",
+      "status": "000",
+      "body": "",
+      "error": "curl: (6) Could not resolve host: staging.haven.digipomps.org\n",
+      "exit": 6,
+      "kind": "http"
+    },
+    {
+      "host": "haven.digipomps.org",
+      "path": "/health/build",
+      "status": "000",
+      "body": "",
+      "error": "curl: (6) Could not resolve host: haven.digipomps.org\n",
+      "exit": 6,
+      "kind": "http"
+    },
+    {
+      "host": "haven.digipomps.org",
+      "path": "/skeleton-parity/api/catalog",
+      "status": "000",
+      "body": "",
+      "error": "curl: (6) Could not resolve host: haven.digipomps.org\n",
+      "exit": 6,
+      "kind": "http"
+    },
+    {
+      "host": "haven.digipomps.org",
+      "path": "/personal-copilot-v1/api/catalog",
+      "status": "000",
+      "body": "",
+      "error": "curl: (6) Could not resolve host: haven.digipomps.org\n",
+      "exit": 6,
+      "kind": "http"
+    },
+    {
+      "host": "haven.digipomps.org",
+      "path": "/personal-copilot-v1/chat/api/configuration",
+      "status": "000",
+      "body": "",
+      "error": "curl: (6) Could not resolve host: haven.digipomps.org\n",
+      "exit": 6,
+      "kind": "http"
+    },
+    {
+      "host": "staging.haven.digipomps.org",
+      "path": "/bridgehead/SkeletonParityTextFixture/5bf60ee9-5873-4709-8027-f3aa9318bfc5",
+      "status": "000",
+      "body": "",
+      "error": "curl: (6) Could not resolve host: staging.haven.digipomps.org\n",
+      "exit": 6,
+      "kind": "ws"
+    },
+    {
+      "host": "haven.digipomps.org",
+      "path": "/bridgehead/SkeletonParityTextFixture/a46c2e62-e85b-48a1-a459-8bd8bc47a519",
+      "status": "000",
+      "body": "",
+      "error": "curl: (6) Could not resolve host: haven.digipomps.org\n",
+      "exit": 6,
+      "kind": "ws"
+    }
+  ]
+}

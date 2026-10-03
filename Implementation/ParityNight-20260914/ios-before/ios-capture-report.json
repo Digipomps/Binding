@@ -1,0 +1,42 @@
+[
+  {
+    "bytes" : 276726,
+    "height" : 844,
+    "outcome" : "captured",
+    "slug" : "text",
+    "systemVersion" : "26.2",
+    "width" : 390
+  },
+  {
+    "bytes" : 241834,
+    "height" : 844,
+    "outcome" : "captured",
+    "slug" : "list",
+    "systemVersion" : "26.2",
+    "width" : 390
+  },
+  {
+    "bytes" : 208708,
+    "height" : 844,
+    "outcome" : "captured",
+    "slug" : "grid",
+    "systemVersion" : "26.2",
+    "width" : 390
+  },
+  {
+    "bytes" : 201011,
+    "height" : 844,
+    "outcome" : "captured",
+    "slug" : "form",
+    "systemVersion" : "26.2",
+    "width" : 390
+  },
+  {
+    "bytes" : 348113,
+    "height" : 844,
+    "outcome" : "captured",
+    "slug" : "chat",
+    "systemVersion" : "26.2",
+    "width" : 390
+  }
+]

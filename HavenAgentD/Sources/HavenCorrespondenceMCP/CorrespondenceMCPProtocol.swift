@@ -1,4 +1,5 @@
 import Foundation
+import HavenAgentRuntime
 
 typealias MCPJSONObject = [String: Any]
 
@@ -71,7 +72,11 @@ final class CorrespondenceMCPServer {
   }
 
   func run() async throws {
+    // Klienten kan forlate stdio uten aa lukke stdin. Da kommer EOF aldri,
+    // og loekka under ville sovet for alltid. Se MCPStdioIdleWatchdog.
+    MCPStdioIdleWatchdog.shared.start(serverName: "haven-correspondence-mcp")
     while let line = readLine(strippingNewline: true) {
+      MCPStdioIdleWatchdog.shared.noteActivity()
       guard line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { continue }
       let response = await handle(line)
       if let response {

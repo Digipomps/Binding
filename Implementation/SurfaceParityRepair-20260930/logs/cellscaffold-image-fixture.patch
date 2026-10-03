@@ -1,0 +1,67 @@
+diff --git a/Tests/fixtures/SkeletonElementParityMatrix.v1.json b/Tests/fixtures/SkeletonElementParityMatrix.v1.json
+index ca085baa..b18cdfde 100644
+--- a/Tests/fixtures/SkeletonElementParityMatrix.v1.json
++++ b/Tests/fixtures/SkeletonElementParityMatrix.v1.json
+@@ -104,8 +104,9 @@
+       "fixture": {
+         "Image": {
+           "name": "Catalog pixel",
+-          "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Wl8sAAAAASUVORK5CYII=",
+-          "scaledToFit": true
++          "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAQ0lEQVR42u3OIQEAMAhFQUKgp0myEIu4GtSgxjQL8QXmifNnFdEKv1tiBAgQIECAAIHxwDrVipcuIUCAAAECBAiMBz7OPEyIVaqXIQAAAABJRU5ErkJggg==",
++          "scaledToFit": true,
++          "modifiers": { "width": 32, "height": 32 }
+         }
+       }
+     },
+diff --git a/playwright/skeleton-element-catalog.spec.js b/playwright/skeleton-element-catalog.spec.js
+index e53d4d58..17ca7f3a 100644
+--- a/playwright/skeleton-element-catalog.spec.js
++++ b/playwright/skeleton-element-catalog.spec.js
+@@ -107,7 +107,7 @@ test.describe("Skeleton element catalog", () => {
+     await expect(page.getByText("Unsupported skeleton element: FutureBadge", { exact: true })).toBeVisible();
+     await expect(page.locator(".skeleton-fallback")).toHaveCSS("color", "rgb(213, 232, 238)");
+     await expect(page.locator(".skeleton-reference-title")).toHaveCSS("color", "rgb(159, 192, 204)");
+-    await expect(page.getByRole("img", { name: "Catalog pixel" })).toHaveJSProperty("complete", true);
++    await assertCatalogImage(page);
+     await expect(page.getByRole("button", { name: "Run" }).locator(".skeleton-button-icon"))
+       .toHaveAttribute("data-skeleton-icon", "calendar");
+     await expect(page.getByRole("button", { name: "Run" }).locator(".skeleton-button-icon"))
+@@ -151,9 +151,37 @@ test.describe("Skeleton element catalog", () => {
+     await assertUsableLayout(page);
+     await page.screenshot({ path: testInfo.outputPath("skeleton-elements-desktop.png"), fullPage: true });
+     await page.setViewportSize({ width: 390, height: 844 });
++    await assertCatalogImage(page);
+     await assertUsableLayout(page);
+     await page.screenshot({ path: testInfo.outputPath("skeleton-elements-mobile.png"), fullPage: true });
+   });
++  async function assertCatalogImage(page) {
++    const image = page.getByRole("img", { name: "Catalog pixel" });
++    await image.scrollIntoViewIfNeeded();
++    await expect(image).toBeVisible();
++    const decoded = await image.evaluate(async (node) => {
++      // `complete` is also true for a failed load. Require decoded pixels.
++      await node.decode();
++      const canvas = document.createElement("canvas");
++      canvas.width = node.naturalWidth;
++      canvas.height = node.naturalHeight;
++      const context = canvas.getContext("2d");
++      context.drawImage(node, 0, 0);
++      return {
++        width: node.naturalWidth,
++        height: node.naturalHeight,
++        colors: [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]].map(([x, y]) =>
++          Array.from(context.getImageData(Math.floor(x * canvas.width), Math.floor(y * canvas.height), 1, 1).data)),
++      };
++    });
++    expect(decoded).toEqual({ width: 32, height: 32, colors: [
++      [220, 40, 40, 255], [20, 170, 70, 255],
++      [30, 90, 220, 255], [245, 195, 20, 255],
++    ] });
++    const bounds = await image.boundingBox();
++    expect(bounds.width).toBeGreaterThanOrEqual(32);
++    expect(bounds.height).toBeGreaterThanOrEqual(32);
++  }
+   async function mountWP(page, skeleton, rootData = {}, layoutContext = {}) {
+     await page.goto("http://skeleton-element-catalog.test/");
+     await page.evaluate(({ skeleton, rootData, layoutContext }) => {

@@ -1,0 +1,22 @@
+{
+  "scenarioCount": 70,
+  "checksPassed": 70,
+  "textAssertedScenarios": 64,
+  "rasterAssertedScenarios": 2,
+  "captureOnlyScenarios": [
+    "divider-basic-compact",
+    "divider-basic-wide",
+    "spacer-fixed-width-compact",
+    "spacer-fixed-width-wide"
+  ],
+  "webHorizontalOverflow": [],
+  "nativeDirectory": "native-acceptance-delivery",
+  "webDirectory": "web-acceptance-delivery",
+  "corpus": "corpus-acceptance-visual",
+  "doesNotEstablish": [
+    "pixel identity",
+    "all element combinations",
+    "general remote bridge",
+    "deployment"
+  ]
+}

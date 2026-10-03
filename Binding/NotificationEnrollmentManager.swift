@@ -114,7 +114,7 @@ final class NotificationEnrollmentManager: ObservableObject {
             }
         } catch {
             isDeviceRegistered = false
-            lastRegistrationError = "Permission request failed: \(error.localizedDescription)"
+            lastRegistrationError = "Kunne ikke spørre om varseltillatelse akkurat nå. Du kan prøve igjen senere."
         }
         #endif
 
@@ -181,7 +181,9 @@ final class NotificationEnrollmentManager: ObservableObject {
     func recordAPNSRegistrationFailure(_ error: Error) {
         pushPermissionGranted = false
         isDeviceRegistered = false
-        lastRegistrationError = "APNS registration failed: \(error.localizedDescription)"
+        // The user-facing string must never carry raw NSError text. The technical
+        // detail is still printed for developers in `BindingAppNotifications`.
+        lastRegistrationError = "Varsler er ikke slått på ennå. Du kan prøve igjen senere — HAVEN virker som normalt uten dem."
     }
 
     func registerCurrentDeviceIfReady() async {
@@ -222,7 +224,7 @@ final class NotificationEnrollmentManager: ObservableObject {
             isDeviceRegistered = true
             lastRegistrationError = nil
         } catch {
-            lastRegistrationError = "Device registration failed: \(error.localizedDescription)"
+            lastRegistrationError = "Enheten ble ikke registrert for varsler. HAVEN virker som normalt uten dem."
             isDeviceRegistered = false
             print("HAVEN notification device registration failed: \(error)")
         }

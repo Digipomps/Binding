@@ -1,0 +1,157 @@
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 (in target 'CellApple' from project 'CellProtocol')
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/Suggestion/SkeletonNativeStyle.swift:255:9: warning: stored property 'edges' of 'Sendable'-conforming struct 'SkeletonBorderShape' contains non-Sendable type 'SkeletonEdge'; this is an error in the Swift 6 language mode
+253 | struct SkeletonBorderShape: Shape {
+254 |     let radius: CGFloat
+255 |     let edges: [SkeletonEdge]?
+    |         `- warning: stored property 'edges' of 'Sendable'-conforming struct 'SkeletonBorderShape' contains non-Sendable type 'SkeletonEdge'; this is an error in the Swift 6 language mode
+256 |     let rtl: Bool
+257 |     func path(in rect: CGRect) -> Path {
+
+CellBase.SkeletonEdge:1:13: note: enum 'SkeletonEdge' does not conform to the 'Sendable' protocol
+1 | public enum SkeletonEdge : String, Codable {
+  |             `- note: enum 'SkeletonEdge' does not conform to the 'Sendable' protocol
+2 |     case top
+3 |     case leading
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/Suggestion/SkeletonNativeStyle.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  3 | 
+  4 | import SwiftUI
+  5 | import CellBase
+    | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  6 | #if os(macOS)
+  7 | import AppKit
+
+[#AddPreconcurrencyImport]: <https://docs.swift.org/compiler/documentation/diagnostics/add-preconcurrency-import>
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 (in target 'HAVEN' from project 'Binding')
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/BindingStartupIdentityVault.swift:48:50: warning: call to main actor-isolated initializer 'init()' in a synchronous nonisolated context [#ActorIsolatedCall]
+ 46 |     init(
+ 47 |         durable: Bool = BindingStartupIdentityVault.shouldPersistAcrossLaunches(),
+ 48 |         store: any BindingStartupIdentityStore = BindingKeychainStartupIdentityStore(),
+    |                                                  `- warning: call to main actor-isolated initializer 'init()' in a synchronous nonisolated context [#ActorIsolatedCall]
+ 49 |         persistenceRoot: URL? = nil
+ 50 |     ) {
+    :
+410 | /// only, readable after first unlock so the app can boot before the person
+411 | /// authenticates.
+412 | struct BindingKeychainStartupIdentityStore: BindingStartupIdentityStore {
+    |        |- note: calls to initializer 'init()' from outside of its actor context are implicitly asynchronous
+    |        `- note: main actor isolation inferred from conformance to protocol 'BindingStartupIdentityStore'
+413 |     private func query(account: String) -> [String: Any] {
+414 |         [
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/PendingActionInboxViewModel.swift:80:58: warning: main actor-isolated static property 'defaultStorageKey' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 62 | final class PendingActionInboxViewModel: ObservableObject {
+ 63 |     static let shared = PendingActionInboxViewModel()
+ 64 |     static let defaultStorageKey = "binding.pendingDeviceActions.v1"
+    |                `- note: static property declared here
+ 65 | #if DEBUG
+ 66 |     static let correspondenceApprovalUITestLaunchArgument =
+    :
+ 78 |     init(
+ 79 |         defaults: UserDefaults = .standard,
+ 80 |         storageKey: String = PendingActionInboxViewModel.defaultStorageKey,
+    |                                                          `- warning: main actor-isolated static property 'defaultStorageKey' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 81 |         launchArguments: [String] = ProcessInfo.processInfo.arguments
+ 82 |     ) {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/PersonEntityReadResult.swift:17:13: warning: stored property 'value' of 'Sendable'-conforming struct 'Fragment' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+ 15 |         let keypath: String
+ 16 |         let status: Status
+ 17 |         let value: ValueType?
+    |             `- warning: stored property 'value' of 'Sendable'-conforming struct 'Fragment' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+ 18 |         let sourceOrigin: String?
+ 19 |         let sourceReference: String?
+
+CellBase.ValueType:1:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 1 | indirect public enum ValueType : Codable {
+   |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 2 |     case flowElement(CellBase.FlowElement)
+ 3 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/PersonEntityReadResult.swift:4:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  2 | // SPDX-FileCopyrightText: Copyright (c) 2026 Stiftelsen Digipomps and HAVEN contributors
+  3 | 
+  4 | import CellBase
+    | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  5 | import Foundation
+  6 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/HavenRelationCellSupport.swift:17:5: warning: 'nonisolated' can not be applied to variable with non-'Sendable' type 'ISO8601DateFormatter'; this is an error in the Swift 6 language mode
+ 15 | nonisolated enum HavenValue {
+ 16 | 
+ 17 |     nonisolated static let isoFormatter: ISO8601DateFormatter = {
+    |     `- warning: 'nonisolated' can not be applied to variable with non-'Sendable' type 'ISO8601DateFormatter'; this is an error in the Swift 6 language mode
+ 18 |         let formatter = ISO8601DateFormatter()
+ 19 |         formatter.formatOptions = [.withInternetDateTime]
+
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/System/Library/Frameworks/Foundation.framework/Headers/NSISO8601DateFormatter.h:80:12: note: class 'ISO8601DateFormatter' does not conform to the 'Sendable' protocol
+ 78 | /// > In Swift, you can use ``Date/ISO8601FormatStyle`` rather than ``ISO8601DateFormatter``. The ``FormatStyle`` API offers a declarative idiom for customizing the formatting of various types. Also, Foundation caches identical ``FormatStyle`` instances, so you don't need to pass them around your app, or risk wasting memory with duplicate formatters.
+ 79 | API_AVAILABLE(macosx(10.12), ios(10.0), watchos(3.0), tvos(10.0))
+ 80 | @interface NSISO8601DateFormatter : NSFormatter <NSSecureCoding> {
+    |            `- note: class 'ISO8601DateFormatter' does not conform to the 'Sendable' protocol
+ 81 | @private
+ 82 |     CFDateFormatterRef _formatter;
+
+[#ActorIsolatedCall]: <https://docs.swift.org/compiler/documentation/diagnostics/actor-isolated-call>
+[#AddPreconcurrencyImport]: <https://docs.swift.org/compiler/documentation/diagnostics/add-preconcurrency-import>
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/SkeletonPresentationOverlayView.swift (in target 'HAVEN' from project 'Binding')
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/SkeletonPresentationOverlayView.swift:160:9: warning: switch must be exhaustive
+158 | 
+159 |     static func modifiers(for element: SkeletonElement) -> SkeletonModifiers? {
+160 |         switch element {
+    |         |- warning: switch must be exhaustive
+    |         |- note: add missing case: '.Tree(_)'
+    |         |- note: add missing case: '.ComponentSurface(_)'
+    |         `- note: add missing cases
+161 |         case .Text(let value):
+162 |             return value.modifiers
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/SkeletonPresentationOverlayView.swift:622:9: warning: switch must be exhaustive
+620 | 
+621 |     private static func setting(modifiers: SkeletonModifiers?, on element: SkeletonElement) -> SkeletonElement {
+622 |         switch element {
+    |         |- warning: switch must be exhaustive
+    |         |- note: add missing case: '.Tree(_)'
+    |         |- note: add missing case: '.ComponentSurface(_)'
+    |         `- note: add missing cases
+623 |         case .Text(var value):
+624 |             value.modifiers = modifiers
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/SkeletonPresentationOverlayTests.swift:139:29: error: instance method 'resolve' is not available due to missing import of defining module 'CellApple' [#MemberImportVisibility]
+  5 | import CellBase
+  6 | @testable import Binding
+  7 | 
+    | `- note: add import of module 'CellApple'
+  8 | @MainActor
+  9 | final class SkeletonPresentationOverlayTests: XCTestCase {
+    :
+137 |         XCTAssertEqual(extraction.nodes.count, 1)
+138 |         let data = try XCTUnwrap(extraction.nodes.first?.renderData)
+139 |         XCTAssertEqual(data.resolve("detail"), .string("First detail"))
+    |                             `- error: instance method 'resolve' is not available due to missing import of defining module 'CellApple' [#MemberImportVisibility]
+140 |         XCTAssertEqual(data.resolve("headline"), .string("Root preserved"))
+141 |     }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/SkeletonPresentationOverlayTests.swift:140:29: error: instance method 'resolve' is not available due to missing import of defining module 'CellApple' [#MemberImportVisibility]
+  5 | import CellBase
+  6 | @testable import Binding
+  7 | 
+    | `- note: add import of module 'CellApple'
+  8 | @MainActor
+  9 | final class SkeletonPresentationOverlayTests: XCTestCase {
+    :
+138 |         let data = try XCTUnwrap(extraction.nodes.first?.renderData)
+139 |         XCTAssertEqual(data.resolve("detail"), .string("First detail"))
+140 |         XCTAssertEqual(data.resolve("headline"), .string("Root preserved"))
+    |                             `- error: instance method 'resolve' is not available due to missing import of defining module 'CellApple' [#MemberImportVisibility]
+141 |     }
+142 | 
+
+[#MemberImportVisibility]: <https://docs.swift.org/compiler/documentation/diagnostics/member-import-visibility>
+Failed frontend command:
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -frontend -c /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/AgentConversationClientTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/AppStoreMetadataTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/AuthenticationAttemptTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/BindingTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/BookProjectImportEndToEndTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ButlerLanguageSupportTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/CatalogAbsorbXCTest.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/CellConfigurationVerifierXCTest.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ConfigurationCatalogReadinessTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DatabaseCustodyKeychainAcceptanceTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DecodedHostedCellReadinessTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeepLinkDeliveryTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/DeviceIngressRegistrationClientTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/HavenAgentDRegistrationAdapterTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/HavenSurfaceRelevanceTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/IdentityLinkFlowTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/InvitationResidencyTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/NearbyScannerAgreementProofTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/NearbyScannerConfigurationStackTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/NearbyScannerImplementationTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/NotificationCallbackClientTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/NotificationEnrollmentManagerTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/PendingActionInboxViewModelTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/PersonalChatChronicleTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/PersonEntityReadClientTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/PersonEntityReadTLSIntegrationTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/PortholeToolbarMenuContractTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/RelationsImportTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/RelationsViewStateTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/RemoteSurfaceRenderAuditXCTest.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/SkeletonParityRemoteXCTest.swift -primary-file /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/SkeletonPresentationOverlayTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/SkeletonRendererParityTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/SkeletonSnapshotRenderXCTest.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/StartupIdentityVaultTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/StartupSecretMigrationTests.swift /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/WorkflowStudioTests.swift -emit-dependencies-path /tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/Binding.build/Debug/BindingTests.build/Objects-normal/arm64/SkeletonPresentationOverlayTests.d -emit-const-values-path /tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/Binding.build/Debug/BindingTests.build/Objects-normal/arm64/SkeletonPresentationOverlayTests.swiftconstvalues -emit-reference-dependencies-path /tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/Binding.build/Debug/BindingTests.build/Objects-normal/arm64/SkeletonPresentationOverlayTests.swiftdeps -serialize-diagnostics-path /tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/Binding.build/Debug/BindingTests.build/Objects-normal/arm64/SkeletonPresentationOverlayTests.dia -target arm64-apple-macos26.1 -module-can-import-version AppKit 2775.10.103.1 2775.10.103 -module-can-import-version Vision 10.0.44 10.0.44 -disable-cross-import-overlay-search -swift-module-cross-import Darwin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/Darwin.swiftcrossimport/xlocale.swiftoverlay -swift-module-cross-import LocalAuthentication /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/LocalAuthentication.framework/Modules/LocalAuthentication.swiftcrossimport/SwiftUI.swiftoverlay -swift-module-cross-import LocalAuthentication /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/System/Library/Frameworks/LocalAuthentication.framework/Modules/LocalAuthentication.swiftcrossimport/SwiftUI.swiftoverlay -swift-module-cross-import Testing /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/Testing.framework/Modules/Testing.swiftcrossimport/AppKit.swiftoverlay -swift-module-cross-import Testing /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/Testing.framework/Modules/Testing.swiftcrossimport/CoreGraphics.swiftoverlay -swift-module-cross-import Testing /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/Testing.framework/Modules/Testing.swiftcrossimport/CoreImage.swiftoverlay -swift-module-cross-import Testing /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/Testing.framework/Modules/Testing.swiftcrossimport/CoreTransferable.swiftoverlay -swift-module-cross-import Testing /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/Testing.framework/Modules/Testing.swiftcrossimport/Foundation.swiftoverlay -swift-module-cross-import Vision /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/Vision.framework/Modules/Vision.swiftcrossimport/FoundationModels.swiftoverlay -swift-module-cross-import Vision /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/System/Library/Frameworks/Vision.framework/Modules/Vision.swiftcrossimport/FoundationModels.swiftoverlay -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libFoundationMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#FoundationMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libFoundationModelsMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#FoundationModelsMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libObservationMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#ObservationMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libPreviewsMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#PreviewsMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libSwiftMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#SwiftMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#SwiftUIMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing/libTestingMacros.dylib\#\#TestingMacros -disable-implicit-swift-modules -Xcc -fno-implicit-modules -Xcc -fno-implicit-module-maps -explicit-swift-module-map-file /tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/Binding.build/Debug/BindingTests.build/Objects-normal/arm64/BindingTests-dependencies-1.json -Xllvm -aarch64-use-tbi -enable-objc-interop -stack-check -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk -I /tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Products/Debug -Isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib -F /tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Products/Debug/PackageFrameworks -F /tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Products/Debug -F /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks -module-cache-path /tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -no-color-diagnostics -Xcc -fno-color-diagnostics -enable-testing -g -debug-info-format\=dwarf -dwarf-version\=5 -profile-generate -profile-coverage-mapping -swift-version 5 -Onone -D DEBUG -serialize-debugging-options -enable-upcoming-feature DisableOutwardActorInference -enable-upcoming-feature InferSendableFromCaptures -enable-upcoming-feature GlobalActorIsolatedTypesUsability -enable-upcoming-feature MemberImportVisibility -enable-upcoming-feature InferIsolatedConformances -enable-upcoming-feature NonisolatedNonsendingByDefault -enable-experimental-feature DebugDescriptionMacro -enable-bare-slash-regex -empty-abi-descriptor -validate-clang-modules-once -clang-build-session-file /tmp/HAVEN-SurfaceParity-Integrated-20260930/ModuleCache.noindex/Session.modulevalidation -Xcc -working-directory -Xcc /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding -enable-anonymous-context-mangled-names -file-compilation-dir /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding -Xcc -fmodule-map-file\=/tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/GeneratedModuleMaps/COpenCombineHelpers.modulemap -Xcc -fmodule-map-file\=/tmp/HAVEN-SurfaceParity-Integrated-20260930/SourcePackages/checkouts/swift-atomics/Sources/_AtomicsShims/include/module.modulemap -Xcc -fmodule-map-file\=/tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOPosix.modulemap -Xcc -fmodule-map-file\=/tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOWASI.modulemap -Xcc -fmodule-map-file\=/tmp/HAVEN-SurfaceParity-Integrated-20260930/SourcePackages/checkouts/swift-nio/Sources/CNIOWindows/include/module.modulemap -Xcc -fmodule-map-file\=/tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOLinux.modulemap -Xcc -fmodule-map-file\=/tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/GeneratedModuleMaps/CNIODarwin.modulemap -Xcc -fmodule-map-file\=/tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOFreeBSD.modulemap -Xcc -fmodule-map-file\=/tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOOpenBSD.modulemap -Xcc -fmodule-map-file\=/tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOAtomics.modulemap -Xcc -fmodule-map-file\=/tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOBoringSSLShims.modulemap -Xcc -fmodule-map-file\=/tmp/HAVEN-SurfaceParity-Integrated-20260930/SourcePackages/checkouts/swift-nio-ssl/Sources/CNIOBoringSSL/include/module.modulemap -Xcc -fmodule-map-file\=/tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/GeneratedModuleMaps/CFileUtils.modulemap -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -Xcc -ivfsstatcache -Xcc /tmp/HAVEN-SurfaceParity-Integrated-20260930/SDKStatCaches.noindex/macosx27.0-26A425-7231f6df4def33e022ae2eb8f782df1a.sdkstatcache -Xcc -fmodules-prune-interval\=86400 -Xcc -fmodules-prune-after\=345600 -Xcc -iquote -Xcc /tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/Binding.build/Debug/BindingTests.build/BindingTests-generated-files.hmap -Xcc -I/tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/Binding.build/Debug/BindingTests.build/BindingTests-own-target-headers.hmap -Xcc -I/tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/Binding.build/Debug/BindingTests.build/BindingTests-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/Binding.build/Debug/Binding-e5aef4d4edcebb0681429169670d8885-VFS/all-product-headers.yaml -Xcc -iquote -Xcc /tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/Binding.build/Debug/BindingTests.build/BindingTests-project-headers.hmap -Xcc -I/tmp/HAVEN-SurfaceParity-Integrated-20260930/SourcePackages/checkouts/OpenCombine/Sources/COpenCombineHelpers/include -Xcc -I/tmp/HAVEN-SurfaceParity-Integrated-20260930/SourcePackages/checkouts/swift-atomics/Sources/_AtomicsShims/include -Xcc -I/tmp/HAVEN-SurfaceParity-Integrated-20260930/SourcePackages/checkouts/swift-nio/Sources/CNIOPosix/include -Xcc -I/tmp/HAVEN-SurfaceParity-Integrated-20260930/SourcePackages/checkouts/swift-nio/Sources/CNIOWASI/include -Xcc -I/tmp/HAVEN-SurfaceParity-Integrated-20260930/SourcePackages/checkouts/swift-nio/Sources/CNIOWindows/include -Xcc -I/tmp/HAVEN-SurfaceParity-Integrated-20260930/SourcePackages/checkouts/swift-nio/Sources/CNIOLinux/include -Xcc -I/tmp/HAVEN-SurfaceParity-Integrated-20260930/SourcePackages/checkouts/swift-nio/Sources/CNIODarwin/include -Xcc -I/tmp/HAVEN-SurfaceParity-Integrated-20260930/SourcePackages/checkouts/swift-nio/Sources/CNIOFreeBSD/include -Xcc -I/tmp/HAVEN-SurfaceParity-Integrated-20260930/SourcePackages/checkouts/swift-nio/Sources/CNIOOpenBSD/include -Xcc -I/tmp/HAVEN-SurfaceParity-Integrated-20260930/SourcePackages/checkouts/swift-nio/Sources/CNIOAtomics/include -Xcc -I/tmp/HAVEN-SurfaceParity-Integrated-20260930/SourcePackages/checkouts/swift-nio-ssl/Sources/CNIOBoringSSLShims/include -Xcc -I/tmp/HAVEN-SurfaceParity-Integrated-20260930/SourcePackages/checkouts/swift-nio-ssl/Sources/CNIOBoringSSL/include -Xcc -I/tmp/HAVEN-SurfaceParity-Integrated-20260930/SourcePackages/checkouts/FileUtils-c/Sources/CFileUtils/include -Xcc -I/tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Products/Debug/include -Xcc -I/tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/Binding.build/Debug/BindingTests.build/DerivedSources-normal/arm64 -Xcc -I/tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/Binding.build/Debug/BindingTests.build/DerivedSources/arm64 -Xcc -I/tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/Binding.build/Debug/BindingTests.build/DerivedSources -Xcc -DDEBUG\=1 -no-auto-bridging-header-chaining -module-name BindingTests -const-gather-protocols-file /tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/Binding.build/Debug/BindingTests.build/Objects-normal/arm64/BindingTests_const_extract_protocols.json -disable-clang-spi -clang-target arm64-apple-macos27.0 -target-sdk-version 27.0 -target-sdk-name macosx27.0 -in-process-plugin-server-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/libSwiftInProcPluginServer.dylib -o /tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/Binding.build/Debug/BindingTests.build/Objects-normal/arm64/SkeletonPresentationOverlayTests.o -debug-module-path /tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Intermediates.noindex/Binding.build/Debug/BindingTests.build/Objects-normal/arm64/BindingTests.swiftmodule -index-unit-output-path /Binding.build/Debug/BindingTests.build/Objects-normal/arm64/SkeletonPresentationOverlayTests.o -index-store-path /tmp/HAVEN-SurfaceParity-Integrated-20260930/Index.noindex/DataStore -index-system-modules
+note: Run script build phase 'Embed Build Provenance' will be run during every build because the option to run the script phase "Based on dependency analysis" is unchecked. (in target 'HAVEN' from project 'Binding')
+** TEST BUILD FAILED **
+

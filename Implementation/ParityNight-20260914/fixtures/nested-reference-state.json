@@ -1,0 +1,20 @@
+{
+  "headline" : "Nested reference payload",
+  "secondary" : {
+    "rows" : [
+      {
+        "detail" : "visible through second label",
+        "title" : "Shared row"
+      }
+    ],
+    "title" : "Secondary projection"
+  },
+  "status" : "Ingen handlinger kjørt ennå.",
+  "workspace" : {
+    "selection" : {
+      "subtitle" : "Nested subtitle",
+      "title" : "Nested title"
+    },
+    "title" : "Primary workspace"
+  }
+}

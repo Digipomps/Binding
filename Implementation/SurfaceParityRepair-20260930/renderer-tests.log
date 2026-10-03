@@ -1,0 +1,150 @@
+warning: 'cellprotocol': found 3 file(s) which are unhandled; explicitly declare them as resources or exclude from the target
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell-Design.md
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/Architecture.md
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/ChatLog.md
+Building for debugging...
+[Computing dependencies]
+[Using on-disk description]
+[1 / 11]
+[1 / 9] swift-nio_NIOPosix
+[1 / 10] CellBase
+[2 / 12] CellApple
+[4 / 14] CellApple
+[6 / 16] CellApple
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/Suggestion/SkeletonNativeStyle.swift:255:9: warning: stored property 'edges' of 'Sendable'-conforming struct 'SkeletonBorderShape' contains non-Sendable type 'SkeletonEdge'; this is an error in the Swift 6 language mode
+253 | struct SkeletonBorderShape: Shape {
+254 |     let radius: CGFloat
+255 |     let edges: [SkeletonEdge]?
+    |         `- warning: stored property 'edges' of 'Sendable'-conforming struct 'SkeletonBorderShape' contains non-Sendable type 'SkeletonEdge'; this is an error in the Swift 6 language mode
+256 |     let rtl: Bool
+257 |     func path(in rect: CGRect) -> Path {
+
+CellBase.SkeletonEdge:1:13: note: enum 'SkeletonEdge' does not conform to the 'Sendable' protocol
+1 | public enum SkeletonEdge : String, Codable {
+  |             `- note: enum 'SkeletonEdge' does not conform to the 'Sendable' protocol
+2 |     case top
+3 |     case leading
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/Suggestion/SkeletonNativeStyle.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  3 | 
+  4 | import SwiftUI
+  5 | import CellBase
+    | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  6 | #if os(macOS)
+  7 | import AppKit
+
+[#AddPreconcurrencyImport]: <https://docs.swift.org/compiler/documentation/diagnostics/add-preconcurrency-import>
+[10 / 19] MultipartKit
+[10 / 18] CellApple
+[12 / 19] CellApple
+[12 / 20] swift-crypto_CCryptoBoringSSL
+[13 / 17] CellBaseTests-product
+[15 / 19] CellBaseTests-product
+[16 / 19] CellBaseTests-product
+[21 / 23] CellBaseTests-product
+[22 / 23] CellBaseTests-product
+[23 / 23] CellBaseTests-product
+[24 / 24] CellApple-product
+Build complete! (16,81 sek)
+Test Suite 'Selected tests' started at 2026-09-30 01:48:27.660.
+Test Suite 'HavenCommonsTests.xctest' started at 2026-09-30 01:48:27.662.
+Test Suite 'HavenCommonsTests.xctest' passed at 2026-09-30 01:48:27.662.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 01:48:27.662.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.002) seconds
+Test Suite 'Selected tests' started at 2026-09-30 01:48:27.772.
+Test Suite 'CellNearbyTests.xctest' started at 2026-09-30 01:48:27.774.
+Test Suite 'CellNearbyTests.xctest' passed at 2026-09-30 01:48:27.774.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 01:48:27.774.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.002) seconds
+Test Suite 'Selected tests' started at 2026-09-30 01:48:27.899.
+Test Suite 'CellBaseTests.xctest' started at 2026-09-30 01:48:27.900.
+Test Suite 'SkeletonNativeLayoutRoundBTests' started at 2026-09-30 01:48:27.900.
+Test Case '-[CellBaseTests.SkeletonNativeLayoutRoundBTests testLayoutVariantWidthAndHiddenApplyNatively]' started.
+Test Case '-[CellBaseTests.SkeletonNativeLayoutRoundBTests testLayoutVariantWidthAndHiddenApplyNatively]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeLayoutRoundBTests testLongTextWrapsInsideTheRowInsteadOfOverflowing]' started.
+Test Case '-[CellBaseTests.SkeletonNativeLayoutRoundBTests testLongTextWrapsInsideTheRowInsteadOfOverflowing]' passed (0.201 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeLayoutRoundBTests testSpacerPushesTheTrailingElementToTheEdge]' started.
+Test Case '-[CellBaseTests.SkeletonNativeLayoutRoundBTests testSpacerPushesTheTrailingElementToTheEdge]' passed (0.031 seconds).
+Test Suite 'SkeletonNativeLayoutRoundBTests' passed at 2026-09-30 01:48:28.134.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.233 (0.234) seconds
+Test Suite 'SkeletonNativeRendererTests' started at 2026-09-30 01:48:28.134.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testBaselineLayoutIncludesAscentAndDescentOfDifferentChildren]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testBaselineLayoutIncludesAscentAndDescentOfDifferentChildren]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testComponentAndFieldIdentitySurvivesSiblingReorderAndDraftsAreIsolated]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testComponentAndFieldIdentitySurvivesSiblingReorderAndDraftsAreIsolated]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testComponentRevisionReplacesDefinitionButKeepsInstanceAndStableFieldKeys]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testComponentRevisionReplacesDefinitionButKeepsInstanceAndStableFieldKeys]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testCornerRadiusDoesNotClipUntilContentClipIsTrue]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testCornerRadiusDoesNotClipUntilContentClipIsTrue]' passed (0.008 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testDeclared236PointGridTrackDoesNotInherit1200PointSurface]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testDeclared236PointGridTrackDoesNotInherit1200PointSurface]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testFlexGrowthDistributesRemainingSpaceByWeight]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testFlexGrowthDistributesRemainingSpaceByWeight]' passed (0.004 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testGenericTransferUsesRowPayloadForComponentsAndOtherElements]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testGenericTransferUsesRowPayloadForComponentsAndOtherElements]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testHostDragMarksAllAcceptingSurfacesAndClearsOnCancel]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testHostDragMarksAllAcceptingSurfacesAndClearsOnCancel]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testInsetsExplicitZeroAndFontWeightsMatchWebTable]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testInsetsExplicitZeroAndFontWeightsMatchWebTable]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testMarkerAndZeroBlurSpreadPaintOutsideWithoutChangingLayoutSize]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testMarkerAndZeroBlurSpreadPaintOutsideWithoutChangingLayoutSize]' passed (0.007 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testMountedActionWithoutAdapterFailsExplicitly]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testMountedActionWithoutAdapterFailsExplicitly]' passed (0.005 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testNativePaddingStaysInsideDeclaredOuterBox]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testNativePaddingStaysInsideDeclaredOuterBox]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testNativeParagraphUses15PointLineBoxAtFontSize11AndProportionalFeature]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testNativeParagraphUses15PointLineBoxAtFontSize11AndProportionalFeature]' passed (0.003 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testRowAndMountLookupUsesWholePathItemFirstThenRootIncludingNull]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testRowAndMountLookupUsesWholePathItemFirstThenRootIncludingNull]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testSharedTwoInstanceOracleAndSourceUpdate]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testSharedTwoInstanceOracleAndSourceUpdate]' passed (0.005 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testSourceActionDispatchMatchesOracleWithoutPayloadMutation]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testSourceActionDispatchMatchesOracleWithoutPayloadMutation]' passed (0.007 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testTreeFocusReturnsToSurvivingAncestorOnConfirmedCollapseAndReorder]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testTreeFocusReturnsToSurvivingAncestorOnConfirmedCollapseAndReorder]' passed (0.004 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testTreeKeyboardUsesConfirmedOrderAndSeparateActions]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testTreeKeyboardUsesConfirmedOrderAndSeparateActions]' passed (0.002 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testTreeRightEntersFirstConfirmedChildAndRejectsDuplicateIDs]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testTreeRightEntersFirstConfirmedChildAndRejectsDuplicateIDs]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testTypographyInheritsUntilExplicitChildOverride]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testTypographyInheritsUntilExplicitChildOverride]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testVariantsUseInclusiveFirstMatchUnknownDimensionsAndItemScope]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testVariantsUseInclusiveFirstMatchUnknownDimensionsAndItemScope]' passed (0.000 seconds).
+Test Suite 'SkeletonNativeRendererTests' passed at 2026-09-30 01:48:28.188.
+	 Executed 21 tests, with 0 failures (0 unexpected) in 0.052 (0.054) seconds
+Test Suite 'SkeletonNativeSurfaceParityRepairTests' started at 2026-09-30 01:48:28.188.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testExplicitListViewportKeepsItsHeight]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testExplicitListViewportKeepsItsHeight]' passed (0.713 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testFlowConstrainsLongItemAndPreservesSmallItemIntrinsicWidths]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testFlowConstrainsLongItemAndPreservesSmallItemIntrinsicWidths]' passed (0.488 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testMaximumListHeightCapsRatherThanExpandsShortContent]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testMaximumListHeightCapsRatherThanExpandsShortContent]' passed (0.417 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testOriginalChipRolesProduceCompactPillsAndEmptyListTakesNoSpace]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testOriginalChipRolesProduceCompactPillsAndEmptyListTakesNoSpace]' passed (1.018 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testRoleDefaultsPreserveExplicitModifiersAndUnrecognizedRoles]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testRoleDefaultsPreserveExplicitModifiersAndUnrecognizedRoles]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testSectionUsesPortholeBaseDecorationAndHonorsExplicitBackground]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testSectionUsesPortholeBaseDecorationAndHonorsExplicitBackground]' passed (0.525 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testStackAlignmentPositionsNarrowContentInsideFullWidth]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testStackAlignmentPositionsNarrowContentInsideFullWidth]' passed (0.691 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testUnboundedListUsesContentHeightAndContextRowsWithoutSwallowingFollowingAction]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testUnboundedListUsesContentHeightAndContextRowsWithoutSwallowingFollowingAction]' passed (0.767 seconds).
+Test Suite 'SkeletonNativeSurfaceParityRepairTests' passed at 2026-09-30 01:48:32.809.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 4.620 (4.621) seconds
+Test Suite 'CellBaseTests.xctest' passed at 2026-09-30 01:48:32.809.
+	 Executed 32 tests, with 0 failures (0 unexpected) in 4.905 (4.909) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 01:48:32.809.
+	 Executed 32 tests, with 0 failures (0 unexpected) in 4.905 (4.910) seconds
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************

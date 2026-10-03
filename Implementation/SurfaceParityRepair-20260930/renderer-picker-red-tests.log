@@ -1,0 +1,56 @@
+warning: 'cellprotocol': found 3 file(s) which are unhandled; explicitly declare them as resources or exclude from the target
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell-Design.md
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/Architecture.md
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/ChatLog.md
+Building for debugging...
+[Computing dependencies]
+[Using on-disk description]
+[1 / 8] CNIOWindows
+[1 / 8] CellApple
+[1 / 9] Vapor
+[2 / 6] CellBaseTests-product
+[4 / 8] CellBaseTests-product
+[5 / 8] CellBaseTests-product
+[10 / 12] CellBaseTests-product
+[11 / 12] CellBaseTests-product
+[12 / 12] CellBaseTests-product
+Build complete! (4,86 sek)
+Test Suite 'Selected tests' started at 2026-09-30 03:05:45.589.
+Test Suite 'HavenCommonsTests.xctest' started at 2026-09-30 03:05:45.589.
+Test Suite 'HavenCommonsTests.xctest' passed at 2026-09-30 03:05:45.589.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 03:05:45.589.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'Selected tests' started at 2026-09-30 03:05:45.649.
+Test Suite 'CellNearbyTests.xctest' started at 2026-09-30 03:05:45.650.
+Test Suite 'CellNearbyTests.xctest' passed at 2026-09-30 03:05:45.650.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 03:05:45.650.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'Selected tests' started at 2026-09-30 03:05:45.710.
+Test Suite 'CellBaseTests.xctest' started at 2026-09-30 03:05:45.710.
+Test Suite 'SkeletonNativeSurfaceParityRepairTests' started at 2026-09-30 03:05:45.710.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeColumnButtonsStretchOnlyInFlexColumns]' started.
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:100: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeColumnButtonsStretchOnlyInFlexColumns] : XCTAssertEqual failed: ("53.0") is not equal to ("238.0") - Border occupies the outer pixel
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeColumnButtonsStretchOnlyInFlexColumns]' failed (3.140 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholePickerChromeFillsWidthAndPortableOverridesWin]' started.
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:118: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholePickerChromeFillsWidthAndPortableOverridesWin] : XCTAssertEqualWithAccuracy failed: ("255.0") is not equal to ("16.0") +/- ("3.0")
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:119: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholePickerChromeFillsWidthAndPortableOverridesWin] : XCTAssertEqualWithAccuracy failed: ("255.0") is not equal to ("33.0") +/- ("3.0")
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:120: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholePickerChromeFillsWidthAndPortableOverridesWin] : XCTAssertEqualWithAccuracy failed: ("255.0") is not equal to ("44.0") +/- ("3.0")
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholePickerChromeFillsWidthAndPortableOverridesWin]' failed (0.783 seconds).
+Test Suite 'SkeletonNativeSurfaceParityRepairTests' failed at 2026-09-30 03:05:49.634.
+	 Executed 2 tests, with 4 failures (0 unexpected) in 3.924 (3.924) seconds
+Test Suite 'CellBaseTests.xctest' failed at 2026-09-30 03:05:49.634.
+	 Executed 2 tests, with 4 failures (0 unexpected) in 3.924 (3.924) seconds
+Test Suite 'Selected tests' failed at 2026-09-30 03:05:49.634.
+	 Executed 2 tests, with 4 failures (0 unexpected) in 3.924 (3.925) seconds
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+PICKER_NATIVE_VIEWS ["NSHostingView<ModifiedContent<ModifiedContent<ModifiedContent<ModifiedContent<ModifiedContent<SkeletonView, _EnvironmentKeyWritingModifier<Optional<PortholeViewModel>>>, SkeletonHostThemeModifier>, _EnvironmentKeyWritingModifier<ColorScheme>>, _FrameLayout>, _BackgroundStyleModifier<Color>>>", "KeyViewProxy", "_FocusRingView"]
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+Note: Some test targets reported failures:
+  - CellBaseTests (XCTest)

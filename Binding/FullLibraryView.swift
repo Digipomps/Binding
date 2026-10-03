@@ -268,6 +268,12 @@ nonisolated enum LibraryPreviewSkeletonSupport {
                     tabs.selectionActionKeypath != nil
             )
 
+        case .NavigationBar(let navigationBar):
+            return PreparedPreview(
+                element: .NavigationBar(navigationBar),
+                usesPlaceholders: false
+            )
+
         case .Visualization(let visualization):
             return placeholderCollection(
                 title: "Preview \(visualization.kind)",
@@ -534,7 +540,7 @@ struct FullLibraryView: View {
         .onAppear {
             focusedField = .query
             Task {
-                await model.refreshNow()
+                await model.loadInitial()
             }
         }
         .onChange(of: model.queryText) { _, _ in
@@ -644,7 +650,7 @@ struct FullLibraryView: View {
                     HStack(spacing: 8) {
                         Button {
                             dismissKeyboard()
-                            Task { await model.refreshNow() }
+                            Task { await model.refreshNow(retryAuthentication: true) }
                         } label: {
                             Label("Oppdater", systemImage: "arrow.clockwise")
                         }
@@ -668,7 +674,7 @@ struct FullLibraryView: View {
 
                     Button {
                         dismissKeyboard()
-                        Task { await model.refreshNow() }
+                        Task { await model.refreshNow(retryAuthentication: true) }
                     } label: {
                         Label("Oppdater", systemImage: "arrow.clockwise")
                     }
@@ -1568,7 +1574,8 @@ final class FullLibraryViewModel: ObservableObject {
     private let catalogEndpoints: [String]
     private let queryContext: FullLibraryQueryContext
     private var refreshTask: Task<Void, Never>?
-    private var bootstrapWatchTask: Task<Void, Never>?
+    private let bootstrapRuntime: (Bool) async -> BindingAuthenticatedRuntimeAttempt.Outcome
+    private var initialLoadRequested = false
     private var facetRefreshTask: Task<Void, Never>?
     private var catalogSyncTask: Task<Void, Never>?
     private var refreshGeneration = 0
@@ -1581,17 +1588,20 @@ final class FullLibraryViewModel: ObservableObject {
         catalogEndpoints: [String],
         queryContext: FullLibraryQueryContext,
         fallbackFavorites: [CellConfiguration],
-        fallbackTemplates: [CellConfiguration]
+        fallbackTemplates: [CellConfiguration],
+        bootstrapRuntime: @escaping (Bool) async -> BindingAuthenticatedRuntimeAttempt.Outcome = {
+            await BindingRuntimeBootstrap.requestAuthenticatedRuntime(retryAfterFailure: $0)
+        }
     ) {
         self.catalogEndpoints = catalogEndpoints
         self.queryContext = queryContext
         self.fallbackFavorites = fallbackFavorites
         self.fallbackTemplates = fallbackTemplates
+        self.bootstrapRuntime = bootstrapRuntime
     }
 
     deinit {
         refreshTask?.cancel()
-        bootstrapWatchTask?.cancel()
         facetRefreshTask?.cancel()
         catalogSyncTask?.cancel()
     }
@@ -1658,7 +1668,9 @@ final class FullLibraryViewModel: ObservableObject {
     }
 
     func loadInitial() async {
-        await refreshNow()
+        guard !initialLoadRequested else { return }
+        initialLoadRequested = true
+        await refreshNow(retryAuthentication: true)
     }
 
     func scheduleRefresh() {
@@ -1671,9 +1683,12 @@ final class FullLibraryViewModel: ObservableObject {
         }
     }
 
-    func refreshNow() async {
-        guard await ensureRuntimeBootstrapForLibrary() else {
-            presentAuthPendingState()
+    func refreshNow(retryAuthentication: Bool = false) async {
+        statusLine = "Klargjør ConfigurationCatalog…"
+        let outcome = await bootstrapRuntime(retryAuthentication)
+        guard !Task.isCancelled else { return }
+        guard outcome == .ready else {
+            presentAuthStoppedState(outcome)
             return
         }
 
@@ -1844,48 +1859,19 @@ final class FullLibraryViewModel: ObservableObject {
         BindingRuntimeBootstrap.authenticatedRuntimeIsReady
     }
 
-    private func ensureRuntimeBootstrapForLibrary() async -> Bool {
-        if runtimeBootstrapIsReady {
-            bootstrapWatchTask?.cancel()
-            bootstrapWatchTask = nil
-            return await BindingLocalCellRegistration.shared.ensureRegistered()
-        }
-
-        if bootstrapWatchTask == nil {
-            bootstrapWatchTask = Task { [weak self] in
-                if !BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
-                    await AppInitializer.initialize()
-                }
-                let registered = await BindingLocalCellRegistration.shared.ensureRegistered()
-                await MainActor.run {
-                    guard let self else { return }
-                    self.bootstrapWatchTask = nil
-                    guard self.runtimeBootstrapIsReady, registered else {
-                        self.availability = .unavailable(
-                            reason: "De lokale HAVEN-cellene kunne ikke valideres. Full Library åpnes ikke med en delvis initialisert runtime."
-                        )
-                        self.statusLine = "Runtime-validering feilet. Prøv oppdatering på nytt."
-                        return
-                    }
-                    Task { @MainActor [weak self] in
-                        await self?.refreshNow()
-                    }
-                }
-            }
-        }
-
-        return false
-    }
-
-    private func presentAuthPendingState() {
+    private func presentAuthStoppedState(_ outcome: BindingAuthenticatedRuntimeAttempt.Outcome) {
         let offlineResults = offlineFallbackResults()
         results = offlineResults
         facetSections = deriveFacetSections(from: offlineResults)
         selectedResultID = preferredSelectionID(in: offlineResults, currentSelectionID: selectedResultID)
         availability = .unavailable(
-            reason: "Bekreft Touch ID, Face ID eller passkode for å laste Full Library. Lokale favoritter og konferanseoppsett vises mens vi venter."
+            reason: outcome == .registrationUnavailable
+                ? "De lokale HAVEN-cellene kunne ikke valideres. Trykk Oppdater for å prøve igjen."
+                : "Autentisering ble ikke fullført. Trykk Oppdater for å prøve igjen."
         )
-        statusLine = "Venter paa autentisering for ConfigurationCatalog…"
+        statusLine = outcome == .registrationUnavailable
+            ? "Runtime-validering feilet. Trykk Oppdater for å prøve igjen."
+            : "Autentisering stoppet. Trykk Oppdater for å prøve igjen."
         replaceWarnings(with: [])
         connectivity = ConnectivitySnapshot(
             onlineSources: 0,
@@ -2295,10 +2281,8 @@ final class FullLibraryViewModel: ObservableObject {
     }
 
     private func resolveCatalog() async throws -> ResolvedCatalog {
-        if !BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
-            await AppInitializer.initialize()
-        }
-        guard await BindingLocalCellRegistration.shared.ensureRegistered() else {
+        guard runtimeBootstrapIsReady,
+              await BindingLocalCellRegistration.shared.ensureRegistered() else {
             throw LibraryError.runtimeRegistrationUnavailable
         }
         guard let resolver = CellBase.defaultCellResolver as? CellResolver else {

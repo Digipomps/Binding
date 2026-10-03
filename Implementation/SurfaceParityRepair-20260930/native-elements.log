@@ -1,0 +1,18 @@
+Writing result bundle at path:
+	/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/native-elements.xcresult
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64, id:00008142-001411C11A22401C, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Mac Catalyst, id:00008142-001411C11A22401C, name:My Mac }
+{ platform:macOS, arch:arm64, variant:DriverKit, id:00008142-001411C11A22401C, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:00008142-001411C11A22401C, name:My Mac }
+2026-09-30 02:08:33.399 xcodebuild[40694:32798304] [MT] IDETestOperationsObserverDebug: 38.366 elapsed -- Testing started completed.
+2026-09-30 02:08:33.399 xcodebuild[40694:32798304] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-09-30 02:08:33.399 xcodebuild[40694:32798304] [MT] IDETestOperationsObserverDebug: 38.366 sec, +38.366 sec -- end
+Failing tests:
+	CellConfigurationVerifierXCTest.testNoLocalSurfaceHidesItsOwnWaysIn()
+	SkeletonSnapshotRenderXCTest.testRenderCorpusToPNG()
+
+** TEST EXECUTE FAILED **
+
+Testing started

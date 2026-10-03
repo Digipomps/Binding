@@ -1,0 +1,15 @@
+{
+  "badges" : {
+    "primary" : "public-safe",
+    "secondary" : "deterministic"
+  },
+  "headline" : "Basic structure",
+  "lead" : "Denne fixture-en holder text, badge, section og divider stabile på tvers av web og Binding.",
+  "longText" : "Dette er en bevisst lang tekstlinje som skal wrappe tydelig og likt nok til at vi ser renderer-avvik tidlig, uten å gjøre payloaden produktspesifikk eller vanskelig å feilsøke.",
+  "mode" : "overview",
+  "status" : "Ingen handlinger kjørt ennå.",
+  "structure" : {
+    "sectionDetail" : "Bruk denne til å verifisere spacing, heading-hierarki og synlig seksjonsdeling.",
+    "sectionHeadline" : "Section with divider"
+  }
+}

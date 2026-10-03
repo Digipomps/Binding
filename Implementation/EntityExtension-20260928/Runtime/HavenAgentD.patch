@@ -1,0 +1,164 @@
+diff --git a/Package.swift b/Package.swift
+index 0829f11..b48c2f7 100644
+--- a/Package.swift
++++ b/Package.swift
+@@ -1,5 +1,20 @@
+ // swift-tools-version: 6.0
+ import PackageDescription
++import Foundation
++
++let cellProtocolDependency: Package.Dependency = {
++    if let path = ProcessInfo.processInfo.environment["CELLPROTOCOL_LOCAL_PACKAGE_PATH"] {
++        return .package(name: "CellProtocol", path: path)
++    }
++    return .package(url: "https://github.com/Digipomps/CellProtocol.git", revision: "ce1970e5090c51245513284b86004c6e12a7ec87")
++}()
++
++let sproutDependency: Package.Dependency = {
++    if let path = ProcessInfo.processInfo.environment["SPROUT_LOCAL_PACKAGE_PATH"] {
++        return .package(name: "sprout", path: path)
++    }
++    return .package(url: "https://github.com/Digipomps/Sprout.git", revision: "7aea5b0f814e345021c14d2a5389c9880cb988e9")
++}()
+ 
+ let package = Package(
+     name: "HavenAgentD",
+@@ -19,14 +34,8 @@ let package = Package(
+         .executable(name: "haven-correspondence-mcp", targets: ["HavenCorrespondenceMCP"])
+     ],
+     dependencies: [
+-        .package(
+-            url: "https://github.com/Digipomps/CellProtocol.git",
+-            revision: "5609a9ad23e76999e1cf1609e1de5a010ae2e3c9"
+-        ),
+-        .package(
+-            url: "https://github.com/Digipomps/Sprout.git",
+-            revision: "7aea5b0f814e345021c14d2a5389c9880cb988e9"
+-        ),
++        cellProtocolDependency,
++        sproutDependency,
+         .package(url: "https://github.com/vapor/vapor.git", from: "4.0.1")
+     ],
+     targets: [
+diff --git a/Sources/HavenAgentCellRuntime/AgentCellRuntimeHost.swift b/Sources/HavenAgentCellRuntime/AgentCellRuntimeHost.swift
+index b87206a..5c1e297 100644
+--- a/Sources/HavenAgentCellRuntime/AgentCellRuntimeHost.swift
++++ b/Sources/HavenAgentCellRuntime/AgentCellRuntimeHost.swift
+@@ -65,6 +65,7 @@ private struct CellBaseGlobals {
+     var typedCellUtility: TypedCellProtocol?
+     var resolverTypedCellUtility: TypedCellUtility?
+     var persistedCellMasterKey: Data?
++    var ownerAttachHost: OwnerAttachEntityExtensionHost?
+ }
+ 
+ private struct ActiveCellRegistration {
+@@ -243,7 +244,8 @@ public actor AgentCellRuntimeHost {
+                 documentRootPath: CellBase.documentRootPath,
+                 typedCellUtility: CellBase.typedCellUtility,
+                 resolverTypedCellUtility: resolver.tcUtility,
+-                persistedCellMasterKey: CellBase.persistedCellMasterKey
++                persistedCellMasterKey: CellBase.persistedCellMasterKey,
++                ownerAttachHost: await OwnerAttachExtensionRuntime.shared.host
+             )
+             installedGlobals = previousGlobals
+             CellBase.defaultIdentityVault = vault
+@@ -256,6 +258,18 @@ public actor AgentCellRuntimeHost {
+             CellBase.persistedCellMasterKey = Data(
+                 SHA256.hash(data: persistenceKeyMaterial)
+             )
++            // LocalIdentityVault's scoped secrets are memory-only. Derive a
++            // separate stable storage key from the existing persisted agent
++            // identity, so receipts remain readable across daemon restarts.
++            let presenceKey = HKDF<SHA256>.deriveKey(
++                inputKeyMaterial: SymmetricKey(data: identityPrivateKey.rawRepresentation),
++                salt: Data(), info: Data("haven-agentd.owner-attach-store.v1".utf8),
++                outputByteCount: 32)
++            let presenceStore = try OwnerAttachEncryptedStore(
++                directory: paths.cellDocumentDirectory.appendingPathComponent("OwnerAttachReceipts"),
++                key: presenceKey.withUnsafeBytes { Data($0) })
++            await OwnerAttachExtensionRuntime.shared.install(OwnerAttachEntityExtensionHost(
++                receiver: owner, label: "HAVEN-agenten", store: presenceStore))
+             let typedCellUtility = TypedCellUtility(storage: FileSystemCellStorage())
+             CellBase.typedCellUtility = typedCellUtility
+             resolver.tcUtility = typedCellUtility
+@@ -555,6 +569,7 @@ public actor AgentCellRuntimeHost {
+             CellBase.typedCellUtility = installedGlobals.typedCellUtility
+             resolver.tcUtility = installedGlobals.resolverTypedCellUtility
+             CellBase.persistedCellMasterKey = installedGlobals.persistedCellMasterKey
++            await OwnerAttachExtensionRuntime.shared.install(installedGlobals.ownerAttachHost)
+             self.installedGlobals = nil
+         }
+ 
+diff --git a/Sources/HavenAgentMenu/AgentMenuModel.swift b/Sources/HavenAgentMenu/AgentMenuModel.swift
+index 18d48a0..9dbc07b 100644
+--- a/Sources/HavenAgentMenu/AgentMenuModel.swift
++++ b/Sources/HavenAgentMenu/AgentMenuModel.swift
+@@ -61,6 +61,12 @@ final class AgentMenuModel: ObservableObject {
+         }
+     }
+ 
++    func openEntityFlow(policy: Bool) {
++        let address = policy ? "haven://entity-extension-policy" : "haven://link-devices"
++        let opened = NSWorkspace.shared.open(URL(string: address)!)
++        lastAnswer = opened ? "Fortsett i HAVEN." : "HAVEN-appen må være installert for å åpne denne flyten."
++    }
++
+     func refresh() async {
+         // To oppdateringer som overlapper ville begge sett de samme sakene som
+         // uvarslet mens den andre ventet på varselsenteret, og varslet dem to
+diff --git a/Sources/HavenAgentMenu/HavenAgentMenuApp.swift b/Sources/HavenAgentMenu/HavenAgentMenuApp.swift
+index eb7835d..1933161 100644
+--- a/Sources/HavenAgentMenu/HavenAgentMenuApp.swift
++++ b/Sources/HavenAgentMenu/HavenAgentMenuApp.swift
+@@ -95,6 +95,8 @@ private struct MenuContent: View {
+             }
+         }
+         Divider()
++        Button("Utvid min entitet …") { model.openEntityFlow(policy: false) }
++        Button("Automatikk ved cellebruk …") { model.openEntityFlow(policy: true) }
+         Button("Åpne adminflate…") { AdminWindowPresenter.present(openWindow: openWindow) }
+             .keyboardShortcut("a")
+         Button("Oppdater nå") { Task { await model.refresh() } }
+diff --git a/Tests/HavenAgentCellRuntimeTests/AgentCellRuntimeHostTests.swift b/Tests/HavenAgentCellRuntimeTests/AgentCellRuntimeHostTests.swift
+index 3ca2fb8..2b38b61 100644
+--- a/Tests/HavenAgentCellRuntimeTests/AgentCellRuntimeHostTests.swift
++++ b/Tests/HavenAgentCellRuntimeTests/AgentCellRuntimeHostTests.swift
+@@ -11,6 +11,38 @@ import Testing
+ 
+ @Suite(.serialized)
+ struct AgentCellRuntimeHostTests {
++    @Test
++    func ownerAttachReceiptSurvivesAgentRestartWithoutEnrollingAgentIdentity() async throws {
++        let root = FileManager.default.temporaryDirectory
++            .appendingPathComponent("OwnerAttachAgent-\(UUID().uuidString)", isDirectory: true)
++        defer { try? FileManager.default.removeItem(at: root) }
++        let paths = RuntimePaths.rooted(at: root)
++        let host = makeIsolatedHost(paths: paths)
++        let firstSnapshot = try await host.start(instanceName: "owner-attach-test")
++        let firstVault = try #require(CellBase.defaultIdentityVault)
++        let firstOwner = try #require(await firstVault.identity(forUUID: firstSnapshot.ownerUUID))
++        let firstCell = await GeneralCell(owner: firstOwner)
++        let firstReceiver = try #require(await OwnerAttachExtensionRuntime.shared.host)
++        let firstOffer = try await firstReceiver.offer(cell: firstCell, requester: firstOwner)
++        let firstConsent = try await OwnerAttachExtensionConsent.make(
++            offer: firstOffer, choice: .once, identity: firstOwner)
++        let firstReceipt = try await firstReceiver.accept(firstConsent, cell: firstCell, requester: firstOwner)
++        await host.stop()
++
++        let secondSnapshot = try await host.start(instanceName: "owner-attach-test")
++        let secondVault = try #require(CellBase.defaultIdentityVault)
++        let secondOwner = try #require(await secondVault.identity(forUUID: secondSnapshot.ownerUUID))
++        let secondCell = await GeneralCell(owner: secondOwner)
++        let secondReceiver = try #require(await OwnerAttachExtensionRuntime.shared.host)
++        let secondOffer = try await secondReceiver.offer(cell: secondCell, requester: secondOwner)
++        let secondConsent = try await OwnerAttachExtensionConsent.make(
++            offer: secondOffer, choice: .once, identity: secondOwner)
++        let secondReceipt = try await secondReceiver.accept(secondConsent, cell: secondCell, requester: secondOwner)
++        #expect(try OwnerAttachWire.encode(firstReceipt) == OwnerAttachWire.encode(secondReceipt))
++        #expect(await IdentityLinkRegistry.shared.activeLinks(ownerUUID: secondOwner.uuid).isEmpty)
++        await host.stop()
++    }
++
+     private func makeIsolatedHost(paths: RuntimePaths) -> AgentCellRuntimeHost {
+         AgentCellRuntimeHost(
+             paths: paths,

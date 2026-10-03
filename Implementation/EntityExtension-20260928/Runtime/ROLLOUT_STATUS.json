@@ -1,0 +1,83 @@
+{
+  "CellProtocol": {
+    "path": "/private/tmp/haven-owner-attach-runtime/CellProtocol",
+    "head": "980e8a2845905391fb66ce098958dcdc4194d144",
+    "dirty": false
+  },
+  "Binding": {
+    "path": "/Users/kjetil/.codex/worktrees/entity-extension-security-20260928/Binding",
+    "head": "e5691ba2d13b956e39508864ad9473c01a4093a7",
+    "dirty": false
+  },
+  "CellScaffold": {
+    "path": "/private/tmp/haven-owner-attach-runtime/CellScaffold",
+    "head": "adf48d4615d1ed143d5bdc190fcf63e266214c8f",
+    "dirty": true
+  },
+  "HavenAgentD": {
+    "path": "/private/tmp/haven-owner-attach-runtime/HavenAgentD",
+    "head": "a9da717453ef3061d288fb5abbb29135c17fc720",
+    "dirty": true
+  },
+  "Sprout": {
+    "path": "/private/tmp/haven-owner-attach-runtime/sprout",
+    "head": "af4ffabafcea96a299c132368882347b0c0bcbc8",
+    "dirty": false
+  },
+  "CellProtocolDocuments": {
+    "path": "/private/tmp/haven-owner-attach-runtime/CellProtocolDocuments",
+    "head": "b57f33f8c474ec7cea666b10adcac9e7567e6ec4",
+    "dirty": false
+  },
+  "updatedAtUTC": "2026-09-28T19:30:19.531512+00:00",
+  "installed": {
+    "Sprout": {
+      "source": "af4ffabafcea96a299c132368882347b0c0bcbc8",
+      "app": "/Applications/Sprout.app",
+      "cli": "/usr/local/bin/sprout",
+      "nearby": "/usr/local/bin/haven-nearby",
+      "team": "5UT5HQTCV9",
+      "nativeHandoffVerified": false
+    }
+  },
+  "blockers": [
+    "Mac build capacity: required 10 GiB growth reserve leaves 9%, below 10% floor; 2 GiB exception pending after auto-review rejection",
+    "Phone disconnected; connected physical iPad is not substituted",
+    "Server capacity below 40 GiB plus build/backup/rollback growth",
+    "Private GitHub Actions rejected before start by account payment/spending gate",
+    "CellProtocol final public CI not green; one exact-SHA macOS retry in progress after TTL timing failure; no version/merge; consumer pins pending"
+  ],
+  "tests": {
+    "CellBase": {
+      "executed": 1311,
+      "skipped": 2,
+      "failures": 0,
+      "commit": "980e8a2845905391fb66ce098958dcdc4194d144",
+      "publicCI": "Both Linux gates and runtime benchmark passed; macOS exact-SHA retry still running at checkpoint"
+    },
+    "Binding": {
+      "passed": 16,
+      "cellProtocolBeforeExploreFix": true
+    },
+    "Agent": {
+      "passed": 57,
+      "cellProtocolBeforeExploreFix": true
+    },
+    "Sprout": {
+      "xctestPassed": 134,
+      "swiftTestingPassed": 6
+    }
+  },
+  "ci": {
+    "cellProtocolPR": "https://github.com/Digipomps/CellProtocol/pull/56",
+    "macRun": 36469713446,
+    "retrySession": 74550,
+    "sproutPR": "https://github.com/Digipomps/Sprout/pull/4",
+    "sproutResult": "GitHub account payment/spending gate, jobs not started",
+    "docsPR": "https://github.com/Digipomps/CellProtocolDocuments/pull/26",
+    "benchmarkRun": 36469713329,
+    "benchmarkResult": "pass",
+    "macRetryAttempt": 2
+  },
+  "serverReleaseStatus": "HANDOFF_REQUIRED"
+}

@@ -1,0 +1,79 @@
+{
+  "name": "component-surface-two-local-mounts-wide",
+  "host": "porthole-webo.css light baseline",
+  "viewport": {
+    "width": 1280,
+    "height": 1000
+  },
+  "deviceScaleFactor": 2,
+  "materialized": false,
+  "styleNormalizationApplied": false,
+  "content": "Program\nFra verten\nOppdater\nSesjoner\nFra verten\nOppdater",
+  "fieldValues": [],
+  "expectedTextCount": 4,
+  "missingExpectedText": [],
+  "errors": [],
+  "geometry": {
+    "box": {
+      "x": 50,
+      "y": 16,
+      "width": 1180,
+      "height": 188,
+      "top": 16,
+      "right": 1230,
+      "bottom": 204,
+      "left": 50
+    },
+    "scrollWidth": 1180,
+    "clientWidth": 1180
+  },
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "Oppdater",
+      "box": {
+        "x": 50,
+        "y": 72,
+        "width": 1180,
+        "height": 33,
+        "top": 72,
+        "right": 1230,
+        "bottom": 105,
+        "left": 50
+      },
+      "font": "600 13.3333px Arial",
+      "color": "rgb(217, 251, 255)",
+      "background": "rgba(0, 0, 0, 0) linear-gradient(135deg, rgb(23, 49, 64), rgb(32, 70, 87)) repeat scroll 0% 0% / auto padding-box border-box",
+      "padding": "8px 12px",
+      "border": "1px solid rgb(45, 86, 107)",
+      "borderRadius": "10px",
+      "boxSizing": "border-box"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Oppdater",
+      "box": {
+        "x": 50,
+        "y": 171,
+        "width": 1180,
+        "height": 33,
+        "top": 171,
+        "right": 1230,
+        "bottom": 204,
+        "left": 50
+      },
+      "font": "600 13.3333px Arial",
+      "color": "rgb(217, 251, 255)",
+      "background": "rgba(0, 0, 0, 0) linear-gradient(135deg, rgb(23, 49, 64), rgb(32, 70, 87)) repeat scroll 0% 0% / auto padding-box border-box",
+      "padding": "8px 12px",
+      "border": "1px solid rgb(45, 86, 107)",
+      "borderRadius": "10px",
+      "boxSizing": "border-box"
+    }
+  ],
+  "images": [],
+  "assetHashes": {
+    "/css/porthole-webo.css": "2ffbe93e27c08ad5a18a2a8ea8597994c806a6991e212aee0c3058fbbae15c04",
+    "/js/skeleton-runtime.js": "4f957ac8206f6777b7845d3cc41eec10c94bfb7ca8ca572f77c95cff6735b508"
+  }
+}

@@ -1,0 +1,117 @@
+{
+  "cellReferences" : [
+    {
+      "endpoint" : "cell:\/\/\/SkeletonParityUnavailableFixture",
+      "label" : "fixture",
+      "setKeysAndValues" : [
+        {
+          "key" : "state"
+        }
+      ],
+      "subscribeFeed" : true,
+      "subscriptions" : [
+
+      ]
+    }
+  ],
+  "description" : "Loading and unavailable placeholder contract.",
+  "discovery" : {
+    "interests" : [
+      "skeleton",
+      "parity",
+      "unavailable"
+    ],
+    "menuSlots" : [
+
+    ],
+    "purpose" : "Skeleton Parity Unavailable Fixture",
+    "purposeDescription" : "Loading and unavailable placeholder contract.",
+    "sourceCellEndpoint" : "cell:\/\/\/SkeletonParityUnavailableFixture",
+    "sourceCellName" : "SkeletonParityUnavailableFixture"
+  },
+  "name" : "Skeleton Parity Unavailable Fixture",
+  "skeleton" : {
+    "VStack" : [
+      {
+        "Section" : {
+          "content" : [
+            {
+              "Text" : {
+                "keypath" : "fixture.state.headline"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.mode"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.placeholder"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.status"
+              }
+            },
+            {
+              "List" : {
+                "elements" : [
+
+                ],
+                "flowElementSkeleton" : {
+                  "VStack" : [
+                    {
+                      "Text" : {
+                        "keypath" : "title"
+                      }
+                    },
+                    {
+                      "Text" : {
+                        "keypath" : "subtitle"
+                      }
+                    },
+                    {
+                      "Text" : {
+                        "keypath" : "detail"
+                      }
+                    },
+                    {
+                      "Text" : {
+                        "keypath" : "badge",
+                        "modifiers" : {
+                          "background" : "#20313B",
+                          "cornerRadius" : 8,
+                          "foregroundColor" : "#D9FBFF",
+                          "padding" : 6
+                        }
+                      }
+                    }
+                  ]
+                },
+                "keypath" : "fixture.state.rows"
+              }
+            },
+            {
+              "Button" : {
+                "keypath" : "dispatchAction",
+                "label" : "Toggle placeholder",
+                "payload" : {
+                  "keypath" : "toggleUnavailable",
+                  "payload" : true
+                }
+              }
+            }
+          ],
+          "header" : {
+            "Text" : {
+              "text" : "Unavailable Fixture"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "uuid" : "F47D1FEB-AFA2-4B61-898D-8112141CCA13"
+}

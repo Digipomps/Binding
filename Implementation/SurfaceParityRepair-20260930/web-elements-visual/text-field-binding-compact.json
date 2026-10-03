@@ -1,0 +1,61 @@
+{
+  "name": "text-field-binding-compact",
+  "host": "porthole-webo.css light baseline",
+  "viewport": {
+    "width": 390,
+    "height": 1000
+  },
+  "deviceScaleFactor": 2,
+  "materialized": false,
+  "styleNormalizationApplied": false,
+  "content": "",
+  "fieldValues": [
+    "Initial title"
+  ],
+  "expectedTextCount": 1,
+  "missingExpectedText": [],
+  "errors": [],
+  "geometry": {
+    "box": {
+      "x": 16,
+      "y": 16,
+      "width": 358,
+      "height": 36,
+      "top": 16,
+      "right": 374,
+      "bottom": 52,
+      "left": 16
+    },
+    "scrollWidth": 358,
+    "clientWidth": 358
+  },
+  "controls": [
+    {
+      "tag": "INPUT",
+      "text": "",
+      "box": {
+        "x": 16,
+        "y": 16,
+        "width": 358,
+        "height": 36,
+        "top": 16,
+        "right": 374,
+        "bottom": 52,
+        "left": 16
+      },
+      "font": "16px -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "color": "rgb(213, 228, 237)",
+      "background": "rgb(16, 33, 44) none repeat scroll 0% 0% / auto padding-box border-box",
+      "padding": "8px",
+      "border": "1px solid rgb(36, 68, 87)",
+      "borderRadius": "8px",
+      "boxSizing": "border-box"
+    }
+  ],
+  "images": [],
+  "selectedTexts": [],
+  "assetHashes": {
+    "/css/porthole-webo.css": "2ffbe93e27c08ad5a18a2a8ea8597994c806a6991e212aee0c3058fbbae15c04",
+    "/js/skeleton-runtime.js": "4f957ac8206f6777b7845d3cc41eec10c94bfb7ca8ca572f77c95cff6735b508"
+  }
+}

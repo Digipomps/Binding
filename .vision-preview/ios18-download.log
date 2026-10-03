@@ -1,0 +1,24 @@
++ echo '===== INSTALLERTE RUNTIMES FØR ====='
+===== INSTALLERTE RUNTIMES FØR =====
++ xcrun simctl runtime list
+== Disk Images ==
+-- iOS --
+iOS 26.1 (23B86) - 272E7A78-6314-4BC6-8901-EBD799B1D71D (Ready)
+iOS 17.0 (21A328) - 728B5AF0-9FC8-4C28-9D13-9B517B66FA2E (Ready)
+iOS 26.2 (23C54) - C8AD870B-AA8F-4801-BA55-A798DC4958B2 (Ready)
+iOS 17.4 (21E213) - F0B9EC99-16E4-4C5F-9CC7-DEBC96E560B5 (Ready)
+iOS 18.6 (22G86) - 41A225A8-5608-41F3-BE2B-2088C1A3755C (Ready)
+iOS 17.2 (21C62) - FB07C210-4D47-4DEB-80CE-11ECDA33B682 (Ready)
+-- tvOS --
+tvOS 16.0 (20J5355f) - 57451886-E33F-4E2B-81BB-93800C902040 (Ready)
+-- watchOS --
+watchOS 9.0 (20R5343e) - 1BEB6BCF-FDA1-4C1B-887B-479D87A606E1 (Ready)
+watchOS 26.2 (23S303) - F09F9239-F4E8-4BB0-8696-31571BE66CE1 (Ready)
+
+Total Disk Images: 9 (57.9G)
++ echo '===== FORSØK NEDLASTING ====='
+===== FORSØK NEDLASTING =====
++ for V in 18.6 18.5 18.4 18.2 18.0
++ echo '--- prøver iOS 18.6 ---'
+--- prøver iOS 18.6 ---
++ xcodebuild -downloadPlatform iOS -buildVersion 18.6

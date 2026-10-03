@@ -1,0 +1,88 @@
+{
+  "original": {
+    "sha256": "dd6a56333521da0ae07ff2611707e49b2107c2298616f11b9ba950d116d71143",
+    "size": 68,
+    "signatureValid": true,
+    "chunks": [
+      {
+        "type": "IHDR",
+        "length": 13,
+        "crcValid": true
+      },
+      {
+        "type": "IDAT",
+        "length": 11,
+        "crcValid": false
+      },
+      {
+        "type": "IEND",
+        "length": 0,
+        "crcValid": true
+      }
+    ],
+    "zlibError": "Error -3 while decompressing data: incorrect data check",
+    "chromium": {
+      "decodeSucceeded": true,
+      "naturalWidth": 1,
+      "naturalHeight": 1,
+      "rgbaAtOriginalPixel": [
+        255,
+        255,
+        255,
+        255
+      ]
+    }
+  },
+  "corrected": {
+    "sha256": "3c5d121d012f4fa54846b5fdac94dd08a5cc3d93bac8b1032acdf64d4edd0f0e",
+    "size": 124,
+    "width": 32,
+    "height": 32,
+    "bitDepth": 8,
+    "colorType": 6,
+    "rgbaQuadrants": [
+      [
+        220,
+        40,
+        40,
+        255
+      ],
+      [
+        20,
+        170,
+        70,
+        255
+      ],
+      [
+        30,
+        90,
+        220,
+        255
+      ],
+      [
+        245,
+        195,
+        20,
+        255
+      ]
+    ],
+    "chunks": [
+      {
+        "type": "IHDR",
+        "length": 13,
+        "crcValid": true
+      },
+      {
+        "type": "IDAT",
+        "length": 67,
+        "crcValid": true
+      },
+      {
+        "type": "IEND",
+        "length": 0,
+        "crcValid": true
+      }
+    ],
+    "inflatedBytes": 4128
+  }
+}

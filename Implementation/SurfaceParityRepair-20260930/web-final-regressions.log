@@ -1,0 +1,31 @@
+
+Running 22 tests using 1 worker
+
+(node:63309) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:63309) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 playwright/skeleton-element-catalog.spec.js:51:3 › Skeleton element catalog › renders and operates the baseline SkeletonElement corpus on desktop and mobile (873ms)
+  ✓   2 playwright/skeleton-element-catalog.spec.js:202:3 › Skeleton element catalog › WP-R2 Tree: every key, cell confirmation, disclosure isolation, ID focus and ARIA (270ms)
+  ✓   3 playwright/skeleton-element-catalog.spec.js:282:3 › Skeleton element catalog › WP-R2 Tree: focus scrolls to a visible node and survives reordered data (162ms)
+  ✓   4 playwright/skeleton-element-catalog.spec.js:297:3 › Skeleton element catalog › WP-R2 ComponentSurface: exact R1c two-instance oracle and separate action metadata (252ms)
+  ✓   5 playwright/skeleton-element-catalog.spec.js:322:3 › Skeleton element catalog › WP-R2 ComponentSurface: revision remount keeps instance, draft, focus and scroll (173ms)
+  ✓   6 playwright/skeleton-element-catalog.spec.js:348:3 › Skeleton element catalog › WP-R2 M7: declared grid column, first match, capabilities and stable controls (213ms)
+  ✓   7 playwright/skeleton-element-catalog.spec.js:379:3 › Skeleton element catalog › WP-R2 M7: fixed panel narrows, undeclared container inherits, condition and height gate (148ms)
+  ✓   8 playwright/skeleton-element-catalog.spec.js:391:3 › Skeleton element catalog › WP-R2 M1–M6 M9 M10 R1 R7 R8: computed styles and accessible plain control (362ms)
+  ✓   9 playwright/skeleton-element-catalog.spec.js:432:3 › Skeleton element catalog › WP-R2 M8/R4: real drag dims source and host, marks every accepting target, cancels and drops (316ms)
+  ✓  10 playwright/skeleton-element-catalog.spec.js:473:3 › Skeleton element catalog › WP-R2 M8 hover/focusVisible and invalid ComponentSurface diagnostic (631ms)
+  ✓  11 playwright/skeleton-list-static-elements.spec.js:47:5 › List static elements at 1180px › renders static-only scalar values without a keypath or template (98ms)
+  ✓  12 playwright/skeleton-list-static-elements.spec.js:54:5 › List static elements at 1180px › appends templated static rows after bound rows and preserves duplicate identities (97ms)
+  ✓  13 playwright/skeleton-list-static-elements.spec.js:63:5 › List static elements at 1180px › keeps static rows through bound replacements, empty, missing and non-list state (113ms)
+  ✓  14 playwright/skeleton-list-static-elements.spec.js:79:5 › List static elements at 1180px › selection payload indexes and IDs follow the combined list, including after refresh (197ms)
+  ✓  15 playwright/skeleton-list-static-elements.spec.js:47:5 › List static elements at 390px › renders static-only scalar values without a keypath or template (91ms)
+  ✓  16 playwright/skeleton-list-static-elements.spec.js:54:5 › List static elements at 390px › appends templated static rows after bound rows and preserves duplicate identities (97ms)
+  ✓  17 playwright/skeleton-list-static-elements.spec.js:63:5 › List static elements at 390px › keeps static rows through bound replacements, empty, missing and non-list state (113ms)
+  ✓  18 playwright/skeleton-list-static-elements.spec.js:79:5 › List static elements at 390px › selection payload indexes and IDs follow the combined list, including after refresh (198ms)
+  ✓  19 playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside VStack at 390px (97ms)
+  ✓  20 playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside HStack at 390px (97ms)
+  ✓  21 playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside VStack at 1180px (102ms)
+  ✓  22 playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside HStack at 1180px (97ms)
+
+  22 passed (5.3s)

@@ -1,0 +1,361 @@
+warning: '--skip-update' option is deprecated and will be removed in a future release
+warning: 'cellprotocol': found 3 file(s) which are unhandled; explicitly declare them as resources or exclude from the target
+    /private/tmp/haven-owner-attach-runtime/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell-Design.md
+    /private/tmp/haven-owner-attach-runtime/CellProtocol/Sources/CellApple/Intelligence/Architecture.md
+    /private/tmp/haven-owner-attach-runtime/CellProtocol/Sources/CellApple/Intelligence/ChatLog.md
+Building for debugging...
+[Computing dependencies]
+[Using on-disk description]
+[1 / 8] Crypto
+[1 / 11] CellBase
+[2 / 11] CellBase
+[4 / 13] CellBase
+/private/tmp/haven-owner-attach-runtime/CellProtocol/Sources/CellBase/PersistingCells/EntityRelationRecordV1.swift:321:16: warning: stored property 'entityRepresentation' of 'Sendable'-conforming struct 'EntityRelationRecord' contains non-Sendable type 'EntityRepresentation'; this is an error in the Swift 6 language mode
+ 319 |     /// Canonical owner-held knowledge when present. The legacy subject/tags/
+ 320 |     /// purposeRefs remain readable for existing clients and import adapters.
+ 321 |     public var entityRepresentation: EntityRepresentation?
+     |                `- warning: stored property 'entityRepresentation' of 'Sendable'-conforming struct 'EntityRelationRecord' contains non-Sendable type 'EntityRepresentation'; this is an error in the Swift 6 language mode
+ 322 | 
+ 323 |     public init(
+
+/private/tmp/haven-owner-attach-runtime/CellProtocol/Sources/CellBase/PurposeAndInterest/EntityRepresentation.swift:61:14: note: class 'EntityRepresentation' does not conform to the 'Sendable' protocol
+ 59 | 
+ 60 | 
+ 61 | public class EntityRepresentation:  PerspectiveNodeImpl {
+    |              `- note: class 'EntityRepresentation' does not conform to the 'Sendable' protocol
+ 62 | 
+ 63 |     var fulfilled: Fullfilled = Fullfilled() // Until Interests and Purposes are moved
+
+/private/tmp/haven-owner-attach-runtime/CellProtocol/Sources/CellBase/PurposeAndInterest/ClaimComposition.swift:36:16: warning: stored property 'composition' of 'Sendable'-conforming struct 'ClaimCounter' has non-Sendable type 'ClaimComposition'; this is an error in the Swift 6 language mode
+ 34 | public struct ClaimCounter: Codable, Equatable, Sendable {
+ 35 |     public var role: ClaimCounterRole
+ 36 |     public var composition: ClaimComposition
+    |                `- warning: stored property 'composition' of 'Sendable'-conforming struct 'ClaimCounter' has non-Sendable type 'ClaimComposition'; this is an error in the Swift 6 language mode
+ 37 | 
+ 38 |     public init(role: ClaimCounterRole, composition: ClaimComposition) {
+    :
+187 | }
+188 | 
+189 | public indirect enum ClaimComposition: Codable, Equatable {
+    |                      `- note: consider making enum 'ClaimComposition' conform to the 'Sendable' protocol
+190 |     case claim(ClaimCompositionLeaf)
+191 |     // allOf: linked premises, weakest link decides the score.
+
+/private/tmp/haven-owner-attach-runtime/CellProtocol/Sources/CellBase/PurposeAndInterest/ClaimDefinition.swift:91:16: warning: stored property 'composition' of 'Sendable'-conforming struct 'ClaimDefinition' contains non-Sendable type 'ClaimComposition'; this is an error in the Swift 6 language mode
+ 89 |     public var goalID: String?
+ 90 |     public var supports: [ClaimSupportNode]
+ 91 |     public var composition: ClaimComposition?
+    |                `- warning: stored property 'composition' of 'Sendable'-conforming struct 'ClaimDefinition' contains non-Sendable type 'ClaimComposition'; this is an error in the Swift 6 language mode
+ 92 |     public var tags: [String]
+ 93 | 
+
+/private/tmp/haven-owner-attach-runtime/CellProtocol/Sources/CellBase/PurposeAndInterest/ClaimComposition.swift:189:22: note: consider making enum 'ClaimComposition' conform to the 'Sendable' protocol
+187 | }
+188 | 
+189 | public indirect enum ClaimComposition: Codable, Equatable {
+    |                      `- note: consider making enum 'ClaimComposition' conform to the 'Sendable' protocol
+190 |     case claim(ClaimCompositionLeaf)
+191 |     // allOf: linked premises, weakest link decides the score.
+
+/private/tmp/haven-owner-attach-runtime/CellProtocol/Sources/CellBase/PurposeAndInterest/PerspectiveEntityProjection.swift:30:16: warning: stored property 'entities' of 'Sendable'-conforming struct 'PerspectiveEntityProjection' contains non-Sendable type 'Weight<EntityRepresentation>'; this is an error in the Swift 6 language mode
+ 28 |     /// delayed write cannot resurrect entities a newer one removed.
+ 29 |     public let epoch: Int
+ 30 |     public let entities: [Weight<EntityRepresentation>]
+    |                `- warning: stored property 'entities' of 'Sendable'-conforming struct 'PerspectiveEntityProjection' contains non-Sendable type 'Weight<EntityRepresentation>'; this is an error in the Swift 6 language mode
+ 31 | 
+ 32 |     public init(source: String, epoch: Int, entities: [Weight<EntityRepresentation>]) {
+
+/private/tmp/haven-owner-attach-runtime/CellProtocol/Sources/CellBase/PurposeAndInterest/Weight.swift:13:15: note: consider making generic struct 'Weight' conform to the 'Sendable' protocol
+ 11 | import Foundation
+ 12 | 
+ 13 | public struct Weight<T: PerspectiveNode & Codable> :  Weighted, Codable {
+    |               `- note: consider making generic struct 'Weight' conform to the 'Sendable' protocol
+ 14 |     
+ 15 |     
+
+/private/tmp/haven-owner-attach-runtime/CellProtocol/Sources/CellBase/PurposeAndInterest/RelationalLearningModels.swift:95:16: warning: stored property 'payload' of 'Sendable'-conforming struct 'RelationalLearningEventEnvelope' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+ 93 |     public var schemaVersion: String
+ 94 |     public var emittedAt: TimeInterval
+ 95 |     public var payload: Object
+    |                `- warning: stored property 'payload' of 'Sendable'-conforming struct 'RelationalLearningEventEnvelope' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+ 96 | 
+ 97 |     public init(eventType: RelationalLearningEventType,
+
+/private/tmp/haven-owner-attach-runtime/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: consider making enum 'ValueType' conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: consider making enum 'ValueType' conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+[8 / 13] CellBase
+[9 / 14] CellBase
+[9 / 15] CCryptoBoringSSL
+[10 / 13] CellBaseTests-product
+[12 / 15] CellBaseTests-product
+[17 / 19] CellBaseTests-product
+[19 / 19] CellBaseTests-product
+[20 / 20] CellApple-product
+[25 / 25] CellBase-product
+[25 / 26] ReferenceLoadBenchmark-product
+[26 / 26] haven-commons-product
+[27 / 28] CellRuntimeBenchmarks-product
+[28 / 28] CellRuntimeBenchmarks-product
+Build complete! (9,77 sek)
+Test Suite 'Selected tests' started at 2026-09-28 19:23:43.673.
+Test Suite 'HavenCommonsTests.xctest' started at 2026-09-28 19:23:43.674.
+Test Suite 'HavenCommonsTests.xctest' passed at 2026-09-28 19:23:43.674.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-28 19:23:43.674.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'Selected tests' started at 2026-09-28 19:23:43.744.
+Test Suite 'CellNearbyTests.xctest' started at 2026-09-28 19:23:43.745.
+Test Suite 'CellNearbyTests.xctest' passed at 2026-09-28 19:23:43.745.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-28 19:23:43.745.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'Selected tests' started at 2026-09-28 19:23:43.813.
+Test Suite 'CellBaseTests.xctest' started at 2026-09-28 19:23:43.814.
+Test Suite 'BridgeIdentityBoundaryTests' started at 2026-09-28 19:23:43.814.
+Test Case '-[CellBaseTests.BridgeIdentityBoundaryTests testCopiedPublicOwnerCannotUseServerVaultForProtectedRead]' started.
+Test Case '-[CellBaseTests.BridgeIdentityBoundaryTests testCopiedPublicOwnerCannotUseServerVaultForProtectedRead]' passed (0.005 seconds).
+Test Case '-[CellBaseTests.BridgeIdentityBoundaryTests testGuestCanCreateAndReadOwnSurfaceOverBridge]' started.
+Test Case '-[CellBaseTests.BridgeIdentityBoundaryTests testGuestCanCreateAndReadOwnSurfaceOverBridge]' passed (0.002 seconds).
+Test Case '-[CellBaseTests.BridgeIdentityBoundaryTests testHouseCannotReadGuestDataOrUseCopiedGuestDescriptorOverBridge]' started.
+Test Case '-[CellBaseTests.BridgeIdentityBoundaryTests testHouseCannotReadGuestDataOrUseCopiedGuestDescriptorOverBridge]' passed (0.002 seconds).
+Test Case '-[CellBaseTests.BridgeIdentityBoundaryTests testOwnerAttachPresenceOverBridgeUsesScopedFreshProofAndExplicitConsent]' started.
+Test Case '-[CellBaseTests.BridgeIdentityBoundaryTests testOwnerAttachPresenceOverBridgeUsesScopedFreshProofAndExplicitConsent]' passed (0.004 seconds).
+Test Case '-[CellBaseTests.BridgeIdentityBoundaryTests testPairedBridgesCreateFreshGuestSurfaceOnlyWithinExplicitProofScopes]' started.
+Test Case '-[CellBaseTests.BridgeIdentityBoundaryTests testPairedBridgesCreateFreshGuestSurfaceOnlyWithinExplicitProofScopes]' passed (0.002 seconds).
+Test Case '-[CellBaseTests.BridgeIdentityBoundaryTests testPeerThatControlsOwnerKeyCanStillReadThroughBridge]' started.
+Test Case '-[CellBaseTests.BridgeIdentityBoundaryTests testPeerThatControlsOwnerKeyCanStillReadThroughBridge]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.BridgeIdentityBoundaryTests testRevokingOneBridgeFeedPreservesTheOtherBridgeFeed]' started.
+Test Case '-[CellBaseTests.BridgeIdentityBoundaryTests testRevokingOneBridgeFeedPreservesTheOtherBridgeFeed]' passed (0.007 seconds).
+Test Case '-[CellBaseTests.BridgeIdentityBoundaryTests testSetResponseReflectsActualWriteSuccessAndFailure]' started.
+Test Case '-[CellBaseTests.BridgeIdentityBoundaryTests testSetResponseReflectsActualWriteSuccessAndFailure]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.BridgeIdentityBoundaryTests testTwoSerializedBridgeEndpointsReadWithClientProofThenCloseSigningAuthority]' started.
+Test Case '-[CellBaseTests.BridgeIdentityBoundaryTests testTwoSerializedBridgeEndpointsReadWithClientProofThenCloseSigningAuthority]' passed (0.001 seconds).
+Test Suite 'BridgeIdentityBoundaryTests' passed at 2026-09-28 19:23:43.841.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.026 (0.026) seconds
+Test Suite 'ExploreContractValidatorTests' started at 2026-09-28 19:23:43.841.
+Test Case '-[CellBaseTests.ExploreContractValidatorTests testCanonicalNamedValueTypesPreserveWireCaseAndValidateLegacyLowercaseSchemas]' started.
+Test Case '-[CellBaseTests.ExploreContractValidatorTests testCanonicalNamedValueTypesPreserveWireCaseAndValidateLegacyLowercaseSchemas]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.ExploreContractValidatorTests testDeepEqualPreservesContractProbeComparisonSemantics]' started.
+Test Case '-[CellBaseTests.ExploreContractValidatorTests testDeepEqualPreservesContractProbeComparisonSemantics]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.ExploreContractValidatorTests testDefaultSampleAndInvalidInputUseExploreSchemaDialect]' started.
+Test Case '-[CellBaseTests.ExploreContractValidatorTests testDefaultSampleAndInvalidInputUseExploreSchemaDialect]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.ExploreContractValidatorTests testOneOfAcceptsAnyMatchingExploreOptionAndRejectsNonMatchingValue]' started.
+Test Case '-[CellBaseTests.ExploreContractValidatorTests testOneOfAcceptsAnyMatchingExploreOptionAndRejectsNonMatchingValue]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.ExploreContractValidatorTests testUnknownSchemaAndMissingOptionalPropertiesMatchCurrentExploreSemantics]' started.
+Test Case '-[CellBaseTests.ExploreContractValidatorTests testUnknownSchemaAndMissingOptionalPropertiesMatchCurrentExploreSemantics]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.ExploreContractValidatorTests testValidateListReportsItemPath]' started.
+Test Case '-[CellBaseTests.ExploreContractValidatorTests testValidateListReportsItemPath]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.ExploreContractValidatorTests testValidateObjectReportsPathSpecificRequiredAndTypeIssues]' started.
+Test Case '-[CellBaseTests.ExploreContractValidatorTests testValidateObjectReportsPathSpecificRequiredAndTypeIssues]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.ExploreContractValidatorTests testValidatorIssueCanBeEncodedForProbeArtifacts]' started.
+Test Case '-[CellBaseTests.ExploreContractValidatorTests testValidatorIssueCanBeEncodedForProbeArtifacts]' passed (0.000 seconds).
+Test Suite 'ExploreContractValidatorTests' passed at 2026-09-28 19:23:43.842.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'GeneralCellInterfaceTests' started at 2026-09-28 19:23:43.842.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testAgreementRequestCannotOutliveCurrentTemplate]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testAgreementRequestCannotOutliveCurrentTemplate]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testAttachDeniedEmitsConnectChallenge]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testAttachDeniedEmitsConnectChallenge]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testAttachSignContractWithConditionalEngagementIncludesHelperConfiguration]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testAttachSignContractWithConditionalEngagementIncludesHelperConfiguration]' passed (0.002 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testAttachSignContractWithUnmetConditionEmitsConnectChallenge]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testAttachSignContractWithUnmetConditionEmitsConnectChallenge]' passed (0.003 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testAutomaticAdmissionRequiresPredicateBoundProvedClaim]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testAutomaticAdmissionRequiresPredicateBoundProvedClaim]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testCatalogRetainsLegacyBaseAlongsideMethodSpecificContract]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testCatalogRetainsLegacyBaseAlongsideMethodSpecificContract]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testCellSpecificAccessHookAllowsSubclassManagedReadWithoutContract]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testCellSpecificAccessHookAllowsSubclassManagedReadWithoutContract]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testChangingPolicyBindingRevokesPreviouslyIssuedContract]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testChangingPolicyBindingRevokesPreviouslyIssuedContract]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testConcurrentFirstRemovalAndAdditionAfterRestartDoNotResurrectRevokedContract]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testConcurrentFirstRemovalAndAdditionAfterRestartDoNotResurrectRevokedContract]' passed (0.003 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testConcurrentRepeatedAgreementIssuanceIsIdempotent]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testConcurrentRepeatedAgreementIssuanceIsIdempotent]' passed (0.012 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testCurrentAgreementTemplateRevokesPreviouslyIssuedGrant]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testCurrentAgreementTemplateRevokesPreviouslyIssuedGrant]' passed (0.002 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testDecodedAbsorbCellInstallsFeedBindingBeforeAttachmentAndSubscription]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testDecodedAbsorbCellInstallsFeedBindingBeforeAttachmentAndSubscription]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testDefaultAdmissionPolicyRejectsConditionlessAutomaticWriteContract]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testDefaultAdmissionPolicyRejectsConditionlessAutomaticWriteContract]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testEmptyMeddleKeypathsFailWithoutBreakingValidReads]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testEmptyMeddleKeypathsFailWithoutBreakingValidReads]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testExactChildGrantCannotReachLegacyRootGetterOrSetter]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testExactChildGrantCannotReachLegacyRootGetterOrSetter]' passed (0.002 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testExplicitOwnerPublishedReadPolicyAllowsOnlyTemplateBoundRead]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testExplicitOwnerPublishedReadPolicyAllowsOnlyTemplateBoundRead]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testExplicitSchemaRegistrationForGetAndSet]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testExplicitSchemaRegistrationForGetAndSet]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testFirstAgreementAfterRestartPreservesExistingAuthorizations]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testFirstAgreementAfterRestartPreservesExistingAuthorizations]' passed (0.002 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testFirstRemovalAfterRestartPreservesOtherAuthorizations]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testFirstRemovalAfterRestartPreservesOtherAuthorizations]' passed (0.002 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testGetInterceptReturnsValue]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testGetInterceptReturnsValue]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testNonOwnerAllowedWithSignedContract]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testNonOwnerAllowedWithSignedContract]' passed (0.002 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testNonOwnerDeniedWithoutContract]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testNonOwnerDeniedWithoutContract]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testOperationCatalogRetainsLegacySchemaWithoutMethodMetadata]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testOperationCatalogRetainsLegacySchemaWithoutMethodMetadata]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testOwnerLookupReturnsPublicDescriptorWithoutAuthority]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testOwnerLookupReturnsPublicDescriptorWithoutAuthority]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testOwnerProofAndRuntimeRestoreRequireSigningControl]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testOwnerProofAndRuntimeRestoreRequireSigningControl]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testOwnerPublishedReadRejectsLatentOtherPermissionBits]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testOwnerPublishedReadRejectsLatentOtherPermissionBits]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testPermissiveAndWarnHandlersRetainExplicitMethodlessLegacySchema]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testPermissiveAndWarnHandlersRetainExplicitMethodlessLegacySchema]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testPersistedOwnerProofUsesStoredPublicKeyNotUUID]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testPersistedOwnerProofUsesStoredPublicKeyNotUUID]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testPolicyBoundAgreementRequiresExactTemplateBinding]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testPolicyBoundAgreementRequiresExactTemplateBinding]' passed (0.002 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testRegisterExploreContractSupportsFlowEffects]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testRegisterExploreContractSupportsFlowEffects]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testRemovingMemberRevokesContractsAcrossRestart]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testRemovingMemberRevokesContractsAcrossRestart]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testRequesterCannotEscalateAgreementBeyondCellTemplate]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testRequesterCannotEscalateAgreementBeyondCellTemplate]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testRequesterCannotEscalatePermissionOnPublishedTemplateKey]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testRequesterCannotEscalatePermissionOnPublishedTemplateKey]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testResolverUsesCentralAuthorizationDecisionBeforeMeddle]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testResolverUsesCentralAuthorizationDecisionBeforeMeddle]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testRetryAdmissionSessionReconnectsAfterConditionBecomesMet]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testRetryAdmissionSessionReconnectsAfterConditionBecomesMet]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testRootGrantStillAuthorizesExactHandlerCompatibilityFallback]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testRootGrantStillAuthorizesExactHandlerCompatibilityFallback]' passed (0.002 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testSequentialAttachRequestsDoNotMutatePublishedAgreementTemplate]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testSequentialAttachRequestsDoNotMutatePublishedAgreementTemplate]' passed (0.003 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testSetInterceptRegistersSchemaAndReturnsValue]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testSetInterceptRegistersSchemaAndReturnsValue]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testSignedContractAccessUsesStoredSignatoryPublicKeyNotUUID]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testSignedContractAccessUsesStoredSignatoryPublicKeyNotUUID]' passed (0.003 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testSignedContractsPersistAcrossGeneralCellDecode]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testSignedContractsPersistAcrossGeneralCellDecode]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testStoragePermissionRequiresExplicitIdentityBoundSGrant]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testStoragePermissionRequiresExplicitIdentityBoundSGrant]' passed (0.003 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testStrictModeAllowsExplicitRegisterSetHelper]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testStrictModeAllowsExplicitRegisterSetHelper]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testStrictModeGetContractCannotAuthorizeSetHandler]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testStrictModeGetContractCannotAuthorizeSetHandler]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testStrictModeRejectsImplicitSetRegistration]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testStrictModeRejectsImplicitSetRegistration]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testStrictModeRejectsMethodlessLegacySchemaForHandlerInstallation]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testStrictModeRejectsMethodlessLegacySchemaForHandlerInstallation]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testStrictModeRequiresContractForExactHandlerMethod]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testStrictModeRequiresContractForExactHandlerMethod]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testUninitializedInterceptSetupRejectsForgedOwnerUUID]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testUninitializedInterceptSetupRejectsForgedOwnerUUID]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testVaultRefusesToSignWhenPresentedIdentityKeyDiffersFromStoredKey]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testVaultRefusesToSignWhenPresentedIdentityKeyDiffersFromStoredKey]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testVaultRefusesToSignWhenPresentedIdentityKeyIsMissing]' started.
+Test Case '-[CellBaseTests.GeneralCellInterfaceTests testVaultRefusesToSignWhenPresentedIdentityKeyIsMissing]' passed (0.000 seconds).
+Test Suite 'GeneralCellInterfaceTests' passed at 2026-09-28 19:23:43.909.
+	 Executed 49 tests, with 0 failures (0 unexpected) in 0.065 (0.067) seconds
+Test Suite 'IdentityLinkGenesisClassificationTests' started at 2026-09-28 19:23:43.909.
+Test Case '-[CellBaseTests.IdentityLinkGenesisClassificationTests testF1ClassificationRequiresVerifiedSealAndExactRecord]' started.
+Test Case '-[CellBaseTests.IdentityLinkGenesisClassificationTests testF1ClassificationRequiresVerifiedSealAndExactRecord]' passed (0.002 seconds).
+Test Case '-[CellBaseTests.IdentityLinkGenesisClassificationTests testF2GenesisRemainsAvailableToResolverEvidence]' started.
+Test Case '-[CellBaseTests.IdentityLinkGenesisClassificationTests testF2GenesisRemainsAvailableToResolverEvidence]' passed (0.001 seconds).
+Test Suite 'IdentityLinkGenesisClassificationTests' passed at 2026-09-28 19:23:43.912.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.003 (0.003) seconds
+Test Suite 'IdentityLinkRegistryBindingTests' started at 2026-09-28 19:23:43.912.
+Test Case '-[CellBaseTests.IdentityLinkRegistryBindingTests testOnlyLocalEntityAnchorBindingOpensTheEntity]' started.
+Test Case '-[CellBaseTests.IdentityLinkRegistryBindingTests testOnlyLocalEntityAnchorBindingOpensTheEntity]' passed (0.000 seconds).
+Test Suite 'IdentityLinkRegistryBindingTests' passed at 2026-09-28 19:23:43.912.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'IdentityLinkRegistryTests' started at 2026-09-28 19:23:43.912.
+Test Case '-[CellBaseTests.IdentityLinkRegistryTests testLinkedIdentityReadsAsOwnerAndRevocationDeniesAgain]' started.
+Test Case '-[CellBaseTests.IdentityLinkRegistryTests testLinkedIdentityReadsAsOwnerAndRevocationDeniesAgain]' passed (0.007 seconds).
+Test Case '-[CellBaseTests.IdentityLinkRegistryTests testScopeAndDomainFailClosed]' started.
+Test Case '-[CellBaseTests.IdentityLinkRegistryTests testScopeAndDomainFailClosed]' passed (0.008 seconds).
+Test Case '-[CellBaseTests.IdentityLinkRegistryTests testServerCannotMintLinkWhenPolicyRequiresFreshAuthEvidence]' started.
+Test Case '-[CellBaseTests.IdentityLinkRegistryTests testServerCannotMintLinkWhenPolicyRequiresFreshAuthEvidence]' passed (0.003 seconds).
+Test Case '-[CellBaseTests.IdentityLinkRegistryTests testStolenLinkRecordWithoutKeyControlIsDenied]' started.
+Test Case '-[CellBaseTests.IdentityLinkRegistryTests testStolenLinkRecordWithoutKeyControlIsDenied]' passed (0.004 seconds).
+Test Suite 'IdentityLinkRegistryTests' passed at 2026-09-28 19:23:43.934.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.022 (0.022) seconds
+Test Suite 'IdentityLinkRuntimePolicyTests' started at 2026-09-28 19:23:43.934.
+Test Case '-[CellBaseTests.IdentityLinkRuntimePolicyTests testApprovalEnvelopeCarriesFreshAuthEvidenceIntoSignedApproval]' started.
+Test Case '-[CellBaseTests.IdentityLinkRuntimePolicyTests testApprovalEnvelopeCarriesFreshAuthEvidenceIntoSignedApproval]' passed (0.002 seconds).
+Test Case '-[CellBaseTests.IdentityLinkRuntimePolicyTests testRuntimePolicyInstallAndReset]' started.
+Test Case '-[CellBaseTests.IdentityLinkRuntimePolicyTests testRuntimePolicyInstallAndReset]' passed (0.000 seconds).
+Test Suite 'IdentityLinkRuntimePolicyTests' passed at 2026-09-28 19:23:43.937.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'IdentityLinkingModelsTests' started at 2026-09-28 19:23:43.937.
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testChatCryptoSuiteRequiresAgilityMetadata]' started.
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testChatCryptoSuiteRequiresAgilityMetadata]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testContentCryptoPolicyDefaultsToExplicitSuiteSelection]' started.
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testContentCryptoPolicyDefaultsToExplicitSuiteSelection]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testEnrollmentApprovalCanonicalPayloadExcludesProof]' started.
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testEnrollmentApprovalCanonicalPayloadExcludesProof]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testEnrollmentRequestCanonicalPayloadExcludesProof]' started.
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testEnrollmentRequestCanonicalPayloadExcludesProof]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testFreshAuthEvidenceChallengeMustMatchRequestHash]' started.
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testFreshAuthEvidenceChallengeMustMatchRequestHash]' passed (0.003 seconds).
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testFreshAuthEvidenceIsRequiredWhenPolicyDemandsIt]' started.
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testFreshAuthEvidenceIsRequiredWhenPolicyDemandsIt]' passed (0.003 seconds).
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testFreshAuthEvidenceVerifierDecides]' started.
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testFreshAuthEvidenceVerifierDecides]' passed (0.005 seconds).
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testIdentityLinkCompletionAcceptsBoundCredentialAndRejectsReplay]' started.
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testIdentityLinkCompletionAcceptsBoundCredentialAndRejectsReplay]' passed (0.004 seconds).
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testIdentityLinkCompletionRejectsAudienceMismatch]' started.
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testIdentityLinkCompletionRejectsAudienceMismatch]' passed (0.003 seconds).
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testIdentityLinkCompletionRejectsHolderKeySubstitution]' started.
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testIdentityLinkCompletionRejectsHolderKeySubstitution]' passed (0.004 seconds).
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testIdentityLinkCompletionRejectsSameKeyOnBothSides]' started.
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testIdentityLinkCompletionRejectsSameKeyOnBothSides]' passed (0.003 seconds).
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testIdentityLinkCompletionRejectsWrongPresentationChallenge]' started.
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testIdentityLinkCompletionRejectsWrongPresentationChallenge]' passed (0.004 seconds).
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testSameEntityCredentialSubjectRoundTrips]' started.
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testSameEntityCredentialSubjectRoundTrips]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testSASWordsAreDeterministicFourWordsFromWordList]' started.
+Test Case '-[CellBaseTests.IdentityLinkingModelsTests testSASWordsAreDeterministicFourWordsFromWordList]' passed (0.000 seconds).
+Test Suite 'IdentityLinkingModelsTests' passed at 2026-09-28 19:23:43.966.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 0.029 (0.029) seconds
+Test Suite 'OwnerAttachEntityExtensionTests' started at 2026-09-28 19:23:43.966.
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testDeclineAndDetachDoNotWritePresenceOrBreakCellAccess]' started.
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testDeclineAndDetachDoNotWritePresenceOrBreakCellAccess]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testEncryptedStoreRoundTripAndTamperRejection]' started.
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testEncryptedStoreRoundTripAndTamperRejection]' passed (0.008 seconds).
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testExpiredAndOnceOnlyPoliciesCannotAuthorizeAutomatically]' started.
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testExpiredAndOnceOnlyPoliciesCannotAuthorizeAutomatically]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testFreshOwnerConsentCompletesOnceAcrossRetry]' started.
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testFreshOwnerConsentCompletesOnceAcrossRetry]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testGoldenOfferUsesISO8601AndRejectsMissingSignature]' started.
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testGoldenOfferUsesISO8601AndRejectsMissingSignature]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testNeverPolicySurvivesClientRestartWithoutSavingPresence]' started.
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testNeverPolicySurvivesClientRestartWithoutSavingPresence]' passed (0.002 seconds).
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testOfferIsBoundToReceiverCellDomainAndHumanKey]' started.
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testOfferIsBoundToReceiverCellDomainAndHumanKey]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testPersistenceFailureDoesNotClaimCompletion]' started.
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testPersistenceFailureDoesNotClaimCompletion]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testRealAttachOnlyInvokesExplicitUserContext]' started.
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testRealAttachOnlyInvokesExplicitUserContext]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testRevokedLinkedOwnerCannotReplaySavedConsent]' started.
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testRevokedLinkedOwnerCannotReplaySavedConsent]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testRuntimeMeddleClientPolicySurvivesRestartAndCanBeRemoved]' started.
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testRuntimeMeddleClientPolicySurvivesRestartAndCanBeRemoved]' passed (0.005 seconds).
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testSharedAccessCopiedDescriptorAndDebugBypassNeverQualify]' started.
+Test Case '-[CellBaseTests.OwnerAttachEntityExtensionTests testSharedAccessCopiedDescriptorAndDebugBypassNeverQualify]' passed (0.000 seconds).
+Test Suite 'OwnerAttachEntityExtensionTests' passed at 2026-09-28 19:23:43.990.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 0.023 (0.023) seconds
+Test Suite 'CellBaseTests.xctest' passed at 2026-09-28 19:23:43.990.
+	 Executed 101 tests, with 0 failures (0 unexpected) in 0.171 (0.175) seconds
+Test Suite 'Selected tests' passed at 2026-09-28 19:23:43.990.
+	 Executed 101 tests, with 0 failures (0 unexpected) in 0.171 (0.176) seconds
+Got no signed data!
+General CellBase.GeneralCell. Got owner identity but it failed to prove ownership!
+Got no signed data!
+General CellBase.GeneralCell. Got owner identity but it failed to prove ownership!
+Got no signed data!
+Got no signed data!
+General CellBase.GeneralCell. Linked identity D9FC4259-1480-4299-8615-E8D9E4D205B7 matched link genesis-resolver but failed to prove control of the linked key.
+Get random bytes failed
+General CellBase.GeneralCell. Linked identity 0ADCD9F3-EEF6-4146-89AF-6B987CB5367A matched link E109AFCF-0B86-4656-BE2B-9839F613F3D2 but failed to prove control of the linked key.
+General CellBaseTests.OwnerAttachEntityExtensionTests.SharedCell. Got owner identity but it failed to prove ownership!

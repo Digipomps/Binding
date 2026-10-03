@@ -1,0 +1,116 @@
+{
+  "cellReferences" : [
+    {
+      "endpoint" : "cell:\/\/\/SkeletonParityTextFixture",
+      "label" : "fixture",
+      "setKeysAndValues" : [
+        {
+          "key" : "state"
+        }
+      ],
+      "subscribeFeed" : true,
+      "subscriptions" : [
+
+      ]
+    }
+  ],
+  "description" : "Basic structure fixture for text, badges, divider, and wrapping.",
+  "discovery" : {
+    "interests" : [
+      "skeleton",
+      "parity",
+      "text"
+    ],
+    "menuSlots" : [
+
+    ],
+    "purpose" : "Skeleton Parity Text Fixture",
+    "purposeDescription" : "Basic structure fixture for text, badges, divider, and wrapping.",
+    "sourceCellEndpoint" : "cell:\/\/\/SkeletonParityTextFixture",
+    "sourceCellName" : "SkeletonParityTextFixture"
+  },
+  "name" : "Skeleton Parity Text Fixture",
+  "skeleton" : {
+    "VStack" : [
+      {
+        "Section" : {
+          "content" : [
+            {
+              "Text" : {
+                "keypath" : "fixture.state.headline"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.lead"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.badges.primary",
+                "modifiers" : {
+                  "background" : "#20313B",
+                  "cornerRadius" : 8,
+                  "foregroundColor" : "#D9FBFF",
+                  "padding" : 6
+                }
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.badges.secondary",
+                "modifiers" : {
+                  "background" : "#20313B",
+                  "cornerRadius" : 8,
+                  "foregroundColor" : "#D9FBFF",
+                  "padding" : 6
+                }
+              }
+            },
+            {
+              "Divider" : {
+
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.longText"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.structure.sectionHeadline"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.structure.sectionDetail"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.status"
+              }
+            },
+            {
+              "Button" : {
+                "keypath" : "dispatchAction",
+                "label" : "Acknowledge",
+                "payload" : {
+                  "keypath" : "acknowledge",
+                  "payload" : true
+                }
+              }
+            }
+          ],
+          "header" : {
+            "Text" : {
+              "text" : "Text Fixture"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "uuid" : "A17A241F-0E25-434E-B320-F73B561B9242"
+}

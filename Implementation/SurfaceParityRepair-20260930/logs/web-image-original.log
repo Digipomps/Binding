@@ -1,0 +1,96 @@
+
+Running 1 test using 1 worker
+
+(node:46582) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:46582) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 playwright/skeleton-element-catalog.spec.js:51:3 › Skeleton element catalog › renders and operates the baseline SkeletonElement corpus on desktop and mobile (446ms)
+
+
+  1) playwright/skeleton-element-catalog.spec.js:51:3 › Skeleton element catalog › renders and operates the baseline SkeletonElement corpus on desktop and mobile 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoEqual[2m([22m[32mexpected[39m[2m) // deep equality[22m
+
+    [32m- Expected  - 18[39m
+    [31m+ Received  + 18[39m
+
+    [2m  Object {[22m
+    [2m    "colors": Array [[22m
+    [2m      Array [[22m
+    [32m-       220,[39m
+    [32m-       40,[39m
+    [32m-       40,[39m
+    [32m-       255,[39m
+    [31m+       0,[39m
+    [31m+       0,[39m
+    [31m+       0,[39m
+    [31m+       0,[39m
+    [2m      ],[22m
+    [2m      Array [[22m
+    [32m-       20,[39m
+    [32m-       170,[39m
+    [32m-       70,[39m
+    [32m-       255,[39m
+    [31m+       0,[39m
+    [31m+       0,[39m
+    [31m+       0,[39m
+    [31m+       0,[39m
+    [2m      ],[22m
+    [2m      Array [[22m
+    [32m-       30,[39m
+    [32m-       90,[39m
+    [32m-       220,[39m
+    [32m-       255,[39m
+    [31m+       0,[39m
+    [31m+       0,[39m
+    [31m+       0,[39m
+    [31m+       0,[39m
+    [2m      ],[22m
+    [2m      Array [[22m
+    [32m-       245,[39m
+    [32m-       195,[39m
+    [32m-       20,[39m
+    [32m-       255,[39m
+    [31m+       0,[39m
+    [31m+       0,[39m
+    [31m+       0,[39m
+    [31m+       0,[39m
+    [2m      ],[22m
+    [2m    ],[22m
+    [32m-   "height": 32,[39m
+    [32m-   "width": 32,[39m
+    [31m+   "height": 1,[39m
+    [31m+   "width": 1,[39m
+    [2m  }[22m
+
+      175 |       };
+      176 |     });
+    > 177 |     expect(decoded).toEqual({ width: 32, height: 32, colors: [
+          |                     ^
+      178 |       [220, 40, 40, 255], [20, 170, 70, 255],
+      179 |       [30, 90, 220, 255], [245, 195, 20, 255],
+      180 |     ] });
+        at assertCatalogImage (/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/playwright/skeleton-element-catalog.spec.js:177:21)
+        at /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/playwright/skeleton-element-catalog.spec.js:110:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../web-image-original/skeleton-element-catalog-S-5c359-orpus-on-desktop-and-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../web-image-original/skeleton-element-catalog-S-5c359-orpus-on-desktop-and-mobile/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../web-image-original/skeleton-element-catalog-S-5c359-orpus-on-desktop-and-mobile/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../web-image-original/skeleton-element-catalog-S-5c359-orpus-on-desktop-and-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../web-image-original/skeleton-element-catalog-S-5c359-orpus-on-desktop-and-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    playwright/skeleton-element-catalog.spec.js:51:3 › Skeleton element catalog › renders and operates the baseline SkeletonElement corpus on desktop and mobile 

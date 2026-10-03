@@ -1,0 +1,60 @@
+{
+  "name": "unavailable-wide",
+  "host": "porthole-webo.css light baseline",
+  "viewport": {
+    "width": 1280,
+    "height": 1000
+  },
+  "deviceScaleFactor": 2,
+  "navigationBaseURL": "http://skeleton-parity.test/",
+  "materialized": false,
+  "styleNormalizationApplied": false,
+  "content": "Unavailable Fixture\nUnavailable and loading\nunavailable\nUnavailable by design for parity.\nIngen handlinger kjørt ennå.\nToggle placeholder",
+  "fieldValues": [],
+  "expectedTextCount": 2,
+  "missingExpectedText": [],
+  "errors": [],
+  "geometry": {
+    "box": {
+      "x": 50,
+      "y": 16,
+      "width": 1180,
+      "height": 176,
+      "top": 16,
+      "right": 1230,
+      "bottom": 192,
+      "left": 50
+    },
+    "scrollWidth": 1180,
+    "clientWidth": 1180
+  },
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "Toggle placeholder",
+      "box": {
+        "x": 63,
+        "y": 136,
+        "width": 147.234375,
+        "height": 33,
+        "top": 136,
+        "right": 210.234375,
+        "bottom": 169,
+        "left": 63
+      },
+      "font": "600 13.3333px Arial",
+      "color": "rgb(217, 251, 255)",
+      "background": "rgba(0, 0, 0, 0) linear-gradient(135deg, rgb(23, 49, 64), rgb(32, 70, 87)) repeat scroll 0% 0% / auto padding-box border-box",
+      "padding": "8px 12px",
+      "border": "1px solid rgb(45, 86, 107)",
+      "borderRadius": "10px",
+      "boxSizing": "border-box"
+    }
+  ],
+  "images": [],
+  "selectedTexts": [],
+  "assetHashes": {
+    "/css/porthole-webo.css": "07845ea4e7d0d0b71ce95bd042ace835fd98df5ec2ca69e1fd6d7f9247aca525",
+    "/js/skeleton-runtime.js": "4f957ac8206f6777b7845d3cc41eec10c94bfb7ca8ca572f77c95cff6735b508"
+  }
+}

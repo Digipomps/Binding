@@ -1,0 +1,19 @@
+Exported 1 attachment for: ParityNightUITests/testCompactLibraryTabsKeepFullLabelsAndSelection():
+File: 5ACCE1D8-512D-433C-9FFF-0BDE956D180D.png, suggested name: "library-compact-full-tab-labels-selected_0_BF7162EE-5489-4B68-BE7D-CFAA84C99E05.png"
+
+Exported 3 attachments for: ParityNightUITests/testFormFieldsAreEditableAndButtonPaddingReceivesTap():
+File: AC512E94-6B62-4CDA-869A-A328C0FC5A80.png, suggested name: "form-action-denied-without-identity_0_C87BD534-66FB-4A94-8D54-94239195FDBF.png"
+File: EB051075-2931-4E07-9CB5-CEE3250968A5.png, suggested name: "form-edit-with-keyboard_0_E180C207-F5A2-4D34-B5DE-D6EB5C30E5DE.png"
+File: D82CD33A-434F-40AA-AECE-CE35D5FA43B4.png, suggested name: "form-controls-before-edit_0_2F28A125-0C8C-4C79-B84B-C37ABE3C3A12.png"
+
+Exported 3 attachments for: ParityNightUITests/testLibraryAuthenticationFailureCanRetryAndClose():
+File: 24513EF6-D0F1-477C-9F9F-BC208FDD819B.png, suggested name: "library-closed-with-two-auth-attempts_0_1DAE3111-BE3E-4945-8159-3BA492CA6278.png"
+File: 2D7083F5-4BAF-4FC8-81ED-CA7D56AE093C.png, suggested name: "library-auth-stopped-after-retry_0_0B645B5A-AA66-428D-BD43-8FFFF7417A11.png"
+File: 56F545B9-14C1-4FAF-84DA-306C94BA8B35.png, suggested name: "library-auth-stopped-initial_0_35F8FCFD-1F38-4ACB-B0CE-3A4E5EDE5EBF.png"
+
+Exported 3 attachments for: ParityNightUITests/testLongChatScrollsInsideLogWhileComposerStaysAvailable():
+File: E3EC502E-F9F0-4A86-A994-2F8A94D8F5F1.png, suggested name: "chat-composer-and-send-with-keyboard_0_E8D56D6A-C7CF-487C-8577-04D69973C297.png"
+File: 6345B766-4D2E-488D-823C-0C1816EB92B2.png, suggested name: "chat-long-final-message-visible_0_66ABB18C-F786-4836-BD49-3943328FBF4E.png"
+File: 6C1B613E-0025-45B4-AB58-22705BEC5280.png, suggested name: "chat-long-before-scroll_0_9AC0E536-9230-4F65-9A7C-F483E3FD6968.png"
+
+Generated manifest file with attachment details: /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/ParityNight-20260914/phase3-toolbar-ui-attachments/manifest.json

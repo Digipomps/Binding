@@ -1,0 +1,45 @@
+warning: /Users/kjetil/Library/org.swift.swiftpm/configuration is not accessible or not writable, disabling user-level cache features.
+warning: /Users/kjetil/Library/org.swift.swiftpm/security is not accessible or not writable, disabling user-level cache features.
+warning: /Users/kjetil/Library/Caches/org.swift.swiftpm is not accessible or not writable, disabling user-level cache features.
+warning: 'policyprototype': failed storing manifest for 'policyprototype' in cache: attempt to write a readonly database
+Building for debugging...
+[2 / 11] EntityExperiencePolicy
+[5 / 14] EntityExperiencePolicy
+[9 / 16] EntityExperiencePolicy
+[12 / 16] EntityExperiencePolicyTests-product
+[14 / 18] EntityExperiencePolicyTests-product
+[20 / 22] EntityExperiencePolicyTests-product
+Build complete! (3,53 sek)
+Test Suite 'All tests' started at 2026-09-28 15:33:29.820.
+Test Suite 'All tests' passed at 2026-09-28 15:33:29.822.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.002) seconds
+􀟈  Test run started.
+􀄵  Testing Library Version: 2084
+􀄵  Target Platform: arm64e-apple-macos14.0
+􀟈  Test invalidAndUnboundedInputsFailClosed() started.
+􀟈  Test readDoesNotImplyWriteIndexOrStorage() started.
+􀟈  Test selectionIsOptimalWithinBoundAndIndependentOfDiscoveryOrder() started.
+􀟈  Test urgencyDoesNotInventPermissionToInterrupt() started.
+􀟈  Test differentEntityOrJurisdictionAndStaleMetricsAreRejected() started.
+􀟈  Test cooldownNeverKeepsAnExpiredGrant() started.
+􀟈  Test invalidAdmissionExpiryCannotGrantPlacementOrDelivery() started.
+􀟈  Test activeSurfaceWinsThenUserPreferredBrowserThenPhone() started.
+􀟈  Test missingBrowserPermissionRevocationAndOtherEntityNeverReceive() started.
+􀟈  Test sameFailureDomainCannotMasqueradeAsTwoReplicas() started.
+􀟈  Test receiptWaitAndAcknowledgementPreventImmediateFanout() started.
+􀟈  Test validCurrentPlanDoesNotThrashForSmallGain() started.
+􀟈  Test cheapScaffoldWithoutAuthorityNeverWins() started.
+􁁛  Test urgencyDoesNotInventPermissionToInterrupt() passed after 0.001 seconds.
+􁁛  Test invalidAdmissionExpiryCannotGrantPlacementOrDelivery() passed after 0.001 seconds.
+􁁛  Test activeSurfaceWinsThenUserPreferredBrowserThenPhone() passed after 0.001 seconds.
+􁁛  Test cheapScaffoldWithoutAuthorityNeverWins() passed after 0.001 seconds.
+􁁛  Test missingBrowserPermissionRevocationAndOtherEntityNeverReceive() passed after 0.001 seconds.
+􁁛  Test receiptWaitAndAcknowledgementPreventImmediateFanout() passed after 0.001 seconds.
+􁁛  Test validCurrentPlanDoesNotThrashForSmallGain() passed after 0.001 seconds.
+􁁛  Test selectionIsOptimalWithinBoundAndIndependentOfDiscoveryOrder() passed after 0.001 seconds.
+􁁛  Test readDoesNotImplyWriteIndexOrStorage() passed after 0.001 seconds.
+􁁛  Test invalidAndUnboundedInputsFailClosed() passed after 0.001 seconds.
+􁁛  Test sameFailureDomainCannotMasqueradeAsTwoReplicas() passed after 0.001 seconds.
+􁁛  Test differentEntityOrJurisdictionAndStaleMetricsAreRejected() passed after 0.001 seconds.
+􁁛  Test cooldownNeverKeepsAnExpiredGrant() passed after 0.001 seconds.
+􁁛  Test run with 13 tests in 0 suites passed after 0.001 seconds.

@@ -1,0 +1,222 @@
+{
+  "observedAt": "2026-09-15T01:26:06.480450+00:00",
+  "scope": "isolated actual macOS, iOS26.2 and iOS18.6 renderers; no authenticated app flow or physical iPhone",
+  "bundleID": "org.digipomps.haven.parity-night-test",
+  "xcode": "2630",
+  "xcodeBuild": "17C519",
+  "sdk": "macosx26.2",
+  "tests": {
+    "count": 14,
+    "failures": 0,
+    "result": "phase2-tab-ocr-test-logs/parity-tests.xcresult",
+    "visualTransitions": "real NSHostingView, captured pixels + Vision OCR: local labels, active panel, empty, missing, restored state"
+  },
+  "captures": {
+    "macOSCount": 20,
+    "iOS26_2Count": 5,
+    "macOSAssertions": [
+      {
+        "slug": "grid",
+        "viewport": "compact",
+        "expected": [
+          "Card one",
+          "Card two",
+          "Card three",
+          "KPI",
+          "GRID",
+          "QA"
+        ],
+        "missing": [],
+        "unexpectedUnavailable": false
+      },
+      {
+        "slug": "grid",
+        "viewport": "desktop",
+        "expected": [
+          "Card one",
+          "Card two",
+          "Card three",
+          "KPI",
+          "GRID",
+          "QA"
+        ],
+        "missing": [],
+        "unexpectedUnavailable": false
+      },
+      {
+        "slug": "list",
+        "viewport": "compact",
+        "expected": [
+          "Alpha row",
+          "Beta row",
+          "Gamma row"
+        ],
+        "missing": [],
+        "unexpectedUnavailable": false
+      },
+      {
+        "slug": "list",
+        "viewport": "desktop",
+        "expected": [
+          "Alpha row",
+          "Beta row",
+          "Gamma row"
+        ],
+        "missing": [],
+        "unexpectedUnavailable": false
+      },
+      {
+        "slug": "relative-keypath",
+        "viewport": "compact",
+        "expected": [
+          "Relative row A",
+          "Relative row B"
+        ],
+        "missing": [],
+        "unexpectedUnavailable": false
+      },
+      {
+        "slug": "relative-keypath",
+        "viewport": "desktop",
+        "expected": [
+          "Relative row A",
+          "Relative row B"
+        ],
+        "missing": [],
+        "unexpectedUnavailable": false
+      },
+      {
+        "slug": "chat",
+        "viewport": "compact",
+        "hasChat": true,
+        "hasPrimaryAction": true,
+        "unexpectedInactiveHelper": false
+      },
+      {
+        "slug": "chat",
+        "viewport": "desktop",
+        "hasChat": true,
+        "hasPrimaryAction": true,
+        "unexpectedInactiveHelper": false
+      }
+    ],
+    "iOS26_2": [
+      {
+        "bytes": 276726,
+        "height": 844,
+        "outcome": "captured",
+        "slug": "text",
+        "systemVersion": "26.2",
+        "width": 390
+      },
+      {
+        "bytes": 241834,
+        "height": 844,
+        "outcome": "captured",
+        "slug": "list",
+        "systemVersion": "26.2",
+        "width": 390
+      },
+      {
+        "bytes": 208708,
+        "height": 844,
+        "outcome": "captured",
+        "slug": "grid",
+        "systemVersion": "26.2",
+        "width": 390
+      },
+      {
+        "bytes": 201011,
+        "height": 844,
+        "outcome": "captured",
+        "slug": "form",
+        "systemVersion": "26.2",
+        "width": 390
+      },
+      {
+        "bytes": 335291,
+        "height": 844,
+        "outcome": "captured",
+        "slug": "chat",
+        "systemVersion": "26.2",
+        "width": 390
+      }
+    ],
+    "iOS18_6Count": 5,
+    "iOS18_6": [
+      {
+        "bytes": 201905,
+        "height": 874,
+        "outcome": "captured",
+        "slug": "text",
+        "systemVersion": "18.6",
+        "width": 402
+      },
+      {
+        "bytes": 174049,
+        "height": 874,
+        "outcome": "captured",
+        "slug": "list",
+        "systemVersion": "18.6",
+        "width": 402
+      },
+      {
+        "bytes": 137884,
+        "height": 874,
+        "outcome": "captured",
+        "slug": "grid",
+        "systemVersion": "18.6",
+        "width": 402
+      },
+      {
+        "bytes": 140682,
+        "height": 874,
+        "outcome": "captured",
+        "slug": "form",
+        "systemVersion": "18.6",
+        "width": 402
+      },
+      {
+        "bytes": 209058,
+        "height": 874,
+        "outcome": "captured",
+        "slug": "chat",
+        "systemVersion": "18.6",
+        "width": 402
+      }
+    ]
+  },
+  "patches": {
+    "CellScaffold-compact-text.patch": "5fa0d90f47ebe37b1fd2d312cb6256670e35ff51b9686ae2f0cbee82de0226a8",
+    "CellProtocol-renderer-fixes.patch": "e3f8fb503866f1068ce04647d54dbc3d8c6bbbb236d2f0d05bb43fefcebd7d95",
+    "Binding-renderer-fixes.patch": "86996cf1ce589cb292526128b6377f8f521bb6ded74564ba65f6774d444756a6"
+  },
+  "installed": true,
+  "deployed": false,
+  "actualHumanEntityLinkTested": false,
+  "installationScope": "unique app ID in Simulator only; normal HAVEN untouched",
+  "productionAppInstalled": false,
+  "minimumOSVersion": "18.0",
+  "originalSourceChanges": [],
+  "remainingGaps": [
+    "Full authenticated startup/library/chat",
+    "Physical phone entity linking and data access",
+    "Visual alignment, field/button affordances and editor height",
+    "Web dynamic Tabs falls back to panels when data is missing",
+    "Native action transport, NavigationBar, Picker, Toggle, real Reference, upload"
+  ],
+  "chatFixtureProvenance": {
+    "webAndIOSIdenticalConfiguration": true,
+    "webAndIOSIdenticalState": true,
+    "mac": {
+      "configuration": "2de2f270fee76e7310e2bcf177555b26cd3997ffe808c0b1368f54264ed2afb2",
+      "state": "a494ff19ae4e65661398d6d5621966347c8e3368ee45b7195f542f6c92f5a3cc"
+    },
+    "webAndIOS": {
+      "configuration": "b85a301e5054313d9351fbcd3330e64686e4f0d8bdd9eb0e38471b1ba562be0b",
+      "state": "cad1a6481867969acc324d69adf7c39d116be77ad8f26bc277c01da803f3707b"
+    },
+    "macNote": "Same factory and initial Cell state, but regenerated UUIDs and volatile times during capture; not byte-identical to frozen web/iOS fixture."
+  },
+  "testAppsTerminated": true
+}

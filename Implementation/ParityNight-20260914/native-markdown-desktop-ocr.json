@@ -1,0 +1,74 @@
+[
+  {
+    "confidence" : 1,
+    "height" : 0.01388888888888884,
+    "text" : "Markdown Fixture",
+    "width" : 0.097383721669514978,
+    "x" : 0.020348837813498312,
+    "y" : 0.95722222215714803
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.011873385111490831,
+    "text" : "Markdown and rendered HTML",
+    "width" : 0.15552324930826822,
+    "x" : 0.020348838906912428,
+    "y" : 0.92611111105823452
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.017777778307596859,
+    "text" : "Ingen handlinger kjørt ennå.",
+    "width" : 0.14389533996582032,
+    "x" : 0.018895355332012257,
+    "y" : 0.89722222203238633
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015658914248148581,
+    "text" : "# Markdown parity",
+    "width" : 0.094476737976074213,
+    "x" : 0.020348841840451212,
+    "y" : 0.87000000020981427
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015775193638271845,
+    "text" : "This fixture keeps **source** and rendered HTML side by side.",
+    "width" : 0.31831395467122392,
+    "x" : 0.020348841923108742,
+    "y" : 0.83500000014785647
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.0117312653859456,
+    "text" : "- bullet one",
+    "width" : 0.059593022664388026,
+    "x" : 0.01889534813970524,
+    "y" : 0.80222222245034314
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.011782945526970678,
+    "text" : "- bullet two",
+    "width" : 0.059593022664388026,
+    "x" : 0.018895348388009492,
+    "y" : 0.78488372123993866
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.01356589105394157,
+    "text" : "Toggle mode",
+    "width" : 0.066860466003417968,
+    "x" : 0.027616277790442206,
+    "y" : 0.72093023269492851
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015762274000379772,
+    "text" : "<article><h2>Markdown parity<\/h2><p><strong>Rendered HTML<\/strong> should stay readable across clients.<\/p><ul><li>bullet one<\/li><li>bullet two<\/li><\/ul><\/article>",
+    "width" : 0.86482554117838539,
+    "x" : 0.020348868128103468,
+    "y" : 0.7555555555415624
+  }
+]

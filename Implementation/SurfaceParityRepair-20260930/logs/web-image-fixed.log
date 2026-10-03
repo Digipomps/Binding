@@ -1,0 +1,19 @@
+
+Running 10 tests using 1 worker
+
+(node:47061) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:47061) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 playwright/skeleton-element-catalog.spec.js:51:3 › Skeleton element catalog › renders and operates the baseline SkeletonElement corpus on desktop and mobile (1.0s)
+  ✓   2 playwright/skeleton-element-catalog.spec.js:202:3 › Skeleton element catalog › WP-R2 Tree: every key, cell confirmation, disclosure isolation, ID focus and ARIA (322ms)
+  ✓   3 playwright/skeleton-element-catalog.spec.js:282:3 › Skeleton element catalog › WP-R2 Tree: focus scrolls to a visible node and survives reordered data (196ms)
+  ✓   4 playwright/skeleton-element-catalog.spec.js:297:3 › Skeleton element catalog › WP-R2 ComponentSurface: exact R1c two-instance oracle and separate action metadata (366ms)
+  ✓   5 playwright/skeleton-element-catalog.spec.js:322:3 › Skeleton element catalog › WP-R2 ComponentSurface: revision remount keeps instance, draft, focus and scroll (207ms)
+  ✓   6 playwright/skeleton-element-catalog.spec.js:348:3 › Skeleton element catalog › WP-R2 M7: declared grid column, first match, capabilities and stable controls (344ms)
+  ✓   7 playwright/skeleton-element-catalog.spec.js:379:3 › Skeleton element catalog › WP-R2 M7: fixed panel narrows, undeclared container inherits, condition and height gate (181ms)
+  ✓   8 playwright/skeleton-element-catalog.spec.js:391:3 › Skeleton element catalog › WP-R2 M1–M6 M9 M10 R1 R7 R8: computed styles and accessible plain control (526ms)
+  ✓   9 playwright/skeleton-element-catalog.spec.js:432:3 › Skeleton element catalog › WP-R2 M8/R4: real drag dims source and host, marks every accepting target, cancels and drops (454ms)
+  ✓  10 playwright/skeleton-element-catalog.spec.js:473:3 › Skeleton element catalog › WP-R2 M8 hover/focusVisible and invalid ComponentSurface diagnostic (723ms)
+
+  10 passed (5.0s)

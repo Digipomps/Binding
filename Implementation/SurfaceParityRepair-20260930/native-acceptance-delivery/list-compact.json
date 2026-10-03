@@ -1,0 +1,27 @@
+{
+  "expectedTextCount" : 3,
+  "materialized" : false,
+  "missingExpectedText" : [
+
+  ],
+  "observedStyleTokens" : [
+
+  ],
+  "pixelHeight" : 2000,
+  "pixelWidth" : 780,
+  "rasterResults" : [
+
+  ],
+  "recognizedText" : "List Fixture\nRepeated list rows\nIngen handlinger kjørt ennå.\nAlpha row\nRelative keypaths inside SkeletonList\nstatus: ready\nBeta row\nLonger subtitle for wrapping\nstatus: stable\nGamma row\nDeterministic third row\nstatus: done\nC\nNär listen er tom skal headeren fortsatt\nvære lesbar.\nAck list",
+  "rootDataSupplied" : true,
+  "rootDelivery" : "PortholeViewModel.skeletonRootData",
+  "styleNormalizationApplied" : false,
+  "surface" : {
+    "backgroundHex" : "#FFFFFF",
+    "contentMaxWidth" : 1180,
+    "height" : 1000,
+    "isDarkMode" : false,
+    "padding" : 16,
+    "width" : 390
+  }
+}

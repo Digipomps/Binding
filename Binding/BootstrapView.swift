@@ -247,6 +247,11 @@ actor BindingLocalCellRegistration {
 
     @discardableResult
     func ensureRegistered() async -> Bool {
+        // Registration and automatic refresh must not reopen a dismissed
+        // authentication sheet. The user-action bootstrap owns that attempt.
+        if !BindingRuntimeBootstrap.shouldUseLocalRuntimeOnlyForVerifier() {
+            guard await BindingRuntimeBootstrap.authenticatedRuntimeIsReady else { return false }
+        }
         if isRegistered {
             if await localRegistrationStillUsableForActiveIdentity() {
                 return true

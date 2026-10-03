@@ -1,0 +1,37 @@
+{
+  "name": "vertical-stack-compact",
+  "host": "porthole-webo.css light baseline",
+  "viewport": {
+    "width": 390,
+    "height": 1000
+  },
+  "deviceScaleFactor": 2,
+  "materialized": false,
+  "styleNormalizationApplied": false,
+  "content": "VStack",
+  "fieldValues": [],
+  "expectedTextCount": 1,
+  "missingExpectedText": [],
+  "errors": [],
+  "geometry": {
+    "box": {
+      "x": 16,
+      "y": 16,
+      "width": 358,
+      "height": 18,
+      "top": 16,
+      "right": 374,
+      "bottom": 34,
+      "left": 16
+    },
+    "scrollWidth": 358,
+    "clientWidth": 358
+  },
+  "controls": [],
+  "images": [],
+  "selectedTexts": [],
+  "assetHashes": {
+    "/css/porthole-webo.css": "07845ea4e7d0d0b71ce95bd042ace835fd98df5ec2ca69e1fd6d7f9247aca525",
+    "/js/skeleton-runtime.js": "4f957ac8206f6777b7845d3cc41eec10c94bfb7ca8ca572f77c95cff6735b508"
+  }
+}

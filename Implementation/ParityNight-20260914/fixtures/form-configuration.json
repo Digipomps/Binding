@@ -1,0 +1,111 @@
+{
+  "cellReferences" : [
+    {
+      "endpoint" : "cell:\/\/\/SkeletonParityFormFixture",
+      "label" : "fixture",
+      "setKeysAndValues" : [
+        {
+          "key" : "state"
+        }
+      ],
+      "subscribeFeed" : true,
+      "subscriptions" : [
+
+      ]
+    }
+  ],
+  "description" : "Form inputs and deterministic actions.",
+  "discovery" : {
+    "interests" : [
+      "skeleton",
+      "parity",
+      "form"
+    ],
+    "menuSlots" : [
+
+    ],
+    "purpose" : "Skeleton Parity Form Fixture",
+    "purposeDescription" : "Form inputs and deterministic actions.",
+    "sourceCellEndpoint" : "cell:\/\/\/SkeletonParityFormFixture",
+    "sourceCellName" : "SkeletonParityFormFixture"
+  },
+  "name" : "Skeleton Parity Form Fixture",
+  "skeleton" : {
+    "VStack" : [
+      {
+        "Section" : {
+          "content" : [
+            {
+              "Text" : {
+                "keypath" : "fixture.state.headline"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.helper"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.status"
+              }
+            },
+            {
+              "TextField" : {
+                "placeholder" : "Type a deterministic title",
+                "sourceKeypath" : "fixture.state.draft.title",
+                "targetKeypath" : "setDraftTitle"
+              }
+            },
+            {
+              "TextArea" : {
+                "maxLines" : 8,
+                "minLines" : 4,
+                "placeholder" : "Type deterministic multiline content",
+                "sourceKeypath" : "fixture.state.draft.body",
+                "targetKeypath" : "setDraftBody"
+              }
+            },
+            {
+              "HStack" : [
+                {
+                  "Button" : {
+                    "keypath" : "dispatchAction",
+                    "label" : "Save draft",
+                    "payload" : {
+                      "keypath" : "saveDraft",
+                      "payload" : true
+                    }
+                  }
+                },
+                {
+                  "Button" : {
+                    "keypath" : "dispatchAction",
+                    "label" : "Reset draft",
+                    "payload" : {
+                      "keypath" : "resetDraft",
+                      "payload" : true
+                    }
+                  }
+                },
+                {
+                  "Button" : {
+                    "keypath" : "resetFixture",
+                    "label" : "Hard reset",
+                    "payload" : true
+                  }
+                }
+              ]
+            }
+          ],
+          "header" : {
+            "Text" : {
+              "text" : "Form Fixture"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "uuid" : "1A63D0B1-CB7F-46D9-BE5E-9FF86E6C6513"
+}

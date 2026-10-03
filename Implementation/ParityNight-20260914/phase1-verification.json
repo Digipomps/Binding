@@ -1,0 +1,96 @@
+{
+  "observedAt": "2026-09-14T23:32:48.502617+00:00",
+  "scope": "isolated macOS renderer; 390pt is not an iPhone",
+  "bundleID": "org.digipomps.haven.parity-night-test",
+  "xcode": "2630",
+  "xcodeBuild": "17C519",
+  "sdk": "macosx26.2",
+  "tests": {
+    "count": 13,
+    "failures": 0,
+    "result": "test-logs-scalar-rows/parity-tests.xcresult"
+  },
+  "captures": {
+    "count": 18,
+    "contentAssertions": [
+      {
+        "slug": "grid",
+        "viewport": "compact",
+        "expected": [
+          "Card one",
+          "Card two",
+          "Card three",
+          "KPI",
+          "GRID",
+          "QA"
+        ],
+        "missing": [],
+        "unexpectedUnavailable": false
+      },
+      {
+        "slug": "grid",
+        "viewport": "desktop",
+        "expected": [
+          "Card one",
+          "Card two",
+          "Card three",
+          "KPI",
+          "GRID",
+          "QA"
+        ],
+        "missing": [],
+        "unexpectedUnavailable": false
+      },
+      {
+        "slug": "list",
+        "viewport": "compact",
+        "expected": [
+          "Alpha row",
+          "Beta row",
+          "Gamma row"
+        ],
+        "missing": [],
+        "unexpectedUnavailable": false
+      },
+      {
+        "slug": "list",
+        "viewport": "desktop",
+        "expected": [
+          "Alpha row",
+          "Beta row",
+          "Gamma row"
+        ],
+        "missing": [],
+        "unexpectedUnavailable": false
+      },
+      {
+        "slug": "relative-keypath",
+        "viewport": "compact",
+        "expected": [
+          "Relative row A",
+          "Relative row B"
+        ],
+        "missing": [],
+        "unexpectedUnavailable": false
+      },
+      {
+        "slug": "relative-keypath",
+        "viewport": "desktop",
+        "expected": [
+          "Relative row A",
+          "Relative row B"
+        ],
+        "missing": [],
+        "unexpectedUnavailable": false
+      }
+    ]
+  },
+  "patches": {
+    "CellScaffold-compact-text.patch": "5fa0d90f47ebe37b1fd2d312cb6256670e35ff51b9686ae2f0cbee82de0226a8",
+    "CellProtocol-renderer-fixes.patch": "af58746b46cb833eed7996f3fe15e21e65e9c60ad15ad35c08c02c224a19dc40",
+    "Binding-renderer-fixes.patch": "92b53ff7f2f9c5b5b4eda8b4e250a82f58d95d0b3c9314c622c245565dee30fa"
+  },
+  "installed": false,
+  "deployed": false,
+  "actualHumanEntityLinkTested": false
+}

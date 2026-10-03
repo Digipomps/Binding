@@ -1,0 +1,98 @@
+[
+  {
+    "confidence" : 1,
+    "height" : 0.017441860307449431,
+    "text" : "Remote Bridge Fixture",
+    "width" : 0.37106917943709933,
+    "x" : 0.059748430014154655,
+    "y" : 0.95058139520964735
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.016229471889152247,
+    "text" : "Remote bridge contract",
+    "width" : 0.37421382023737981,
+    "x" : 0.059748440470932654,
+    "y" : 0.9186046515357098
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.017455637172500094,
+    "text" : "Bruk host-mapping til cell:\/\/<host>\/",
+    "width" : 0.55345908923026843,
+    "x" : 0.059748442098702323,
+    "y" : 0.88953488401778691
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.017441860307449431,
+    "text" : "SkeletonParityTextFixture for direkte remote parity.",
+    "width" : 0.78930812737880607,
+    "x" : 0.059748452191100122,
+    "y" : 0.8706395351369729
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015988371383522382,
+    "text" : "cell:\/\/staging.haven.digipomps.org\/",
+    "width" : 0.550314448429988,
+    "x" : 0.05974844166550905,
+    "y" : 0.84302325627044816
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015988371383522382,
+    "text" : "SkeletonParityTextFixture",
+    "width" : 0.39308174328926282,
+    "x" : 0.059748439243733305,
+    "y" : 0.82412790753134924
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.018895348101430676,
+    "text" : "wss:\/\/staging.haven.digipomps.org\/bridgehead\/Porthole\/",
+    "width" : 0.87735846103766024,
+    "x" : 0.059748438532532713,
+    "y" : 0.79360465137321878
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015988371383522382,
+    "text" : "SkeletonParityTextFixture",
+    "width" : 0.39622642321464352,
+    "x" : 0.059748428565634143,
+    "y" : 0.77616279110693065
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.017441860307449431,
+    "text" : "https:\/\/staging.haven.digipomps.org\/skeleton-parity\/",
+    "width" : 0.81446541028145036,
+    "x" : 0.059748421844337811,
+    "y" : 0.7470930232801416
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015988371383522493,
+    "text" : "text\/api\/configuration",
+    "width" : 0.33647797413361386,
+    "x" : 0.056603781329419525,
+    "y" : 0.72819767461347129
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.017441860307449319,
+    "text" : "Ingen handlinger kjørt ennå.",
+    "width" : 0.44025155091897034,
+    "x" : 0.056603789084539828,
+    "y" : 0.70058139564569388
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.016936975632798612,
+    "text" : "Ack bridge",
+    "width" : 0.17335516122671274,
+    "x" : 0.081561410935071368,
+    "y" : 0.66231639589823521
+  }
+]

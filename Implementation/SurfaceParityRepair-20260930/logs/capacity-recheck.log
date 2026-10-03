@@ -1,0 +1,2 @@
+Build capacity: 56.1 GiB free (6%); reserving 10 GiB leaves 46.1 GiB (4%).
+ERROR: build blocked: projected free space must remain at or above 40 GiB and 5%.

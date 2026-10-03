@@ -1,0 +1,35 @@
+
+Running 26 tests using 1 worker
+
+(node:42734) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:42734) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 playwright/skeleton-element-catalog.spec.js:51:3 › Skeleton element catalog › renders and operates the baseline SkeletonElement corpus on desktop and mobile (1.1s)
+  ✓   2 playwright/skeleton-element-catalog.spec.js:174:3 › Skeleton element catalog › WP-R2 Tree: every key, cell confirmation, disclosure isolation, ID focus and ARIA (337ms)
+  ✓   3 playwright/skeleton-element-catalog.spec.js:254:3 › Skeleton element catalog › WP-R2 Tree: focus scrolls to a visible node and survives reordered data (244ms)
+  ✓   4 playwright/skeleton-element-catalog.spec.js:269:3 › Skeleton element catalog › WP-R2 ComponentSurface: exact R1c two-instance oracle and separate action metadata (349ms)
+  ✓   5 playwright/skeleton-element-catalog.spec.js:294:3 › Skeleton element catalog › WP-R2 ComponentSurface: revision remount keeps instance, draft, focus and scroll (243ms)
+  ✓   6 playwright/skeleton-element-catalog.spec.js:320:3 › Skeleton element catalog › WP-R2 M7: declared grid column, first match, capabilities and stable controls (327ms)
+  ✓   7 playwright/skeleton-element-catalog.spec.js:351:3 › Skeleton element catalog › WP-R2 M7: fixed panel narrows, undeclared container inherits, condition and height gate (200ms)
+  ✓   8 playwright/skeleton-element-catalog.spec.js:363:3 › Skeleton element catalog › WP-R2 M1–M6 M9 M10 R1 R7 R8: computed styles and accessible plain control (558ms)
+  ✓   9 playwright/skeleton-element-catalog.spec.js:404:3 › Skeleton element catalog › WP-R2 M8/R4: real drag dims source and host, marks every accepting target, cancels and drops (455ms)
+  ✓  10 playwright/skeleton-element-catalog.spec.js:445:3 › Skeleton element catalog › WP-R2 M8 hover/focusVisible and invalid ComponentSurface diagnostic (710ms)
+  ✓  11 playwright/skeleton-list-follow-tail.spec.js:60:3 › Skeleton list followTail › follows the newest row in a plain overflow container (no styleRole needed) (181ms)
+  ✓  12 playwright/skeleton-list-follow-tail.spec.js:70:3 › Skeleton list followTail › leaves a reader who scrolled up where they were (195ms)
+  ✓  13 playwright/skeleton-list-follow-tail.spec.js:80:3 › Skeleton list followTail › a list without followTail does not scroll on its own (146ms)
+  ✓  14 playwright/skeleton-list-static-elements.spec.js:47:5 › List static elements at 1180px › renders static-only scalar values without a keypath or template (150ms)
+  ✓  15 playwright/skeleton-list-static-elements.spec.js:54:5 › List static elements at 1180px › appends templated static rows after bound rows and preserves duplicate identities (161ms)
+  ✓  16 playwright/skeleton-list-static-elements.spec.js:63:5 › List static elements at 1180px › keeps static rows through bound replacements, empty, missing and non-list state (176ms)
+  ✓  17 playwright/skeleton-list-static-elements.spec.js:79:5 › List static elements at 1180px › selection payload indexes and IDs follow the combined list, including after refresh (364ms)
+  ✓  18 playwright/skeleton-list-static-elements.spec.js:47:5 › List static elements at 390px › renders static-only scalar values without a keypath or template (127ms)
+  ✓  19 playwright/skeleton-list-static-elements.spec.js:54:5 › List static elements at 390px › appends templated static rows after bound rows and preserves duplicate identities (180ms)
+  ✓  20 playwright/skeleton-list-static-elements.spec.js:63:5 › List static elements at 390px › keeps static rows through bound replacements, empty, missing and non-list state (143ms)
+  ✓  21 playwright/skeleton-list-static-elements.spec.js:79:5 › List static elements at 390px › selection payload indexes and IDs follow the combined list, including after refresh (296ms)
+  ✓  22 playwright/skeleton-list-tree.spec.js:86:3 › Skeleton list tree (childrenKeypath) › starts fully expanded when no expandedStateKeypath is given, with depth per row (115ms)
+  ✓  23 playwright/skeleton-list-tree.spec.js:97:3 › Skeleton list tree (childrenKeypath) › seeds expansion from state and collapses/expands locally without dispatching an action (263ms)
+  ✓  24 playwright/skeleton-list-tree.spec.js:114:3 › Skeleton list tree (childrenKeypath) › selection follows the row identity when the tree is re-flattened (246ms)
+  ✓  25 playwright/skeleton-list-tree.spec.js:133:3 › Skeleton list tree (childrenKeypath) › a plain list without childrenKeypath renders exactly as before (134ms)
+  ✓  26 playwright/skeleton-workbench-autoscroll.spec.js:54:3 › Skeleton workbench auto-scroll › coalesces back-to-back renders without losing bottom or reader intent (177ms)
+
+  26 passed (8.3s)

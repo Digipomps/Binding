@@ -1,0 +1,27 @@
+{
+  "expectedTextCount" : 3,
+  "materialized" : false,
+  "missingExpectedText" : [
+
+  ],
+  "observedStyleTokens" : [
+
+  ],
+  "pixelHeight" : 2000,
+  "pixelWidth" : 780,
+  "rasterResults" : [
+
+  ],
+  "recognizedText" : "Header\nContent\nFooter",
+  "rootDataSupplied" : true,
+  "rootDelivery" : "PortholeViewModel.skeletonRootData",
+  "styleNormalizationApplied" : false,
+  "surface" : {
+    "backgroundHex" : "#FFFFFF",
+    "contentMaxWidth" : 1180,
+    "height" : 1000,
+    "isDarkMode" : false,
+    "padding" : 16,
+    "width" : 390
+  }
+}

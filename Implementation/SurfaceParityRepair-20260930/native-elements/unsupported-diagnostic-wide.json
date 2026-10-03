@@ -1,0 +1,22 @@
+{
+  "materialized" : false,
+  "missingExpectedText" : [
+
+  ],
+  "observedStyleTokens" : [
+
+  ],
+  "pixelHeight" : 2000,
+  "pixelWidth" : 2560,
+  "recognizedText" : "Unsupported skeleton element: Futurebadge\nNamed diagnostic tixture; not an authored semantic element.\nUnsupported skeleton element: FutureBadge\nNamed diagnostic fixture; not an authored semantic element.\n\n\n",
+  "rootDataSupplied" : true,
+  "styleNormalizationApplied" : false,
+  "surface" : {
+    "backgroundHex" : "#FFFFFF",
+    "contentMaxWidth" : 1180,
+    "height" : 1000,
+    "isDarkMode" : false,
+    "padding" : 16,
+    "width" : 1280
+  }
+}

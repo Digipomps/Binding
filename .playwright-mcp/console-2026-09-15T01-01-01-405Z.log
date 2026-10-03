@@ -1,0 +1,2 @@
+[     386ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ https://staging.haven.digipomps.org/login:0
+[     423ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://staging.haven.digipomps.org/auth/refresh:0

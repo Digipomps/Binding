@@ -1,0 +1,13 @@
+{
+  "webAndIOSIdenticalConfiguration": true,
+  "webAndIOSIdenticalState": true,
+  "mac": {
+    "configuration": "2de2f270fee76e7310e2bcf177555b26cd3997ffe808c0b1368f54264ed2afb2",
+    "state": "a494ff19ae4e65661398d6d5621966347c8e3368ee45b7195f542f6c92f5a3cc"
+  },
+  "webAndIOS": {
+    "configuration": "b85a301e5054313d9351fbcd3330e64686e4f0d8bdd9eb0e38471b1ba562be0b",
+    "state": "cad1a6481867969acc324d69adf7c39d116be77ad8f26bc277c01da803f3707b"
+  },
+  "macNote": "Same factory and initial Cell state, but regenerated UUIDs and volatile times during capture; not byte-identical to frozen web/iOS fixture."
+}

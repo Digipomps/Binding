@@ -1,0 +1,40 @@
+- main [ref=f26e3]:
+  - generic [ref=f26e18]:
+    - generic [ref=f26e19]: Porthole
+    - generic [ref=f26e20]: Identity Access
+  - region [ref=f26e21]:
+    - generic [ref=f26e22]:
+      - generic [ref=f26e23]: Velkommen
+      - heading "Åpne ditt Porthole" [level=1] [ref=f26e24]
+      - paragraph [ref=f26e25]: Logg inn raskt med passkey. Passord og ny tilgang ligger som fallback under.
+    - status [ref=f26e26]:
+      - generic [ref=f26e28]: Klar for passkey- eller passordinnlogging.
+    - generic [ref=f26e29]:
+      - generic [ref=f26e30]:
+        - text: Eksisterende konto
+        - generic [ref=f26e31]: påkrevd for passkey
+      - textbox "Eksisterende konto påkrevd for passkey" [ref=f26e32]:
+        - /placeholder: haven-user
+    - button "Fortsett med passkey" [ref=f26e33] [cursor=pointer]
+    - paragraph [ref=f26e38]: Face ID, Touch ID og andre plattform-passkeys støttes direkte.
+    - generic [ref=f26e39]: Andre alternativer
+    - tablist "Andre påloggingsalternativer" [ref=f26e41]:
+      - tab "Ny passkey" [selected] [ref=f26e42] [cursor=pointer]
+      - tab "Passord" [ref=f26e43] [cursor=pointer]
+    - tabpanel "Ny passkey" [ref=f26e44]:
+      - heading "Opprett ny passkey" [level=2] [ref=f26e45]
+      - paragraph [ref=f26e46]: Velg et brukernavn og registrer tilgang på denne enheten. Ingenting å huske etterpå.
+      - generic [ref=f26e47]:
+        - generic [ref=f26e48]:
+          - text: Brukernavn
+          - generic [ref=f26e49]: påkrevd
+        - textbox "Brukernavn påkrevd" [ref=f26e50]:
+          - /placeholder: haven-user
+      - button "Opprett passkey" [ref=f26e52] [cursor=pointer]
+  - generic [ref=f26e55]:
+    - link "Personvern" [ref=f26e56] [cursor=pointer]:
+      - /url: "#"
+    - link "Vilkår" [ref=f26e57] [cursor=pointer]:
+      - /url: "#"
+    - link "Hjelp" [ref=f26e58] [cursor=pointer]:
+      - /url: "#"

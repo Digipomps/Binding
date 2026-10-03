@@ -1,0 +1,112 @@
+{
+  "cellReferences" : [
+    {
+      "endpoint" : "cell:\/\/\/SkeletonParityListFixture",
+      "label" : "fixture",
+      "setKeysAndValues" : [
+        {
+          "key" : "state"
+        }
+      ],
+      "subscribeFeed" : true,
+      "subscriptions" : [
+
+      ]
+    }
+  ],
+  "description" : "Repeated list rows for renderer parity.",
+  "discovery" : {
+    "interests" : [
+      "skeleton",
+      "parity",
+      "list"
+    ],
+    "menuSlots" : [
+
+    ],
+    "purpose" : "Skeleton Parity List Fixture",
+    "purposeDescription" : "Repeated list rows for renderer parity.",
+    "sourceCellEndpoint" : "cell:\/\/\/SkeletonParityListFixture",
+    "sourceCellName" : "SkeletonParityListFixture"
+  },
+  "name" : "Skeleton Parity List Fixture",
+  "skeleton" : {
+    "VStack" : [
+      {
+        "Section" : {
+          "content" : [
+            {
+              "Text" : {
+                "keypath" : "fixture.state.headline"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.status"
+              }
+            },
+            {
+              "List" : {
+                "elements" : [
+
+                ],
+                "flowElementSkeleton" : {
+                  "VStack" : [
+                    {
+                      "Text" : {
+                        "keypath" : "title"
+                      }
+                    },
+                    {
+                      "Text" : {
+                        "keypath" : "subtitle"
+                      }
+                    },
+                    {
+                      "Text" : {
+                        "keypath" : "detail"
+                      }
+                    },
+                    {
+                      "Text" : {
+                        "keypath" : "badge",
+                        "modifiers" : {
+                          "background" : "#20313B",
+                          "cornerRadius" : 8,
+                          "foregroundColor" : "#D9FBFF",
+                          "padding" : 6
+                        }
+                      }
+                    }
+                  ]
+                },
+                "keypath" : "fixture.state.items"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.emptySummary"
+              }
+            },
+            {
+              "Button" : {
+                "keypath" : "dispatchAction",
+                "label" : "Ack list",
+                "payload" : {
+                  "keypath" : "acknowledge",
+                  "payload" : true
+                }
+              }
+            }
+          ],
+          "header" : {
+            "Text" : {
+              "text" : "List Fixture"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "uuid" : "A0D4B1E0-5E3F-4A98-A9A6-F306FB1A0126"
+}

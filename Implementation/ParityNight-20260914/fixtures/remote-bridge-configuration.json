@@ -1,0 +1,89 @@
+{
+  "cellReferences" : [
+    {
+      "endpoint" : "cell:\/\/\/SkeletonParityRemoteBridgeFixture",
+      "label" : "fixture",
+      "setKeysAndValues" : [
+        {
+          "key" : "state"
+        }
+      ],
+      "subscribeFeed" : true,
+      "subscriptions" : [
+
+      ]
+    }
+  ],
+  "description" : "Documents cell:\/\/ and websocket routes for remote fixture loading.",
+  "discovery" : {
+    "interests" : [
+      "skeleton",
+      "parity",
+      "remote-bridge"
+    ],
+    "menuSlots" : [
+
+    ],
+    "purpose" : "Skeleton Parity Remote Bridge Fixture",
+    "purposeDescription" : "Documents cell:\/\/ and websocket routes for remote fixture loading.",
+    "sourceCellEndpoint" : "cell:\/\/\/SkeletonParityRemoteBridgeFixture",
+    "sourceCellName" : "SkeletonParityRemoteBridgeFixture"
+  },
+  "name" : "Skeleton Parity Remote Bridge Fixture",
+  "skeleton" : {
+    "VStack" : [
+      {
+        "Section" : {
+          "content" : [
+            {
+              "Text" : {
+                "keypath" : "fixture.state.headline"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.hostSummary"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.cellURLExample"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.websocketRoute"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.httpConfigurationRoute"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.status"
+              }
+            },
+            {
+              "Button" : {
+                "keypath" : "dispatchAction",
+                "label" : "Ack bridge",
+                "payload" : {
+                  "keypath" : "acknowledge",
+                  "payload" : true
+                }
+              }
+            }
+          ],
+          "header" : {
+            "Text" : {
+              "text" : "Remote Bridge Fixture"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "uuid" : "82218CA0-9231-4C83-9490-8D15C02EF8FC"
+}

@@ -1,0 +1,279 @@
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 (in target 'CellBase' from project 'CellProtocol')
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PersistingCells/EntityRelationRecordV1.swift:321:16: warning: stored property 'entityRepresentation' of 'Sendable'-conforming struct 'EntityRelationRecord' contains non-Sendable type 'EntityRepresentation'; this is an error in the Swift 6 language mode
+ 319 |     /// Canonical owner-held knowledge when present. The legacy subject/tags/
+ 320 |     /// purposeRefs remain readable for existing clients and import adapters.
+ 321 |     public var entityRepresentation: EntityRepresentation?
+     |                `- warning: stored property 'entityRepresentation' of 'Sendable'-conforming struct 'EntityRelationRecord' contains non-Sendable type 'EntityRepresentation'; this is an error in the Swift 6 language mode
+ 322 | 
+ 323 |     public init(
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/EntityRepresentation.swift:61:14: note: class 'EntityRepresentation' does not conform to the 'Sendable' protocol
+ 59 | 
+ 60 | 
+ 61 | public class EntityRepresentation:  PerspectiveNodeImpl {
+    |              `- note: class 'EntityRepresentation' does not conform to the 'Sendable' protocol
+ 62 | 
+ 63 |     var fulfilled: Fullfilled = Fullfilled() // Until Interests and Purposes are moved
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/ClaimComposition.swift:36:16: warning: stored property 'composition' of 'Sendable'-conforming struct 'ClaimCounter' has non-Sendable type 'ClaimComposition'; this is an error in the Swift 6 language mode
+ 34 | public struct ClaimCounter: Codable, Equatable, Sendable {
+ 35 |     public var role: ClaimCounterRole
+ 36 |     public var composition: ClaimComposition
+    |                `- warning: stored property 'composition' of 'Sendable'-conforming struct 'ClaimCounter' has non-Sendable type 'ClaimComposition'; this is an error in the Swift 6 language mode
+ 37 | 
+ 38 |     public init(role: ClaimCounterRole, composition: ClaimComposition) {
+    :
+187 | }
+188 | 
+189 | public indirect enum ClaimComposition: Codable, Equatable {
+    |                      `- note: consider making enum 'ClaimComposition' conform to the 'Sendable' protocol
+190 |     case claim(ClaimCompositionLeaf)
+191 |     // allOf: linked premises, weakest link decides the score.
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/ClaimDefinition.swift:91:16: warning: stored property 'composition' of 'Sendable'-conforming struct 'ClaimDefinition' contains non-Sendable type 'ClaimComposition'; this is an error in the Swift 6 language mode
+ 89 |     public var goalID: String?
+ 90 |     public var supports: [ClaimSupportNode]
+ 91 |     public var composition: ClaimComposition?
+    |                `- warning: stored property 'composition' of 'Sendable'-conforming struct 'ClaimDefinition' contains non-Sendable type 'ClaimComposition'; this is an error in the Swift 6 language mode
+ 92 |     public var tags: [String]
+ 93 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/ClaimComposition.swift:189:22: note: consider making enum 'ClaimComposition' conform to the 'Sendable' protocol
+187 | }
+188 | 
+189 | public indirect enum ClaimComposition: Codable, Equatable {
+    |                      `- note: consider making enum 'ClaimComposition' conform to the 'Sendable' protocol
+190 |     case claim(ClaimCompositionLeaf)
+191 |     // allOf: linked premises, weakest link decides the score.
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/PerspectiveEntityProjection.swift:30:16: warning: stored property 'entities' of 'Sendable'-conforming struct 'PerspectiveEntityProjection' contains non-Sendable type 'Weight<EntityRepresentation>'; this is an error in the Swift 6 language mode
+ 28 |     /// delayed write cannot resurrect entities a newer one removed.
+ 29 |     public let epoch: Int
+ 30 |     public let entities: [Weight<EntityRepresentation>]
+    |                `- warning: stored property 'entities' of 'Sendable'-conforming struct 'PerspectiveEntityProjection' contains non-Sendable type 'Weight<EntityRepresentation>'; this is an error in the Swift 6 language mode
+ 31 | 
+ 32 |     public init(source: String, epoch: Int, entities: [Weight<EntityRepresentation>]) {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Weight.swift:13:15: note: consider making generic struct 'Weight' conform to the 'Sendable' protocol
+ 11 | import Foundation
+ 12 | 
+ 13 | public struct Weight<T: PerspectiveNode & Codable> :  Weighted, Codable {
+    |               `- note: consider making generic struct 'Weight' conform to the 'Sendable' protocol
+ 14 |     
+ 15 |     
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/RelationalLearningModels.swift:95:16: warning: stored property 'payload' of 'Sendable'-conforming struct 'RelationalLearningEventEnvelope' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+ 93 |     public var schemaVersion: String
+ 94 |     public var emittedAt: TimeInterval
+ 95 |     public var payload: Object
+    |                `- warning: stored property 'payload' of 'Sendable'-conforming struct 'RelationalLearningEventEnvelope' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+ 96 | 
+ 97 |     public init(eventType: RelationalLearningEventType,
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: consider making enum 'ValueType' conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: consider making enum 'ValueType' conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 (in target 'CellApple' from project 'CellProtocol')
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/Suggestion/SkeletonNativeStyle.swift:255:9: warning: stored property 'edges' of 'Sendable'-conforming struct 'SkeletonBorderShape' contains non-Sendable type 'SkeletonEdge'; this is an error in the Swift 6 language mode
+253 | struct SkeletonBorderShape: Shape {
+254 |     let radius: CGFloat
+255 |     let edges: [SkeletonEdge]?
+    |         `- warning: stored property 'edges' of 'Sendable'-conforming struct 'SkeletonBorderShape' contains non-Sendable type 'SkeletonEdge'; this is an error in the Swift 6 language mode
+256 |     let rtl: Bool
+257 |     func path(in rect: CGRect) -> Path {
+
+CellBase.SkeletonEdge:1:13: note: enum 'SkeletonEdge' does not conform to the 'Sendable' protocol
+1 | public enum SkeletonEdge : String, Codable {
+  |             `- note: enum 'SkeletonEdge' does not conform to the 'Sendable' protocol
+2 |     case top
+3 |     case leading
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/Suggestion/SkeletonNativeStyle.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  3 | 
+  4 | import SwiftUI
+  5 | import CellBase
+    | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  6 | #if os(macOS)
+  7 | import AppKit
+
+[#AddPreconcurrencyImport]: <https://docs.swift.org/compiler/documentation/diagnostics/add-preconcurrency-import>
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 (in target 'HAVEN' from project 'Binding')
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/BindingStartupIdentityVault.swift:48:50: warning: call to main actor-isolated initializer 'init()' in a synchronous nonisolated context [#ActorIsolatedCall]
+ 46 |     init(
+ 47 |         durable: Bool = BindingStartupIdentityVault.shouldPersistAcrossLaunches(),
+ 48 |         store: any BindingStartupIdentityStore = BindingKeychainStartupIdentityStore(),
+    |                                                  `- warning: call to main actor-isolated initializer 'init()' in a synchronous nonisolated context [#ActorIsolatedCall]
+ 49 |         persistenceRoot: URL? = nil
+ 50 |     ) {
+    :
+410 | /// only, readable after first unlock so the app can boot before the person
+411 | /// authenticates.
+412 | struct BindingKeychainStartupIdentityStore: BindingStartupIdentityStore {
+    |        |- note: calls to initializer 'init()' from outside of its actor context are implicitly asynchronous
+    |        `- note: main actor isolation inferred from conformance to protocol 'BindingStartupIdentityStore'
+413 |     private func query(account: String) -> [String: Any] {
+414 |         [
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/PendingActionInboxViewModel.swift:80:58: warning: main actor-isolated static property 'defaultStorageKey' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 62 | final class PendingActionInboxViewModel: ObservableObject {
+ 63 |     static let shared = PendingActionInboxViewModel()
+ 64 |     static let defaultStorageKey = "binding.pendingDeviceActions.v1"
+    |                `- note: static property declared here
+ 65 | #if DEBUG
+ 66 |     static let correspondenceApprovalUITestLaunchArgument =
+    :
+ 78 |     init(
+ 79 |         defaults: UserDefaults = .standard,
+ 80 |         storageKey: String = PendingActionInboxViewModel.defaultStorageKey,
+    |                                                          `- warning: main actor-isolated static property 'defaultStorageKey' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 81 |         launchArguments: [String] = ProcessInfo.processInfo.arguments
+ 82 |     ) {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/PersonEntityReadResult.swift:17:13: warning: stored property 'value' of 'Sendable'-conforming struct 'Fragment' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+ 15 |         let keypath: String
+ 16 |         let status: Status
+ 17 |         let value: ValueType?
+    |             `- warning: stored property 'value' of 'Sendable'-conforming struct 'Fragment' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+ 18 |         let sourceOrigin: String?
+ 19 |         let sourceReference: String?
+
+CellBase.ValueType:1:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 1 | indirect public enum ValueType : Codable {
+   |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 2 |     case flowElement(CellBase.FlowElement)
+ 3 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Binding/PersonEntityReadResult.swift:4:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  2 | // SPDX-FileCopyrightText: Copyright (c) 2026 Stiftelsen Digipomps and HAVEN contributors
+  3 | 
+  4 | import CellBase
+    | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  5 | import Foundation
+  6 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/Cells/HavenRelationCellSupport.swift:17:5: warning: 'nonisolated' can not be applied to variable with non-'Sendable' type 'ISO8601DateFormatter'; this is an error in the Swift 6 language mode
+ 15 | nonisolated enum HavenValue {
+ 16 | 
+ 17 |     nonisolated static let isoFormatter: ISO8601DateFormatter = {
+    |     `- warning: 'nonisolated' can not be applied to variable with non-'Sendable' type 'ISO8601DateFormatter'; this is an error in the Swift 6 language mode
+ 18 |         let formatter = ISO8601DateFormatter()
+ 19 |         formatter.formatOptions = [.withInternetDateTime]
+
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/System/Library/Frameworks/Foundation.framework/Headers/NSISO8601DateFormatter.h:80:12: note: class 'ISO8601DateFormatter' does not conform to the 'Sendable' protocol
+ 78 | /// > In Swift, you can use ``Date/ISO8601FormatStyle`` rather than ``ISO8601DateFormatter``. The ``FormatStyle`` API offers a declarative idiom for customizing the formatting of various types. Also, Foundation caches identical ``FormatStyle`` instances, so you don't need to pass them around your app, or risk wasting memory with duplicate formatters.
+ 79 | API_AVAILABLE(macosx(10.12), ios(10.0), watchos(3.0), tvos(10.0))
+ 80 | @interface NSISO8601DateFormatter : NSFormatter <NSSecureCoding> {
+    |            `- note: class 'ISO8601DateFormatter' does not conform to the 'Sendable' protocol
+ 81 | @private
+ 82 |     CFDateFormatterRef _formatter;
+
+[#ActorIsolatedCall]: <https://docs.swift.org/compiler/documentation/diagnostics/actor-isolated-call>
+[#AddPreconcurrencyImport]: <https://docs.swift.org/compiler/documentation/diagnostics/add-preconcurrency-import>
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 (in target 'BindingTests' from project 'Binding')
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1827:20: warning: main actor-isolated property 'helperID' can not be referenced from a nonisolated context
+1825 | 
+1826 |         let baselineExactHits = zip(cases, baseline).filter { item, result in
+1827 |             result.helperID == item.expectedHelperID
+     |                    `- warning: main actor-isolated property 'helperID' can not be referenced from a nonisolated context
+1828 |                 && result.purposeRef == item.expectedPurposeRef
+1829 |                 && result.shouldSuggest
+
+Binding.BindingChatIntentClassification.helperID:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var helperID: String}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1828:27: warning: main actor-isolated property 'purposeRef' can not be referenced from a nonisolated autoclosure
+1826 |         let baselineExactHits = zip(cases, baseline).filter { item, result in
+1827 |             result.helperID == item.expectedHelperID
+1828 |                 && result.purposeRef == item.expectedPurposeRef
+     |                           `- warning: main actor-isolated property 'purposeRef' can not be referenced from a nonisolated autoclosure
+1829 |                 && result.shouldSuggest
+1830 |         }.count
+
+Binding.BindingChatIntentClassification.purposeRef:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var purposeRef: String}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1832:20: warning: main actor-isolated property 'helperID' can not be referenced from a nonisolated context
+1830 |         }.count
+1831 |         let perspectiveExactHits = zip(cases, withPerspective).filter { item, result in
+1832 |             result.helperID == item.expectedHelperID
+     |                    `- warning: main actor-isolated property 'helperID' can not be referenced from a nonisolated context
+1833 |                 && result.purposeRef == item.expectedPurposeRef
+1834 |                 && result.shouldSuggest
+
+Binding.BindingChatIntentClassification.helperID:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var helperID: String}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1833:27: warning: main actor-isolated property 'purposeRef' can not be referenced from a nonisolated autoclosure
+1831 |         let perspectiveExactHits = zip(cases, withPerspective).filter { item, result in
+1832 |             result.helperID == item.expectedHelperID
+1833 |                 && result.purposeRef == item.expectedPurposeRef
+     |                           `- warning: main actor-isolated property 'purposeRef' can not be referenced from a nonisolated autoclosure
+1834 |                 && result.shouldSuggest
+1835 |         }.count
+
+Binding.BindingChatIntentClassification.purposeRef:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var purposeRef: String}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1838:72: warning: main actor-isolated property 'confidence' can not be referenced from a nonisolated context
+1836 |         let baselineSuggestions = baseline.filter(\.shouldSuggest).count
+1837 |         let perspectiveSuggestions = withPerspective.filter(\.shouldSuggest).count
+1838 |         let averageBaselineConfidence = baseline.reduce(0.0) { $0 + $1.confidence } / Double(cases.count)
+     |                                                                        `- warning: main actor-isolated property 'confidence' can not be referenced from a nonisolated context
+1839 |         let averagePerspectiveConfidence = withPerspective.reduce(0.0) { $0 + $1.confidence } / Double(cases.count)
+1840 | 
+
+Binding.BindingChatIntentClassification.confidence:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var confidence: Double}
+  |                         `- note: property declared here
+3 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1839:82: warning: main actor-isolated property 'confidence' can not be referenced from a nonisolated context
+1837 |         let perspectiveSuggestions = withPerspective.filter(\.shouldSuggest).count
+1838 |         let averageBaselineConfidence = baseline.reduce(0.0) { $0 + $1.confidence } / Double(cases.count)
+1839 |         let averagePerspectiveConfidence = withPerspective.reduce(0.0) { $0 + $1.confidence } / Double(cases.count)
+     |                                                                                  `- warning: main actor-isolated property 'confidence' can not be referenced from a nonisolated context
+1840 | 
+1841 |         #expect(baselineExactHits == 0)
+
+Binding.BindingChatIntentClassification.confidence:2:25: note: property declared here
+1 | struct BindingChatIntentClassification {
+2 | @MainActor internal var confidence: Double}
+  |                         `- note: property declared here
+3 | 
+
+macro expansion #expect:1:41: warning: main actor-isolated property 'negativeIntent' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+`- /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding/BindingTests/ChatWorkbenchParityTests.swift:1857:59: note: expanded code originates here
+1855 |         )
+1856 |         #expect(negative.shouldSuggest == false)
+1857 |         #expect(negative.negativeIntent == "idea_capture")
+     |         `- note: in expansion of macro 'expect' here
+     +--- macro expansion #expect --------------------------------------
+     |1 | Testing.__checkBinaryOperation(negative.negativeIntent,{ $0 == $1() },"idea_capture",expression: .__fromBinaryOperation(.__fromSyntaxNode("negative.negativeIntent"),"==",.__fromStringLiteral(#""idea_capture""#, "idea_capture")),comments: [],isRequired: false,sourceLocation: Testing.SourceLocation.__here()).__expected()
+     |  |                                         `- warning: main actor-isolated property 'negativeIntent' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+     +------------------------------------------------------------------
+1858 |     }
+1859 | 
+warning: could not open directory 'Binding.xcworkspace/xcshareddata/swiftpm/configuration/': Operation not permitted
+swift-driver version: 1.168.6 
+note: Run script build phase 'Embed Build Provenance' will be run during every build because the option to run the script phase "Based on dependency analysis" is unchecked. (in target 'HAVEN' from project 'Binding')

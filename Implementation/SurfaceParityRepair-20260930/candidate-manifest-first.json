@@ -1,0 +1,50 @@
+{
+  "repos": {
+    "Binding": {
+      "revision": "86fd40167fd6dda4a026086b8a3643fea9d9ad0b",
+      "branch": "codex/surface-parity-20260930",
+      "workingTreeClean": true
+    },
+    "CellProtocol": {
+      "revision": "390a106b35661ba586277508298b17192e0cc791",
+      "branch": "codex/surface-parity-20260930",
+      "workingTreeClean": true
+    },
+    "CellScaffold": {
+      "revision": "816be7ce0a2dfce61f3a9ad23f7875e1ff38acd3",
+      "branch": "codex/surface-parity-20260930",
+      "workingTreeClean": true
+    }
+  },
+  "app": "/tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Products/Debug/HAVEN.app",
+  "appExecutableSHA256": "1c9b5704209c0d1e0134f607cb7cea49c1cde8b8093e4724a356e453f35befa9",
+  "provenance": {
+    "bindingCompilerArtifactSHA256": "ff5f7351bcac939492007726af25738add603c39913973d8a42988a849e6e2f4",
+    "bindingGitRevision": "86fd40167fd6dda4a026086b8a3643fea9d9ad0b",
+    "bindingSourceTreeDirty": false,
+    "buildConfiguration": "Debug",
+    "cellProtocolArtifactSHA256": "b9f918d72480491bed54fc9dc1a954f6f6c6767da8f894bfcf189c1bc937fbf1",
+    "cellProtocolGitRevision": "390a106b35661ba586277508298b17192e0cc791",
+    "cellProtocolSourceTreeDirty": false,
+    "codeSigningEntitlementsSHA256": "992d85b8d7a3c85b56d5f2bce6ebeb4c35fdecb75e1d24291ea47c8afe3fa4c3",
+    "codeSigningIdentityFingerprint": "unsigned",
+    "codeSigningMode": "unsigned",
+    "codeSigningTeamIdentifier": "unsigned",
+    "compilerFlagsSHA256": "0cb972d88aac5f45b763a8c29057122355be81e22445c530c2b1ccade0939714",
+    "compilerInputCount": 102,
+    "compilerInputManifestSHA256": "2bc0fb3ed582519a051b8104122f29236f4d7fe28fdeb3382ec068347bafc471",
+    "coverageDeclaration": "exact-head+dirty-state+xcode-swift-file-list+fs-synchronized-root-inventory+generated-swift+linked-cellprotocol-artifacts+declared-build-settings",
+    "filesystemSynchronizedSourceCount": 101,
+    "generatedAtUTC": "2026-09-30T00:36:07Z",
+    "generatedCompilerInputCount": 1,
+    "ignoredSourceLikeInputCount": 0,
+    "linkInputManifestSHA256": "208bd6f9b52c7a56cc779564ca5bab6cf575c7b0daf1be9b31b68a27b22b1370",
+    "schema": "binding.build-provenance.v4",
+    "sdkName": "macosx27.0",
+    "toolchainSHA256": "4a8f1cd5be38471b9fa6c73f53046a48dff199d82ef12bc3384faccd8a2affa4"
+  },
+  "productionDependencyPinChanged": false,
+  "integrationWorkspace": "Integration.xcworkspace",
+  "installedOrDeployed": false,
+  "note": "Committed first candidate; visual follow-up pending. See STATUS.md for active source changes."
+}

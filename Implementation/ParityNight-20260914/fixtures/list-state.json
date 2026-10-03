@@ -1,0 +1,25 @@
+{
+  "emptySummary" : "Når listen er tom skal headeren fortsatt være lesbar.",
+  "headline" : "Repeated list rows",
+  "items" : [
+    {
+      "badge" : "A",
+      "detail" : "status: ready",
+      "subtitle" : "Relative keypaths inside SkeletonList",
+      "title" : "Alpha row"
+    },
+    {
+      "badge" : "B",
+      "detail" : "status: stable",
+      "subtitle" : "Longer subtitle for wrapping",
+      "title" : "Beta row"
+    },
+    {
+      "badge" : "C",
+      "detail" : "status: done",
+      "subtitle" : "Deterministic third row",
+      "title" : "Gamma row"
+    }
+  ],
+  "status" : "Ingen handlinger kjørt ennå."
+}

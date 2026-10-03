@@ -1,0 +1,37 @@
+[
+  {
+    "file": "phase3-ui-images/library-compact-full-tab-labels-selected.png",
+    "source": "phase3-ui-final-attachments/81F260F9-8031-4B83-8AE3-FF43BD05AC29.png",
+    "test": null
+  },
+  {
+    "file": "phase3-ui-images/form-action-denied-without-identity.png",
+    "source": "phase3-ui-final-attachments/C21E27F0-607A-4489-96A9-E9C71E14853C.png",
+    "test": null
+  },
+  {
+    "file": "phase3-ui-images/form-edit-with-keyboard.png",
+    "source": "phase3-ui-final-attachments/F222A637-039C-4835-87DB-8DA915FFC868.png",
+    "test": null
+  },
+  {
+    "file": "phase3-ui-images/form-controls-before-edit.png",
+    "source": "phase3-ui-final-attachments/E3278C57-2D41-4587-B113-FEB70880510C.png",
+    "test": null
+  },
+  {
+    "file": "phase3-ui-images/library-closed-with-two-auth-attempts.png",
+    "source": "phase3-ui-final-attachments/CFF91914-B31C-45ED-B931-E6D98F4C2AF2.png",
+    "test": null
+  },
+  {
+    "file": "phase3-ui-images/library-auth-stopped-after-retry.png",
+    "source": "phase3-ui-final-attachments/90E6E39A-458D-49F3-B395-2E49491E4168.png",
+    "test": null
+  },
+  {
+    "file": "phase3-ui-images/library-auth-stopped-initial.png",
+    "source": "phase3-ui-final-attachments/679DF225-6C56-4356-BF26-C910C674EEA9.png",
+    "test": null
+  }
+]

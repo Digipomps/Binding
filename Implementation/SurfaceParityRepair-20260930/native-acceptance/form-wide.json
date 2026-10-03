@@ -1,0 +1,26 @@
+{
+  "expectedTextCount" : 3,
+  "materialized" : false,
+  "missingExpectedText" : [
+
+  ],
+  "observedStyleTokens" : [
+
+  ],
+  "pixelHeight" : 2000,
+  "pixelWidth" : 2560,
+  "rasterResults" : [
+
+  ],
+  "recognizedText" : "Form Fixture\nInteractive form\nTextField og TextArea skal holde draft synlig og deterministisk etter hver mutasjon.\nIngen handlinger kjørt ennå.\nRemote parity draft\nLine one from the staging fixture.\nLine two keeps wrapping deterministic.\nSave draft\nReset draft\nHard reset",
+  "rootDataSupplied" : true,
+  "styleNormalizationApplied" : false,
+  "surface" : {
+    "backgroundHex" : "#FFFFFF",
+    "contentMaxWidth" : 1180,
+    "height" : 1000,
+    "isDarkMode" : false,
+    "padding" : 16,
+    "width" : 1280
+  }
+}

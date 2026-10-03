@@ -1,0 +1,284 @@
+{
+  "schema": "haven.person-entity-link-candidate-verification.v1",
+  "date": "2026-09-11",
+  "human_entity_boundary": "Links belong to a human; scaffolds are places. Service/admin/agent keys are not human authority.",
+  "binding": {
+    "revision": "b12b0414eefdd13088d0cefb522d0cc6fd0d36fe",
+    "pullRequest": "https://github.com/Digipomps/Binding/pull/32",
+    "focusedTests": {
+      "count": 12,
+      "passed": true,
+      "testedRevision": "b12b0414eefdd13088d0cefb522d0cc6fd0d36fe",
+      "cancellationRegression": "Red before fix; five entry points with successful/failed suspended outbox reads pass after fix"
+    },
+    "nativeUI": "Manual CUA on 3a41745f passed synthetic-pair review, test-only no-signing guard and cancel. Automated XCUITest runner did not execute. b12b0414 changes cancellation coordination, not the reviewed view.",
+    "iOSSignedBuild": true,
+    "signatureVerified": true,
+    "sourceTreeDirty": false
+  },
+  "artifact": {
+    "file": "HAVEN-PersonEntityLink-b12b0414.ipa",
+    "sha256": "db0afc32ec88ea25912feeb60fe8c8b45f8cf710b11af46df6315b96ff8574a8",
+    "bytes": 35990055,
+    "installed": false,
+    "distribution": "Existing development profile, registered devices only",
+    "supersedes": "HAVEN-PersonEntityLink-3a41745f.ipa"
+  },
+  "cellProtocol": {
+    "revision": "436b6a77d42da1317e71f3024dfc0d3e18de796f",
+    "pullRequest": "https://github.com/Digipomps/CellProtocol/pull/38",
+    "ci": "passed",
+    "standaloneTests": 3,
+    "realBonjourSmoke": "two-process discovery and expiry passed on macOS"
+  },
+  "cellScaffold": {
+    "revision": "746e66ee3e1d84d2eadc86febf6817df22f9ce3f",
+    "pullRequest": "https://github.com/Digipomps/CellScaffold/pull/241",
+    "ciRun": 34629774748,
+    "ci": "failed: one unsupported ValueType object equality assertion and independent live-document saved-status proof",
+    "previousEvidenceRevision": "5ee51e68d9d29768140e9f6b6c864ff1f994b4bc",
+    "previousCI": "passed all gates in run34619634244",
+    "precedingAttempt": "run34626716816 failed test compilation: two negative HTTP request bodies required explicit JSON encoding; corrected without weakening assertions",
+    "buildEveryTarget": "passed",
+    "swiftGroups1Through24": "passed",
+    "swiftGroup25": {
+      "tests": 17,
+      "failures": 1
+    },
+    "adminAndThursdayP0": "passed",
+    "localTestCorrection": "ac2531f20167990323b3da13cd01608ba2b7b52c",
+    "correctionValidation": "parse/diff passed; same canonical-JSON correction imported by data task for next combined CI",
+    "serverPromotionOwner": "01a090e0-cced-7351-a2b1-f82408848442"
+  },
+  "sprout": {
+    "revision": "4a5b3efdd8c135ff5cfd75123f484aaba55b1beb",
+    "pullRequest": "https://github.com/Digipomps/Sprout/pull/2",
+    "ciRun": 34630426281,
+    "ci": "passed Linux and macOS, including installed companion regression",
+    "previousCI": "d2dcfa2 passed Linux and macOS in run34619683027",
+    "installedCompanionTests": {
+      "passed": 5,
+      "actualCLIProcesses": true,
+      "radioUsed": false
+    }
+  },
+  "menuHelper": {
+    "revision": "022661a",
+    "pullRequest": "https://github.com/Digipomps/HavenAgentD/pull/15",
+    "ciRun": 34619688019,
+    "ci": "passed"
+  },
+  "dataTask": "01a090e0-cced-7351-a2b1-f82408848442",
+  "physicalPersonCeremonyTested": false,
+  "deployed": false,
+  "realEntitiesLinked": false,
+  "dataMigrated": false,
+  "remaining": [
+    "Actual native personal data socket/TLS handshake and user journey in data task",
+    "Coordinated server promotion and physical Binding/passkey/two-device radio test",
+    "Linux terminal-initiated person approval contract",
+    "Kjetil evaluation of next core data-authority contract"
+  ],
+  "followupEvidence": [
+    {
+      "date": "2026-09-13",
+      "serverRevision": "44f7739738fce0f7acb43469f074322ac4f84357",
+      "serverCIRun": 34650846164,
+      "serverCIURL": "https://github.com/Digipomps/CellScaffold/actions/runs/34650846164",
+      "serverCI": "success, independently checked through GitHub API",
+      "publication": "skipped; no deployment",
+      "nativeDataClientRevision": "6159733c93ab2933d485b739d8d4dc6575b019bb",
+      "nativeDataClientTests": "pending corrected run; preceding run34651573192 failed compilation",
+      "phoneArtifactChanged": false,
+      "physicalPersonCeremonyTested": false,
+      "deployedByThisTask": false,
+      "owner": "01a090e0-cced-7351-a2b1-f82408848442"
+    },
+    {
+      "date": "2026-09-13",
+      "nativeCIRun": 34779171932,
+      "nativeCIURL": "https://github.com/Digipomps/CellScaffold/actions/runs/34779171932",
+      "workflowRevision": "f8c6902578ca119f4eb2088f0627d8dbba1abd73",
+      "nativeDataClientRevision": "6159733c93ab2933d485b739d8d4dc6575b019bb",
+      "result": "failure, independently checked through GitHub API; 212 seconds",
+      "reportedFailure": "Xcode26.2 compilation in unchanged FullLibraryView.swift; deadline failure resolved",
+      "verifiedLocalTestHostToolchain": {
+        "DTXcode": "2630",
+        "DTXcodeBuild": "17C519",
+        "DTSDKName": "macosx26.2",
+        "DTSDKBuild": "25C58"
+      },
+      "nextAttempt": "Xcode26.3 runner build17C529, reported by data task; pending actual result, unchanged Binding revision and dependency pins",
+      "phoneArtifactChanged": false,
+      "deployedByThisTask": false,
+      "owner": "01a090e0-cced-7351-a2b1-f82408848442"
+    },
+    {
+      "date": "2026-09-13",
+      "nativeCIRun": 34779657343,
+      "nativeCIURL": "https://github.com/Digipomps/CellScaffold/actions/runs/34779657343",
+      "workflowRevision": "e3dd2f40641334ccf899b15a80f4b3f0a240d7a1",
+      "nativeDataClientRevision": "6159733c93ab2933d485b739d8d4dc6575b019bb",
+      "result": "failure, independently checked through GitHub API; 280 seconds",
+      "verifiedFailure": "Build attestation constructs swiftc path from TOOLCHAIN_DIR pointing to Metal.xctoolchain; swiftc missing",
+      "reportedProgress": "Xcode26.3 compiled new files and linked HAVEN; no tests executed",
+      "nextAttempt": "Data task preparing literal Xcode argument TOOLCHAIN_DIR=$(DT_TOOLCHAIN_DIR) in unsigned-test wrapper; unchanged Binding6159733c/script/pins. Actual resolved compiler and provenance plus seven tests remain unverified.",
+      "duplicateServerRun": {
+        "id": 34779622138,
+        "conclusion": "cancelled",
+        "buildStarted": "2026-09-13T20:05:52Z",
+        "buildCancelled": "2026-09-13T20:08:37Z",
+        "cancelledBeforeBuild": false
+      },
+      "phoneArtifactChanged": false,
+      "deployedByThisTask": false,
+      "owner": "01a090e0-cced-7351-a2b1-f82408848442",
+      "verifiedDTToolchainDirectory": "/Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain"
+    },
+    {
+      "date": "2026-09-13T20:24:11Z",
+      "nativeCIRun": 34780399412,
+      "nativeCIURL": "https://github.com/Digipomps/CellScaffold/actions/runs/34780399412",
+      "nativeCIJob": 103786246272,
+      "workflowRevision": "a5737b9e6ce9b08f9b2214cd913e087deea7faaf",
+      "nativeDataClientRevision": "6159733c93ab2933d485b739d8d4dc6575b019bb",
+      "result": "success, independently checked through GitHub API and actual test log",
+      "durationSeconds": 286,
+      "tests": {
+        "suite": "PersonEntityReadClientTests",
+        "executed": 7,
+        "failures": 0,
+        "exactSevenPassGate": "success"
+      },
+      "attestedCompilerMatchesActualSwiftInvocationGate": "success",
+      "actualNativeSocketTLSTested": false,
+      "physicalPersonCeremonyTested": false,
+      "phoneArtifactChanged": false,
+      "deployedByThisTask": false,
+      "owner": "01a090e0-cced-7351-a2b1-f82408848442"
+    },
+    {
+      "date": "2026-09-13T21:04:45Z",
+      "nativeTLSCIRun": 34782683026,
+      "nativeTLSCIURL": "https://github.com/Digipomps/CellScaffold/actions/runs/34782683026",
+      "workflowRevision": "809a2256d02612502f431aee37749dce80abf9b1",
+      "result": "failure before build/trust/native test, independently checked through GitHub API and log",
+      "durationSeconds": 28,
+      "harnessGuardTestsPassed": 5,
+      "failure": "PermissionError13 binding127.0.0.1:443 as unprivileged runner",
+      "serverBuild": "skipped",
+      "trustSetup": "skipped",
+      "syntheticCACreated": false,
+      "nativeTLSTestExecuted": false,
+      "cleanup": "success; no CA was created",
+      "owner": "01a090e0-cced-7351-a2b1-f82408848442"
+    },
+    {
+      "date": "2026-09-13T21:29:01Z",
+      "nativeTLSCIRun": 34783927301,
+      "nativeTLSCIURL": "https://github.com/Digipomps/CellScaffold/actions/runs/34783927301",
+      "workflowRevision": "9e57f3bdfc7716ca1f63dccb931983821aee56f7",
+      "bindingTLSFixtureRevision": "71f916e998c7d256b3eda7bc158b98a093cddf9f",
+      "result": "failure before build/trust/native test; independently checked through GitHub API and artifacts",
+      "durationSeconds": 28,
+      "harnessGuardTestsPassed": 14,
+      "failure": "Transferred listener rejected by unsupported macOS SO_ACCEPTCONN option, ENOPROTOOPT42",
+      "serverBuild": "skipped",
+      "trustSetup": "skipped",
+      "nativeTLSTestExecuted": false,
+      "cleanupAndPins": "success",
+      "localSyscallProbeArtifact": "MacOS-Accept-Probe-20260913.json",
+      "owner": "01a090e0-cced-7351-a2b1-f82408848442"
+    },
+    {
+      "date": "2026-09-13",
+      "nativeTLSCIRun": 34784197977,
+      "nativeTLSCIURL": "https://github.com/Digipomps/CellScaffold/actions/runs/34784197977",
+      "workflowRevision": "c3aaaf1592a73e7b2e81f4a8415118f49631f43c",
+      "bindingTLSFixtureRevision": "71f916e998c7d256b3eda7bc158b98a093cddf9f",
+      "jobStatusAtRootSnapshot": "in_progress",
+      "jobConclusionAtRootSnapshot": null,
+      "fdPreflight": "success",
+      "serverTestBundleBuild": {
+        "result": "success",
+        "durationSeconds": 449
+      },
+      "syntheticTrustSetup": "success",
+      "nativeStep": {
+        "result": "failure",
+        "durationSeconds": 333,
+        "specificTestFailure": "not yet available"
+      },
+      "testAndProvenanceGate": "skipped",
+      "cleanup": "in progress, not verified; data task reports process-group inspection error and hanging CA/hosts cleanup",
+      "nativeTLSTestPassed": false,
+      "owner": "01a090e0-cced-7351-a2b1-f82408848442",
+      "lastRootSnapshot": {
+        "observedAt": "2026-09-13T21:57:20Z",
+        "status": "in_progress",
+        "completedAt": null,
+        "cleanup": "still in progress, unverified",
+        "elapsedJobPeriodSeconds": 1406,
+        "previousNativeRoundSeconds": 1039,
+        "aggregateObservedJobPeriodSeconds": 2445,
+        "overConfiguredRoundSeconds": 45,
+        "billableRunnerTimeVerified": false
+      },
+      "reportedCancellation": {
+        "normalCancellation": "requested, did not produce terminal state",
+        "forceCancellationAcceptedAt": "2026-09-13T21:55:46Z",
+        "forceCancellationHTTPStatus": 202,
+        "terminalStopVerified": true,
+        "terminalStopEvidence": "Later independent completed/cancelled job status, not HTTP202 acknowledgement"
+      },
+      "terminalResult": {
+        "verifiedOn": "2026-09-14",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "startedAt": "2026-09-13T21:33:54Z",
+        "completedAt": "2026-09-13T21:58:54Z",
+        "jobPeriodSeconds": 1500,
+        "previousNativeRoundSeconds": 1039,
+        "aggregateJobPeriodSeconds": 2539,
+        "overConfiguredRoundSeconds": 139,
+        "artifactCount": 0,
+        "cleanupVerified": false,
+        "finalPinGatePassed": false,
+        "billableRunnerTimeVerified": false,
+        "forceCancellationSoleCauseProven": false
+      }
+    }
+  ],
+  "nextNativeTLSProof": {
+    "status": "Local cleanup correction72150528 reviewed; helper SIGTERM orphan regression reproduced; fix and fresh conservative budget check required before allocated diagnostic round",
+    "recipe": "/Users/kjetil/.codex/worktrees/c8a4/CellScaffold/Documentation/Person_Entity_Native_TLS_Proof_2026-09-13.md",
+    "productionClientAndServerRoute": true,
+    "syntheticIdentitiesAndWebAuthn": true,
+    "networkBoundary": "disposable hosted CI only, trusted synthetic CA, exact staging hostname mapped to loopback; no actual staging traffic",
+    "pendingHarnessReviewItems": [
+      "fix demonstrated helper SIGTERM orphan case",
+      "fresh conservative complete cost evidence",
+      "actual diagnostic artifact preservation and root cleanup after correction",
+      "underlying native assertion still unavailable"
+    ],
+    "plannedJobTimeoutMinutes": 20,
+    "tlsResult": "not passed; native step failed, specific cause unavailable",
+    "owner": "01a090e0-cced-7351-a2b1-f82408848442",
+    "localSyscallProbeArtifact": "MacOS-Accept-Probe-20260913.json",
+    "configuredTimeoutIsVerifiedHardStop": false,
+    "reviewedCleanupRevision": "7215052835c310d5d69197780d63b8bafb615fde",
+    "rootSignalRegressionArtifact": "Cleanup-Helper-SIGTERM-Review-20260914.json",
+    "newDiagnosticRound": {
+      "configuredTimeoutMinutes": 20,
+      "maxConcurrentJobs": 1,
+      "separateFromClosed42m19sRound": true,
+      "dispatchPrerequisites": [
+        "helper signal-interruption cleanup fixed and regression passes",
+        "fresh conservative cost evidence including prior unposted use and cancellation delay fits existing60USD"
+      ],
+      "newCIStarted": false,
+      "budgetRaised": false,
+      "githubTimeoutClaimedHardStop": false
+    }
+  }
+}

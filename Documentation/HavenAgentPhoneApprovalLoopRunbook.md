@@ -215,6 +215,16 @@ Current live blocker:
 - App logs after the deploy showed only the local malformed curl probe hitting `/conference-mvp/api/device/register`; no real phone registration was observed after staging was corrected.
 - Binding now keeps explicit registration-success state and shows a retry prompt when notification permission exists but the phone is not registered with staging.
 
+## Update As Of 2026-08-04
+
+Bundle-ID migration started:
+
+- The Binding app target and `PersonalButlerScheduleService` now use `org.digipomps.haven`.
+- The 2026-06-23 provisioning proof above remains historical evidence for the old development App ID; it does not sign the new identifier.
+- Register `org.digipomps.haven` in the Apple Developer account, enable the required capabilities and create/download a matching development/distribution provisioning profile before the next physical-device or TestFlight build.
+- Keep the server APNs topic aligned with the installed build during migration. Change staging/production to `APNS_BUNDLE_ID=org.digipomps.haven` when the new signed build is installed; retaining the old topic after that will make push delivery fail.
+- Re-run the physical-device registration and APNs canary after the profile/topic cutover.
+
 ## What Was Proven Today
 
 ### 1. The app can now be built for iPhone again

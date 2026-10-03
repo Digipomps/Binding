@@ -1,0 +1,93 @@
+[
+  {
+    "slug": "grid",
+    "viewport": "compact",
+    "expected": [
+      "Card one",
+      "Card two",
+      "Card three",
+      "KPI",
+      "GRID",
+      "QA"
+    ],
+    "missing": [],
+    "unexpectedUnavailable": false
+  },
+  {
+    "slug": "grid",
+    "viewport": "desktop",
+    "expected": [
+      "Card one",
+      "Card two",
+      "Card three",
+      "KPI",
+      "GRID",
+      "QA"
+    ],
+    "missing": [],
+    "unexpectedUnavailable": false
+  },
+  {
+    "slug": "list",
+    "viewport": "compact",
+    "expected": [
+      "Alpha row",
+      "Beta row",
+      "Gamma row"
+    ],
+    "missing": [],
+    "unexpectedUnavailable": false
+  },
+  {
+    "slug": "list",
+    "viewport": "desktop",
+    "expected": [
+      "Alpha row",
+      "Beta row",
+      "Gamma row"
+    ],
+    "missing": [],
+    "unexpectedUnavailable": false
+  },
+  {
+    "slug": "relative-keypath",
+    "viewport": "compact",
+    "expected": [
+      "Relative row A",
+      "Relative row B"
+    ],
+    "missing": [],
+    "unexpectedUnavailable": false
+  },
+  {
+    "slug": "relative-keypath",
+    "viewport": "desktop",
+    "expected": [
+      "Relative row A",
+      "Relative row B"
+    ],
+    "missing": [],
+    "unexpectedUnavailable": false
+  },
+  {
+    "slug": "chat",
+    "viewport": "compact",
+    "hasChat": true,
+    "unexpectedInactiveHelper": false,
+    "unexpectedLongFixture": false,
+    "hasPrimaryActionOCR": false,
+    "primaryActionVisuallyConfirmed": true,
+    "visualEvidence": "native-chat-compact.png",
+    "ocrNote": "Vision read Apne forslag; pixels manually inspected and show Åpne forslag. No OCR normalization or rerun."
+  },
+  {
+    "slug": "chat",
+    "viewport": "desktop",
+    "hasChat": true,
+    "unexpectedInactiveHelper": false,
+    "unexpectedLongFixture": false,
+    "hasPrimaryActionOCR": true,
+    "primaryActionVisuallyConfirmed": true,
+    "visualEvidence": "native-chat-desktop.png"
+  }
+]

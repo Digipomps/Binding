@@ -1,0 +1,45 @@
+warning: 'cellprotocol': found 3 file(s) which are unhandled; explicitly declare them as resources or exclude from the target
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell-Design.md
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/Architecture.md
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/ChatLog.md
+Building for debugging...
+[Computing dependencies]
+[Using on-disk description]
+[1 / 8] NIOEmbedded
+[1 / 8] NIOTransportServices
+[2 / 6] CellBaseTests-product
+[4 / 8] CellBaseTests-product
+[5 / 8] CellBaseTests-product
+[10 / 12] CellBaseTests-product
+[12 / 12] CellBaseTests-product
+Build complete! (4,33 sek)
+Test Suite 'Selected tests' started at 2026-09-30 03:14:34.100.
+Test Suite 'HavenCommonsTests.xctest' started at 2026-09-30 03:14:34.101.
+Test Suite 'HavenCommonsTests.xctest' passed at 2026-09-30 03:14:34.101.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 03:14:34.101.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'Selected tests' started at 2026-09-30 03:14:34.161.
+Test Suite 'CellNearbyTests.xctest' started at 2026-09-30 03:14:34.161.
+Test Suite 'CellNearbyTests.xctest' passed at 2026-09-30 03:14:34.161.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 03:14:34.161.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'Selected tests' started at 2026-09-30 03:14:34.222.
+Test Suite 'CellBaseTests.xctest' started at 2026-09-30 03:14:34.223.
+Test Suite 'SkeletonNativeSurfaceParityRepairTests' started at 2026-09-30 03:14:34.223.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholePickerPreservesDuplicateLabelsAndSelectsByIndex]' started.
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:171: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholePickerPreservesDuplicateLabelsAndSelectsByIndex] : XCTAssertEqual failed: ("["Same"]") is not equal to ("["Same", "Same"]")
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:173: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholePickerPreservesDuplicateLabelsAndSelectsByIndex] : failed - Duplicate labels must not collapse distinct options
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:176: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholePickerPreservesDuplicateLabelsAndSelectsByIndex] : XCTAssertEqual failed: ("0") is not equal to ("1")
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:177: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholePickerPreservesDuplicateLabelsAndSelectsByIndex] : XCTAssertEqual failed: ("nil") is not equal to ("Optional(CellBase.ValueType.string("second"))")
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholePickerPreservesDuplicateLabelsAndSelectsByIndex]' failed (2.399 seconds).
+Test Suite 'SkeletonNativeSurfaceParityRepairTests' failed at 2026-09-30 03:14:36.622.
+	 Executed 1 test, with 4 failures (0 unexpected) in 2.399 (2.399) seconds
+Test Suite 'CellBaseTests.xctest' failed at 2026-09-30 03:14:36.622.
+	 Executed 1 test, with 4 failures (0 unexpected) in 2.399 (2.399) seconds
+Test Suite 'Selected tests' failed at 2026-09-30 03:14:36.622.
+	 Executed 1 test, with 4 failures (0 unexpected) in 2.399 (2.400) seconds
+*************** Init Porthole view model! **********************
+Note: Some test targets reported failures:
+  - CellBaseTests (XCTest)

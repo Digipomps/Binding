@@ -1,0 +1,408 @@
+warning: 'cellprotocol': found 3 file(s) which are unhandled; explicitly declare them as resources or exclude from the target
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell-Design.md
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/Architecture.md
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/ChatLog.md
+Building for debugging...
+[Computing dependencies]
+[Using on-disk description]
+[1 / 4] swift-nio-ssl_NIOSSL
+[2 / 4] CellApple
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/Suggestion/SkeletonNativeStyle.swift:264:9: warning: stored property 'edges' of 'Sendable'-conforming struct 'SkeletonBorderShape' contains non-Sendable type 'SkeletonEdge'; this is an error in the Swift 6 language mode
+262 | struct SkeletonBorderShape: Shape {
+263 |     let radius: CGFloat
+264 |     let edges: [SkeletonEdge]?
+    |         `- warning: stored property 'edges' of 'Sendable'-conforming struct 'SkeletonBorderShape' contains non-Sendable type 'SkeletonEdge'; this is an error in the Swift 6 language mode
+265 |     let rtl: Bool
+266 |     func path(in rect: CGRect) -> Path {
+
+CellBase.SkeletonEdge:1:13: note: enum 'SkeletonEdge' does not conform to the 'Sendable' protocol
+1 | public enum SkeletonEdge : String, Codable {
+  |             `- note: enum 'SkeletonEdge' does not conform to the 'Sendable' protocol
+2 |     case top
+3 |     case leading
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/Suggestion/SkeletonNativeStyle.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  3 | 
+  4 | import SwiftUI
+  5 | import CellBase
+    | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  6 | #if os(macOS)
+  7 | import AppKit
+
+[#AddPreconcurrencyImport]: <https://docs.swift.org/compiler/documentation/diagnostics/add-preconcurrency-import>
+[5 / 9] CellApple
+[6 / 9] CellApple
+[7 / 10] CellApple
+[8 / 20] CellApple
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/PortholeViewModel.swift:136:36: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+ 69 |     public init() {
+ 70 |         print("*************** Init Porthole view model! **********************")
+ 71 |         initializationTask = Task {
+    |                                   |- note: 'self' implicitly strongly captured here
+    |                                   `- note: add 'self' as a capture list item to silence
+ 72 | //            await AppInitializer.shared.setupCellResolvers()
+ 73 |             
+    :
+134 |                             print("Porthole flow got completion: \(completion)")
+135 |                             self.flowCancellable = nil
+136 |                         }) { [weak self] flowElement in
+    |                                    |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                    `- note: explicitly assign the capture list item to silence
+137 |                             guard let self = self else { return }
+138 | //                            print("Porthole got flowElement: \(flowElement)")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/AppInitializer.swift:341:56: warning: '20.0' is not a valid version number for watchOS
+339 |         try await registerEntityScannerResolve(on: resolver)
+340 | 
+341 |         if #available(macOS 26.0, iOS 27.0, tvOS 27.0, watchOS 20.0, *) {
+    |                                                        `- warning: '20.0' is not a valid version number for watchOS
+342 |             try await registerResolve(
+343 |                 on: resolver,
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/AppInitializer.swift:385:36: warning: conformance of 'CellType' to protocol 'Emit' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+383 |         do {
+384 |             if let persistency {
+385 |                 try await resolver.addCellResolve(
+    |                                    `- warning: conformance of 'CellType' to protocol 'Emit' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+386 |                     name: name,
+387 |                     cellScope: cellScope,
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/AppInitializer.swift:385:36: warning: conformance of 'CellType' to protocol 'OwnerInstantiable' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+383 |         do {
+384 |             if let persistency {
+385 |                 try await resolver.addCellResolve(
+    |                                    `- warning: conformance of 'CellType' to protocol 'OwnerInstantiable' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+386 |                     name: name,
+387 |                     cellScope: cellScope,
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/AppInitializer.swift:393:36: warning: conformance of 'CellType' to protocol 'Emit' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+391 |                 )
+392 |             } else {
+393 |                 try await resolver.addCellResolve(
+    |                                    `- warning: conformance of 'CellType' to protocol 'Emit' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+394 |                     name: name,
+395 |                     cellScope: cellScope,
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/AppInitializer.swift:393:36: warning: conformance of 'CellType' to protocol 'OwnerInstantiable' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+391 |                 )
+392 |             } else {
+393 |                 try await resolver.addCellResolve(
+    |                                    `- warning: conformance of 'CellType' to protocol 'OwnerInstantiable' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+394 |                     name: name,
+395 |                     cellScope: cellScope,
+
+[#ImplicitStrongCapture]: <https://docs.swift.org/compiler/documentation/diagnostics/implicit-strong-capture>
+[#IsolatedConformances]: <https://docs.swift.org/compiler/documentation/diagnostics/isolated-conformances>
+[9 / 20] CellApple
+[10 / 20] CellApple
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/WebSocketConnection.swift:183:64: warning: 'weak' ownership of capture 'webSocketTask' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+174 |             throw WebSocketConnectionError.NoTask
+175 |         }
+176 |       webSocketTask.sendPing { [weak self] error in
+    |                              |- note: 'webSocketTask' implicitly strongly captured here
+    |                              `- note: add 'webSocketTask' as a capture list item to silence
+177 |           guard let self = self else { return }
+178 |           guard self.webSocketTask === webSocketTask else { return }
+    :
+181 |         } else {
+182 | //            print("Web Socket connection is alive")
+183 |             let workItem = DispatchWorkItem { [weak self, weak webSocketTask] in
+    |                                                                |- warning: 'weak' ownership of capture 'webSocketTask' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                                                `- note: explicitly assign the capture list item to silence
+184 |                 guard let self = self else { return }
+185 |                 guard let webSocketTask, self.webSocketTask === webSocketTask else { return }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/WebSocketConnection.swift:329:64: warning: 'weak' ownership of capture 'webSocketTask' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+320 |             throw WebSocketConnectionError.NoTask
+321 |         }
+322 |       webSocketTask.sendPing { [weak self] error in
+    |                              |- note: 'webSocketTask' implicitly strongly captured here
+    |                              `- note: add 'webSocketTask' as a capture list item to silence
+323 |           guard let self = self else { return }
+324 |           guard self.webSocketTask === webSocketTask else { return }
+    :
+327 |         } else {
+328 | //            print("Web Socket connection is alive")
+329 |             let workItem = DispatchWorkItem { [weak self, weak webSocketTask] in
+    |                                                                |- warning: 'weak' ownership of capture 'webSocketTask' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                                                `- note: explicitly assign the capture list item to silence
+330 |                 guard let self = self else { return }
+331 |                 guard let webSocketTask, self.webSocketTask === webSocketTask else { return }
+
+[#ImplicitStrongCapture]: <https://docs.swift.org/compiler/documentation/diagnostics/implicit-strong-capture>
+[11 / 20] CellApple
+[12 / 20] CellApple
+[13 / 20] CellApple
+[14 / 20] CellApple
+[15 / 20] CellApple
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/Suggestion/SkeletonNativeStyle.swift:264:9: warning: stored property 'edges' of 'Sendable'-conforming struct 'SkeletonBorderShape' contains non-Sendable type 'SkeletonEdge'; this is an error in the Swift 6 language mode
+262 | struct SkeletonBorderShape: Shape {
+263 |     let radius: CGFloat
+264 |     let edges: [SkeletonEdge]?
+    |         `- warning: stored property 'edges' of 'Sendable'-conforming struct 'SkeletonBorderShape' contains non-Sendable type 'SkeletonEdge'; this is an error in the Swift 6 language mode
+265 |     let rtl: Bool
+266 |     func path(in rect: CGRect) -> Path {
+
+CellBase.SkeletonEdge:1:13: note: enum 'SkeletonEdge' does not conform to the 'Sendable' protocol
+1 | public enum SkeletonEdge : String, Codable {
+  |             `- note: enum 'SkeletonEdge' does not conform to the 'Sendable' protocol
+2 |     case top
+3 |     case leading
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/Suggestion/SkeletonNativeStyle.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  3 | 
+  4 | import SwiftUI
+  5 | import CellBase
+    | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  6 | #if os(macOS)
+  7 | import AppKit
+
+[#AddPreconcurrencyImport]: <https://docs.swift.org/compiler/documentation/diagnostics/add-preconcurrency-import>
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift:716:26: warning: 'init(sampling:temperature:maximumResponseTokens:)' is deprecated: replaced by 'init(samplingMode:temperature:maximumResponseTokens:)' [#DeprecatedDeclaration]
+ 714 |                 generating: PurposeWrapper.self,
+ 715 |                 includeSchemaInPrompt: false,
+ 716 |                 options: GenerationOptions(sampling: .greedy)
+     |                          |- warning: 'init(sampling:temperature:maximumResponseTokens:)' is deprecated: replaced by 'init(samplingMode:temperature:maximumResponseTokens:)' [#DeprecatedDeclaration]
+     |                          `- note: use 'init(samplingMode:temperature:maximumResponseTokens:)' instead
+ 717 |             ) {
+ 718 |                 "Generate 5 suggestions of Purposes"
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/Tools/ItineraryPlanner.swift:59:22: warning: 'init(sampling:temperature:maximumResponseTokens:)' is deprecated: replaced by 'init(samplingMode:temperature:maximumResponseTokens:)' [#DeprecatedDeclaration]
+ 57 |             generating: Itinerary.self,
+ 58 |             includeSchemaInPrompt: false,
+ 59 |             options: GenerationOptions(sampling: .greedy)
+    |                      |- warning: 'init(sampling:temperature:maximumResponseTokens:)' is deprecated: replaced by 'init(samplingMode:temperature:maximumResponseTokens:)' [#DeprecatedDeclaration]
+    |                      `- note: use 'init(samplingMode:temperature:maximumResponseTokens:)' instead
+ 60 |         ) {
+ 61 |             "Generate a \(dayCount)-day itinerary to \(landmark.name)."
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[17 / 20] CellApple
+[18 / 20] CellApple
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/IdentityVault.swift:1037:42: warning: type 'Facilitator' does not conform to the 'Sendable' protocol
+1035 |         let (decryptedData, needsMigration) = try await decryptVaultData(encryptedData, scope: tag)
+1036 |         let decoder = JSONDecoder()
+1037 |         decoder.userInfo[.facilitator] = Facilitator(version: nil)
+     |                                          `- warning: type 'Facilitator' does not conform to the 'Sendable' protocol
+1038 |         let identities = try decoder.decode([VaultIdentity].self, from: decryptedData)
+1039 |         let (migratedIdentities, keyMigrationNeeded) = await migrateLoadedVaultIdentities(identities)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Facilitator.swift:6:14: note: class 'Facilitator' does not conform to the 'Sendable' protocol
+ 4 | import Foundation
+ 5 | 
+ 6 | public class Facilitator {
+   |              `- note: class 'Facilitator' does not conform to the 'Sendable' protocol
+ 7 |     public var version: Int?
+ 8 |     public var uuids = [String : String]()
+[24 / 27] RealModule
+[25 / 28] CellBaseTests-product
+[27 / 39] CellBaseTests-product
+[29 / 39] CellBaseTests-product
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/GeneralCellInterfaceTests.swift:127:51: warning: 'restoreStoredOwnerIdentity(using:)' is deprecated: renamed to 'bindStoredOwnerToRuntimeIdentity(_:)' [#DeprecatedDeclaration]
+ 125 |         let publicSnapshotOwnsCell = await restored.requesterProvesOwnership(publicOwner)
+ 126 |         let foreignOwnsCell = await restored.requesterProvesOwnership(foreign)
+ 127 |         let foreignRestoredOwner = await restored.restoreStoredOwnerIdentity(using: foreign)
+     |                                                   |- warning: 'restoreStoredOwnerIdentity(using:)' is deprecated: renamed to 'bindStoredOwnerToRuntimeIdentity(_:)' [#DeprecatedDeclaration]
+     |                                                   `- note: use 'bindStoredOwnerToRuntimeIdentity(_:)' instead
+ 128 | 
+ 129 |         let ownerRestoredOwner = await restored.restoreStoredOwnerIdentity(using: owner)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/GeneralCellInterfaceTests.swift:129:49: warning: 'restoreStoredOwnerIdentity(using:)' is deprecated: renamed to 'bindStoredOwnerToRuntimeIdentity(_:)' [#DeprecatedDeclaration]
+ 127 |         let foreignRestoredOwner = await restored.restoreStoredOwnerIdentity(using: foreign)
+ 128 | 
+ 129 |         let ownerRestoredOwner = await restored.restoreStoredOwnerIdentity(using: owner)
+     |                                                 |- warning: 'restoreStoredOwnerIdentity(using:)' is deprecated: renamed to 'bindStoredOwnerToRuntimeIdentity(_:)' [#DeprecatedDeclaration]
+     |                                                 `- note: use 'bindStoredOwnerToRuntimeIdentity(_:)' instead
+ 130 |         let ownerOwnsCell = await restored.requesterProvesOwnership(owner)
+ 131 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/GeneralCellInterfaceTests.swift:1425:20: warning: 'setInterceptValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+1423 |         var rootWasMutated = false
+1424 | 
+1425 |         await cell.setInterceptValueForKey(requester: owner, key: "profile") { _ in
+     |                    `- warning: 'setInterceptValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+1426 |             .object(["name": .string("Private"), "secret": .string("must-not-leak")])
+1427 |         }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/GeneralCellInterfaceTests.swift:1428:20: warning: 'setInterceptSetValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+1426 |             .object(["name": .string("Private"), "secret": .string("must-not-leak")])
+1427 |         }
+1428 |         await cell.setInterceptSetValueForKey(requester: owner, key: "profile") { _, _ in
+     |                    `- warning: 'setInterceptSetValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+1429 |             rootWasMutated = true
+1430 |         }
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[30 / 39] CellBaseTests-product
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/TrustedIssuerCellTests.swift:1448:13: warning: variable 'missingProof' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1446 |         XCTAssertEqual(decision(unsignedTimeResult), "untrusted")
+1447 | 
+1448 |         var missingProof = try await makeClaim()
+     |             `- warning: variable 'missingProof' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1449 |         missingProof.proof.signatureData = Data()
+1450 |         let missingProofResult = try await evaluate(
+
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+[32 / 39] CellBaseTests-product
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/BridgeIdentityBoundaryTests.swift:371:75: warning: string interpolation produces a debug description for an optional value; did you mean to make this explicit?
+369 |             XCTAssertEqual(admission, .signed)
+370 |             let localDecision = await cell.authorizationDecision(requestedAccess: "r---", at: "feed", for: identity)
+371 |             XCTAssertTrue(localDecision.allowed, "Fresh local contract: \(localDecision.reasonCode)")
+    |                                                                           |             |- note: provide a default value to avoid this warning
+    |                                                                           |             `- note: use 'String(describing:)' to silence this warning
+    |                                                                           `- warning: string interpolation produces a debug description for an optional value; did you mean to make this explicit?
+372 |             let outgoing = PairedTransport()
+373 |             let incoming = PairedTransport()
+[34 / 39] CellBaseTests-product
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonLocalizationTests.swift:158:62: warning: 'accessibilityAttributeValue' was deprecated in macOS 10.10: Use the NSAccessibility protocol methods instead (see NSAccessibilityProtocols.h) [#DeprecatedDeclaration]
+156 |         // standalone XCTest host (the setting is scoped to this process).
+157 |         let accessibilityMode = NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface")
+158 |         let previousAccessibilityMode = NSApplication.shared.accessibilityAttributeValue(accessibilityMode)
+    |                                                              `- warning: 'accessibilityAttributeValue' was deprecated in macOS 10.10: Use the NSAccessibility protocol methods instead (see NSAccessibilityProtocols.h) [#DeprecatedDeclaration]
+159 |         NSApplication.shared.accessibilitySetValue(true, forAttribute: accessibilityMode)
+160 |         defer { NSApplication.shared.accessibilitySetValue(previousAccessibilityMode, forAttribute: accessibilityMode) }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonLocalizationTests.swift:159:30: warning: 'accessibilitySetValue(_:forAttribute:)' was deprecated in macOS 10.10: Use the NSAccessibility protocol methods instead (see NSAccessibilityProtocols.h) [#DeprecatedDeclaration]
+157 |         let accessibilityMode = NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface")
+158 |         let previousAccessibilityMode = NSApplication.shared.accessibilityAttributeValue(accessibilityMode)
+159 |         NSApplication.shared.accessibilitySetValue(true, forAttribute: accessibilityMode)
+    |                              `- warning: 'accessibilitySetValue(_:forAttribute:)' was deprecated in macOS 10.10: Use the NSAccessibility protocol methods instead (see NSAccessibilityProtocols.h) [#DeprecatedDeclaration]
+160 |         defer { NSApplication.shared.accessibilitySetValue(previousAccessibilityMode, forAttribute: accessibilityMode) }
+161 |         let host = NSHostingView(rootView: SkeletonView(element: element).environmentObject(model))
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonLocalizationTests.swift:160:38: warning: 'accessibilitySetValue(_:forAttribute:)' was deprecated in macOS 10.10: Use the NSAccessibility protocol methods instead (see NSAccessibilityProtocols.h) [#DeprecatedDeclaration]
+158 |         let previousAccessibilityMode = NSApplication.shared.accessibilityAttributeValue(accessibilityMode)
+159 |         NSApplication.shared.accessibilitySetValue(true, forAttribute: accessibilityMode)
+160 |         defer { NSApplication.shared.accessibilitySetValue(previousAccessibilityMode, forAttribute: accessibilityMode) }
+    |                                      `- warning: 'accessibilitySetValue(_:forAttribute:)' was deprecated in macOS 10.10: Use the NSAccessibility protocol methods instead (see NSAccessibilityProtocols.h) [#DeprecatedDeclaration]
+161 |         let host = NSHostingView(rootView: SkeletonView(element: element).environmentObject(model))
+162 |         host.frame = NSRect(x: 0, y: 0, width: 600, height: 420)
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[35 / 39] CellBaseTests-product
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/IntegrationTests.swift:1071:18: warning: weak variable 'releasedCell' was never mutated; consider changing to 'let' constant [#VariableNeverMutated::WeakMutability]
+1069 |         let emitter = await CancellationObservingEmitter(owner: owner)
+1070 |         var cell: GeneralCell? = await GeneralCell(owner: owner)
+1071 |         weak var releasedCell = cell
+     |                  `- warning: weak variable 'releasedCell' was never mutated; consider changing to 'let' constant [#VariableNeverMutated::WeakMutability]
+1072 | 
+1073 |         let state = try await cell?.attach(emitter: emitter, label: "source", requester: owner)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/IntegrationTests.swift:1096:18: warning: weak variable 'releasedCell' was never mutated; consider changing to 'let' constant [#VariableNeverMutated::WeakMutability]
+1094 |         let emitter = await CancellationObservingEmitter(owner: owner)
+1095 |         var cell: GeneralCell? = await GeneralCell(owner: owner)
+1096 |         weak var releasedCell = cell
+     |                  `- warning: weak variable 'releasedCell' was never mutated; consider changing to 'let' constant [#VariableNeverMutated::WeakMutability]
+1097 | 
+1098 |         let downstreamEntered = expectation(description: "Downstream subscriber entered")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/IntegrationTests.swift:1145:18: warning: weak variable 'releasedCell' was never mutated; consider changing to 'let' constant [#VariableNeverMutated::WeakMutability]
+1143 |         let interceptGate = SuspendedFlowGate()
+1144 |         var cell: GeneralCell? = await GeneralCell(owner: owner)
+1145 |         weak var releasedCell = cell
+     |                  `- warning: weak variable 'releasedCell' was never mutated; consider changing to 'let' constant [#VariableNeverMutated::WeakMutability]
+1146 | 
+1147 |         await cell?.addIntercept(requester: owner) { element, _ in
+
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+[#WeakMutability]: <https://docs.swift.org/compiler/documentation/diagnostics/weak-mutability>
+[36 / 39] CellBaseTests-product
+[38 / 39] CellBaseTests-product
+[41 / 42] CellBaseTests-product
+[42 / 42] CellBaseTests-product
+[43 / 43] CellApple-product
+Build complete! (17,82 sek)
+Test Suite 'Selected tests' started at 2026-09-30 02:47:20.844.
+Test Suite 'HavenCommonsTests.xctest' started at 2026-09-30 02:47:20.845.
+Test Suite 'HavenCommonsTests.xctest' passed at 2026-09-30 02:47:20.845.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 02:47:20.845.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'Selected tests' started at 2026-09-30 02:47:20.903.
+Test Suite 'CellNearbyTests.xctest' started at 2026-09-30 02:47:20.904.
+Test Suite 'CellNearbyTests.xctest' passed at 2026-09-30 02:47:20.904.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 02:47:20.904.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'Selected tests' started at 2026-09-30 02:47:20.964.
+Test Suite 'CellBaseTests.xctest' started at 2026-09-30 02:47:20.964.
+Test Suite 'SkeletonNativeSurfaceParityRepairTests' started at 2026-09-30 02:47:20.964.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testCanonicalImageDataURLPaintsAllFourSourceColors]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testCanonicalImageDataURLPaintsAllFourSourceColors]' passed (0.295 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testChatPromptRowsKeepSpeakerBodyAndRootBindingsWithNativeBubbleAppearance]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testChatPromptRowsKeepSpeakerBodyAndRootBindingsWithNativeBubbleAppearance]' passed (0.271 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testChatRowDefaultsNeverReplaceExplicitRowModifiers]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testChatRowDefaultsNeverReplaceExplicitRowModifiers]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testExplicitListViewportKeepsItsHeight]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testExplicitListViewportKeepsItsHeight]' passed (0.177 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testFlowConstrainsLongItemAndPreservesSmallItemIntrinsicWidths]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testFlowConstrainsLongItemAndPreservesSmallItemIntrinsicWidths]' passed (0.235 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testMaximumListHeightCapsRatherThanExpandsShortContent]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testMaximumListHeightCapsRatherThanExpandsShortContent]' passed (0.163 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testOriginalChipRolesProduceCompactPillsAndEmptyListTakesNoSpace]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testOriginalChipRolesProduceCompactPillsAndEmptyListTakesNoSpace]' passed (0.411 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPickerDisplaysFirstRequiredOptionAndPreservesExplicitOrEmptySelection]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPickerDisplaysFirstRequiredOptionAndPreservesExplicitOrEmptySelection]' passed (0.599 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeColumnTextHonorsExplicitWidthFillAndAlignment]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeColumnTextHonorsExplicitWidthFillAndAlignment]' passed (0.868 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeHostDefaultsPreservePortableOverridesAndControlOptOuts]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeHostDefaultsPreservePortableOverridesAndControlOptOuts]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeHostRenderedOverridesKeepColorsTypographyPlainAndOpacity]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeHostRenderedOverridesKeepColorsTypographyPlainAndOpacity]' passed (0.373 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeLightHostRendersAndEditsRealControlsWithoutChangingPayload]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeLightHostRendersAndEditsRealControlsWithoutChangingPayload]' passed (0.744 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeListBadgeBoundsAndRowSpacingMatchColumnHost]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeListBadgeBoundsAndRowSpacingMatchColumnHost]' passed (0.447 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeTextFillsColumnsButHorizontalAndFlowBadgesStayIntrinsic]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeTextFillsColumnsButHorizontalAndFlowBadgesStayIntrinsic]' passed (1.003 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceOnlyFallsBackToFilteredFlowWhenLocalValueIsAbsent]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceOnlyFallsBackToFilteredFlowWhenLocalValueIsAbsent]' passed (0.776 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceRendersLocalRowsWithItemAndRootContext]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceRendersLocalRowsWithItemAndRootContext]' passed (0.216 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testRoleDefaultsPreserveExplicitModifiersAndUnrecognizedRoles]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testRoleDefaultsPreserveExplicitModifiersAndUnrecognizedRoles]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testSectionUsesPortholeBaseDecorationAndHonorsExplicitBackground]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testSectionUsesPortholeBaseDecorationAndHonorsExplicitBackground]' passed (0.180 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testStackAlignmentPositionsNarrowContentInsideFullWidth]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testStackAlignmentPositionsNarrowContentInsideFullWidth]' passed (0.340 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testUnboundedListUsesContentHeightAndContextRowsWithoutSwallowingFollowingAction]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testUnboundedListUsesContentHeightAndContextRowsWithoutSwallowingFollowingAction]' passed (0.210 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testVisualizationTableUsesColumnKeysRatherThanDisplayLabels]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testVisualizationTableUsesColumnKeysRatherThanDisplayLabels]' passed (0.604 seconds).
+Test Suite 'SkeletonNativeSurfaceParityRepairTests' passed at 2026-09-30 02:47:28.880.
+	 Executed 21 tests, with 0 failures (0 unexpected) in 7.913 (7.915) seconds
+Test Suite 'CellBaseTests.xctest' passed at 2026-09-30 02:47:28.880.
+	 Executed 21 tests, with 0 failures (0 unexpected) in 7.913 (7.916) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 02:47:28.880.
+	 Executed 21 tests, with 0 failures (0 unexpected) in 7.913 (7.916) seconds
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************

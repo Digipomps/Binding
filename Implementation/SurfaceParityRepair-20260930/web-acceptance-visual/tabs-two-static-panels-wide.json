@@ -1,0 +1,80 @@
+{
+  "name": "tabs-two-static-panels-wide",
+  "host": "porthole-webo.css light baseline",
+  "viewport": {
+    "width": 1280,
+    "height": 1000
+  },
+  "deviceScaleFactor": 2,
+  "materialized": false,
+  "styleNormalizationApplied": false,
+  "content": "OverviewDetails\nOverview panel",
+  "fieldValues": [],
+  "expectedTextCount": 1,
+  "missingExpectedText": [],
+  "errors": [],
+  "geometry": {
+    "box": {
+      "x": 50,
+      "y": 16,
+      "width": 1180,
+      "height": 39,
+      "top": 16,
+      "right": 1230,
+      "bottom": 55,
+      "left": 50
+    },
+    "scrollWidth": 1180,
+    "clientWidth": 1180
+  },
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "Overview",
+      "box": {
+        "x": 50,
+        "y": 16,
+        "width": 71.5625,
+        "height": 21,
+        "top": 16,
+        "right": 121.5625,
+        "bottom": 37,
+        "left": 50
+      },
+      "font": "13.3333px Arial",
+      "color": "rgb(0, 0, 0)",
+      "background": "rgb(239, 239, 239) none repeat scroll 0% 0% / auto padding-box border-box",
+      "padding": "1px 6px",
+      "border": "2px outset rgb(0, 0, 0)",
+      "borderRadius": "0px",
+      "boxSizing": "border-box"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Details",
+      "box": {
+        "x": 121.5625,
+        "y": 16,
+        "width": 56.75,
+        "height": 21,
+        "top": 16,
+        "right": 178.3125,
+        "bottom": 37,
+        "left": 121.5625
+      },
+      "font": "13.3333px Arial",
+      "color": "rgb(0, 0, 0)",
+      "background": "rgb(239, 239, 239) none repeat scroll 0% 0% / auto padding-box border-box",
+      "padding": "1px 6px",
+      "border": "2px outset rgb(0, 0, 0)",
+      "borderRadius": "0px",
+      "boxSizing": "border-box"
+    }
+  ],
+  "images": [],
+  "selectedTexts": [],
+  "assetHashes": {
+    "/css/porthole-webo.css": "07845ea4e7d0d0b71ce95bd042ace835fd98df5ec2ca69e1fd6d7f9247aca525",
+    "/js/skeleton-runtime.js": "4f957ac8206f6777b7845d3cc41eec10c94bfb7ca8ca572f77c95cff6735b508"
+  }
+}

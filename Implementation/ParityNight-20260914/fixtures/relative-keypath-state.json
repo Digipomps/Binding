@@ -1,0 +1,21 @@
+{
+  "absoluteSummary" : "Denne linjen bruker absolutt keypath fra rotnivå.",
+  "headline" : "Relative vs absolute keypaths",
+  "items" : [
+    {
+      "detail" : "detail.a",
+      "stats" : {
+        "value" : "11"
+      },
+      "title" : "Relative row A"
+    },
+    {
+      "detail" : "detail.b",
+      "stats" : {
+        "value" : "22"
+      },
+      "title" : "Relative row B"
+    }
+  ],
+  "status" : "Ingen handlinger kjørt ennå."
+}

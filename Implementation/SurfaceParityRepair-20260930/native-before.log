@@ -1,0 +1,17 @@
+Writing result bundle at path:
+	/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/native-before.xcresult
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64, id:00008142-001411C11A22401C, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Mac Catalyst, id:00008142-001411C11A22401C, name:My Mac }
+{ platform:macOS, arch:arm64, variant:DriverKit, id:00008142-001411C11A22401C, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:00008142-001411C11A22401C, name:My Mac }
+2026-09-30 01:40:45.646 xcodebuild[15684:32674337] [MT] IDETestOperationsObserverDebug: 59.529 elapsed -- Testing started completed.
+2026-09-30 01:40:45.646 xcodebuild[15684:32674337] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-09-30 01:40:45.646 xcodebuild[15684:32674337] [MT] IDETestOperationsObserverDebug: 59.529 sec, +59.529 sec -- end
+Failing tests:
+	SkeletonSnapshotRenderXCTest.testRenderCorpusToPNG()
+
+** TEST EXECUTE FAILED **
+
+Testing started

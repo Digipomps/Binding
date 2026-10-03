@@ -1,0 +1,16 @@
+BUILD_EXIT=1
+== ekte kompileringsfeil ==
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:161:28: error: static member 'securityHeaders' cannot be used on instance of type 'VaporCellBridge'
+count=1
+== VaporCellBridge kompilert? ==
+225:[7/7] Compiling App VaporCellBridge.swift
+226:/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:161:28: error: static member 'securityHeaders' cannot be used on instance of type 'VaporCellBridge'
+230:    |                            `- error: static member 'securityHeaders' cannot be used on instance of type 'VaporCellBridge'
+== sluttlinjer ==
+159 |                         audience: audience
+160 |                     )
+161 |                     return securityHeaders()
+    |                            `- error: static member 'securityHeaders' cannot be used on instance of type 'VaporCellBridge'
+162 |                 } catch {
+163 |                     let reason = (error as? ProofError)?.rawValue ?? "rejected"
+DONE 21:37:22Z

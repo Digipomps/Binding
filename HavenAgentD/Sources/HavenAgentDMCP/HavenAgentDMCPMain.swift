@@ -1,5 +1,6 @@
 import Foundation
 import Darwin
+import HavenAgentRuntime
 import HavenRuntimeBootstrap
 
 private struct HavenAgentMCPLaunchConfiguration {
@@ -18,7 +19,11 @@ private final class HavenAgentMCPServer {
     }
 
     func run() async throws {
+        // Klienten kan forlate stdio uten aa lukke stdin. Da kommer EOF aldri,
+        // og loekka under ville sovet for alltid. Se MCPStdioIdleWatchdog.
+        MCPStdioIdleWatchdog.shared.start(serverName: "haven-agentd-mcp")
         while let line = readLine(strippingNewline: true) {
+            MCPStdioIdleWatchdog.shared.noteActivity()
             guard !line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 continue
             }

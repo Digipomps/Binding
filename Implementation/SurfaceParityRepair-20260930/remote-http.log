@@ -1,0 +1,12 @@
+Writing result bundle at path:
+	/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/remote-http.xcresult
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64, id:00008142-001411C11A22401C, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Mac Catalyst, id:00008142-001411C11A22401C, name:My Mac }
+{ platform:macOS, arch:arm64, variant:DriverKit, id:00008142-001411C11A22401C, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:00008142-001411C11A22401C, name:My Mac }
+2026-09-30 01:50:10.934 xcodebuild[31428:32743807] [MT] IDETestOperationsObserverDebug: 6.072 elapsed -- Testing started completed.
+2026-09-30 01:50:10.934 xcodebuild[31428:32743807] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-09-30 01:50:10.934 xcodebuild[31428:32743807] [MT] IDETestOperationsObserverDebug: 6.072 sec, +6.072 sec -- end
+Testing started

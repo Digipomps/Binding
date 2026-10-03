@@ -1,0 +1,74 @@
+    #if os(macOS)
+    func testLocalFieldsRefreshClearAndGrowWithinEditorBounds() async throws {
+        XCTAssertNil(CellBase.defaultCellResolver)
+        XCTAssertNil(CellBase.defaultIdentityVault)
+        var fieldStyle = SkeletonModifiers()
+        fieldStyle.fontSize = 22
+        let skeleton = SkeletonElement.VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(text: "Default leading label")),
+            .TextField(SkeletonTextField(sourceKeypath: "title", modifiers: fieldStyle)),
+            .TextArea(SkeletonTextArea(sourceKeypath: "body", minLines: 2, maxLines: 6, modifiers: fieldStyle)),
+            .Text(SkeletonText(text: "Editor boundary"))
+        ]))
+        let model = PortholeViewModel()
+        func content(_ state: ValueType) -> some View {
+            BindingSkeletonView(element: skeleton, userInfoValue: state)
+                .environmentObject(model).font(.system(size: 22)).padding(20)
+        }
+        let host = NSHostingView(rootView: content(.object([:])))
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 620, height: 460),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        window.makeKeyAndOrderFront(nil)
+        defer { window.close() }
+        func capture(_ state: ValueType) async throws -> [(String, CGRect)] {
+            host.rootView = content(state)
+            for _ in 0..<8 {
+                host.layoutSubtreeIfNeeded()
+                host.displayIfNeeded()
+                try await Task.sleep(nanoseconds: 50_000_000)
+            }
+            let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+            host.cacheDisplay(in: host.bounds, to: bitmap)
+            let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+            let attachment = XCTAttachment(data: png, uniformTypeIdentifier: "public.png")
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.recognitionLanguages = ["en-US"]
+            request.automaticallyDetectsLanguage = false
+            request.usesLanguageCorrection = false
+            try VNImageRequestHandler(data: png).perform([request])
+            return (request.results ?? []).compactMap { item in
+                item.topCandidates(1).first.map { ($0.string, item.boundingBox) }
+            }
+        }
+        let initial = try await capture(.object(["title": .string("Initial title"), "body": .string("Initial body")]))
+        XCTAssertTrue(initial.contains { $0.0.contains("Initial title") }, "\(initial)")
+        XCTAssertTrue(initial.contains { $0.0.contains("Initial body") }, "\(initial)")
+        let leading = try XCTUnwrap(initial.first { $0.0.contains("Default leading label") })
+        XCTAssertLessThan(leading.1.minX, 0.12, "Default text must follow the leading edge")
+        let shortBoundary = try XCTUnwrap(initial.first { $0.0.contains("Editor boundary") })
+        let updated = try await capture(.object([
+            "title": .string("Updated title"),
+            "body": .string("Updated body\nSecond line\nThird line\nFourth line\nFifth line\nSixth line")
+        ]))
+        XCTAssertTrue(updated.contains { $0.0.contains("Updated title") }, "\(updated)")
+        XCTAssertTrue(updated.contains { $0.0.contains("Updated body") }, "\(updated)")
+        XCTAssertFalse(updated.contains { $0.0.contains("Initial") })
+        let longBoundary = try XCTUnwrap(updated.first { $0.0.contains("Editor boundary") })
+        XCTAssertGreaterThan(shortBoundary.1.minY - longBoundary.1.minY, 0.08, "The editor should grow with its draft")
+        let capped = try await capture(.object([
+            "title": .string("Updated title"),
+            "body": .string((1...20).map { "Content line \($0)" }.joined(separator: "\n"))
+        ]))
+        let cappedBoundary = try XCTUnwrap(capped.first { $0.0.contains("Editor boundary") })
+        XCTAssertEqual(cappedBoundary.1.minY, longBoundary.1.minY, accuracy: 0.025, "Maximum lines must bound the editor")
+        let empty = try await capture(.object([:]))
+        XCTAssertTrue(empty.contains { $0.0.contains("Editor boundary") })
+        XCTAssertFalse(empty.contains { $0.0.contains("Updated") || $0.0.contains("Content line") })
+    }
+    #endif
+

@@ -114,7 +114,7 @@ enum ComponentPaletteCatalog {
         let recipe = ComponentInsertionRecipe(
             id: "chat.embedded.card",
             displayName: "Co-Pilot Prompt",
-            subtitle: "Owner-scoped promptflate som foreslaar neste trygge hjelper uten aa sende.",
+            subtitle: "Privat samtale med Butler og forslag til neste steg.",
             icon: "arrow.up.circle.fill",
             role: .embeddedWidget,
             supportedInsertionModes: [.component],
@@ -275,7 +275,7 @@ enum ComponentPaletteCatalog {
             $0.foregroundColor = "#111827"
         }
 
-        var liveChip = SkeletonText(text: "LOCAL")
+        var liveChip = SkeletonText(text: "BUTLER")
         liveChip.modifiers = chipModifier
 
         var statusText = SkeletonText(keypath: "\(referenceLabel).state.ui.primaryActionHint")
@@ -297,12 +297,12 @@ enum ComponentPaletteCatalog {
         messagePreview.modifiers = makeModifier {
             $0.fontSize = 12
             $0.foregroundColor = "#374151"
-            $0.lineLimit = 3
         }
 
         var messageRow = SkeletonVStack(elements: [
             .Text(messageAuthor),
-            .Text(messagePreview)
+            .Text(messagePreview),
+            .Text(SkeletonText(keypath: "statusText"))
         ])
         messageRow.modifiers = makeModifier {
             $0.padding = 8
@@ -321,15 +321,23 @@ enum ComponentPaletteCatalog {
             placeholder: "Hva vil du faa gjort?",
             minLines: 2,
             maxLines: 4,
-            submitOnEnter: false
+            submitOnEnter: true,
+            submitActionKeypath: "\(referenceLabel).prompt.submit"
         )
 
         var sendButton = SkeletonButton(
-            keypath: "\(referenceLabel).ui.openSuggestedHelper",
+            keypath: "\(referenceLabel).prompt.submit",
             label: "↑",
             payload: .bool(true)
         )
         sendButton.modifiers = primaryButton
+
+        var openSuggestionButton = SkeletonButton(
+            keypath: "\(referenceLabel).ui.openSuggestedHelper",
+            label: "Åpne forslag",
+            payload: .bool(true)
+        )
+        openSuggestionButton.modifiers = secondaryButton
 
         var clearButton = SkeletonButton(
             keypath: "\(referenceLabel).clearComposer",
@@ -347,6 +355,7 @@ enum ComponentPaletteCatalog {
 
         let actionsRow = SkeletonHStack(elements: [
             .Button(sendButton),
+            .Button(openSuggestionButton),
             .Button(clearButton)
         ])
 

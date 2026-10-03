@@ -1,0 +1,76 @@
+warning: 'cellprotocol': found 3 file(s) which are unhandled; explicitly declare them as resources or exclude from the target
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell-Design.md
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/Architecture.md
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/ChatLog.md
+Building for debugging...
+[Computing dependencies]
+[Using on-disk description]
+[1 / 8] DequeModule
+[1 / 8] RealModule
+[2 / 6] CellBaseTests-product
+[4 / 8] CellBaseTests-product
+[10 / 12] CellBaseTests-product
+[11 / 12] CellBaseTests-product
+[12 / 12] CellBaseTests-product
+Build complete! (4,63 sek)
+Test Suite 'Selected tests' started at 2026-09-30 02:45:09.032.
+Test Suite 'HavenCommonsTests.xctest' started at 2026-09-30 02:45:09.033.
+Test Suite 'HavenCommonsTests.xctest' passed at 2026-09-30 02:45:09.033.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 02:45:09.033.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'Selected tests' started at 2026-09-30 02:45:09.086.
+Test Suite 'CellNearbyTests.xctest' started at 2026-09-30 02:45:09.087.
+Test Suite 'CellNearbyTests.xctest' passed at 2026-09-30 02:45:09.087.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 02:45:09.087.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'Selected tests' started at 2026-09-30 02:45:09.143.
+Test Suite 'CellBaseTests.xctest' started at 2026-09-30 02:45:09.144.
+Test Suite 'SkeletonNativeSurfaceParityRepairTests' started at 2026-09-30 02:45:09.144.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPickerDisplaysFirstRequiredOptionAndPreservesExplicitOrEmptySelection]' started.
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:176: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPickerDisplaysFirstRequiredOptionAndPreservesExplicitOrEmptySelection] : XCTAssertTrue failed - Priority
+Priority
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:177: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPickerDisplaysFirstRequiredOptionAndPreservesExplicitOrEmptySelection] : XCTAssertEqual failed: ("2") is not equal to ("1") - The field label must not be drawn twice: Priority
+Priority
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:177: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPickerDisplaysFirstRequiredOptionAndPreservesExplicitOrEmptySelection] : XCTAssertEqual failed: ("2") is not equal to ("1") - The field label must not be drawn twice: Priority
+Priority
+High
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:177: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPickerDisplaysFirstRequiredOptionAndPreservesExplicitOrEmptySelection] : XCTAssertEqual failed: ("2") is not equal to ("1") - The field label must not be drawn twice: Priority
+Priority
+Choose option
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPickerDisplaysFirstRequiredOptionAndPreservesExplicitOrEmptySelection]' failed (2.962 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeColumnTextHonorsExplicitWidthFillAndAlignment]' started.
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:147: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeColumnTextHonorsExplicitWidthFillAndAlignment] : XCTAssertEqual failed: ("22.0") is not equal to ("240.0") - aligned
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeColumnTextHonorsExplicitWidthFillAndAlignment]' failed (0.866 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeListBadgeBoundsAndRowSpacingMatchColumnHost]' started.
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:98: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeListBadgeBoundsAndRowSpacingMatchColumnHost] : XCTAssertEqual failed: ("[(8.0, 6.0, 22.0, 32.0), (8.0, 58.0, 22.0, 32.0)]") is not equal to ("[(0.0, 0.0, 240.0, 32.0), (0.0, 40.0, 240.0, 32.0)]")
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:99: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeListBadgeBoundsAndRowSpacingMatchColumnHost] : XCTAssertLessThan failed: ("0.9764705882352941") is not less than ("0.1") - Following content starts after two32pt rows,8pt row gap and8pt stack gap
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:105: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeListBadgeBoundsAndRowSpacingMatchColumnHost] : XCTAssertEqual failed: ("[(5.0, 7.0, 22.0, 32.0), (5.0, 57.0, 22.0, 32.0)]") is not equal to ("[(5.0, 7.0, 226.0, 32.0), (5.0, 57.0, 226.0, 32.0)]")
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeListBadgeBoundsAndRowSpacingMatchColumnHost]' failed (0.444 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeTextFillsColumnsButHorizontalAndFlowBadgesStayIntrinsic]' started.
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:122: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeTextFillsColumnsButHorizontalAndFlowBadgesStayIntrinsic] : XCTAssertEqual failed: ("22.0") is not equal to ("240.0") - vstack
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:122: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeTextFillsColumnsButHorizontalAndFlowBadgesStayIntrinsic] : XCTAssertEqual failed: ("22.0") is not equal to ("216.0") - section
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeTextFillsColumnsButHorizontalAndFlowBadgesStayIntrinsic]' failed (1.046 seconds).
+Test Suite 'SkeletonNativeSurfaceParityRepairTests' failed at 2026-09-30 02:45:14.463.
+	 Executed 4 tests, with 10 failures (0 unexpected) in 5.319 (5.319) seconds
+Test Suite 'CellBaseTests.xctest' failed at 2026-09-30 02:45:14.463.
+	 Executed 4 tests, with 10 failures (0 unexpected) in 5.319 (5.319) seconds
+Test Suite 'Selected tests' failed at 2026-09-30 02:45:14.463.
+	 Executed 4 tests, with 10 failures (0 unexpected) in 5.319 (5.320) seconds
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+Note: Some test targets reported failures:
+  - CellBaseTests (XCTest)

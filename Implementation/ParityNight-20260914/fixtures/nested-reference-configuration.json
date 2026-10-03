@@ -1,0 +1,115 @@
+{
+  "cellReferences" : [
+    {
+      "endpoint" : "cell:\/\/\/SkeletonParityNestedReferenceFixture",
+      "label" : "primaryFixture",
+      "setKeysAndValues" : [
+        {
+          "key" : "state"
+        }
+      ],
+      "subscribeFeed" : true,
+      "subscriptions" : [
+
+      ]
+    },
+    {
+      "endpoint" : "cell:\/\/\/SkeletonParityNestedReferenceFixture",
+      "label" : "secondaryFixture",
+      "setKeysAndValues" : [
+        {
+          "key" : "state"
+        }
+      ],
+      "subscribeFeed" : true,
+      "subscriptions" : [
+
+      ]
+    }
+  ],
+  "description" : "Two labeled references reading the same cell for nested keypath verification.",
+  "discovery" : {
+    "interests" : [
+      "skeleton",
+      "parity",
+      "nested",
+      "references"
+    ],
+    "menuSlots" : [
+
+    ],
+    "purpose" : "Skeleton parity nested reference fixture",
+    "purposeDescription" : "Verifies nested object fields across two labeled references.",
+    "sourceCellEndpoint" : "cell:\/\/\/SkeletonParityNestedReferenceFixture",
+    "sourceCellName" : "SkeletonParityNestedReferenceFixture"
+  },
+  "name" : "Skeleton Parity Nested Reference Fixture",
+  "skeleton" : {
+    "VStack" : [
+      {
+        "Section" : {
+          "content" : [
+            {
+              "Text" : {
+                "keypath" : "primaryFixture.state.headline"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "primaryFixture.state.workspace.title"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "primaryFixture.state.workspace.selection.title"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "primaryFixture.state.workspace.selection.subtitle"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "secondaryFixture.state.secondary.title"
+              }
+            },
+            {
+              "List" : {
+                "elements" : [
+
+                ],
+                "flowElementSkeleton" : {
+                  "VStack" : [
+                    {
+                      "Text" : {
+                        "keypath" : "title"
+                      }
+                    },
+                    {
+                      "Text" : {
+                        "keypath" : "detail"
+                      }
+                    }
+                  ]
+                },
+                "keypath" : "secondaryFixture.state.secondary.rows"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "primaryFixture.state.status"
+              }
+            }
+          ],
+          "header" : {
+            "Text" : {
+              "text" : "Nested Reference Fixture"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "uuid" : "2483AABB-DAD9-4D3A-971C-8684A3294284"
+}

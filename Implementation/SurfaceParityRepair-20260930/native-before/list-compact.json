@@ -1,0 +1,24 @@
+{
+  "materialized" : false,
+  "missingExpectedText" : [
+    "Alpha row",
+    "Beta row",
+    "Gamma row"
+  ],
+  "observedStyleTokens" : [
+
+  ],
+  "pixelHeight" : 2000,
+  "pixelWidth" : 780,
+  "recognizedText" : "List Fixture\nRepeated list rows\nIngen handlinger kjørt ennå.\nInnholdet er ikke tilgjengelig akkurat nå.\nInnholdet er ikke tilgjengelig akkurat nå.\nInnholdet er ikke tilgjengelig akkurat nå.\nInnholdet er ikke tilgjengelig akkurat nå.\nInnholdet er ikke tilgjengelig akkurat nå.\nInnholdet er ikke tilgjengelig akkurat nå.\nInnholdet er ikke tilgjengelig akkurat nå.\nInnholdet er ikke tilgjengelig akkurat nå.\nInnholdet er ikke tilgjengelig akkurat nå.\nInnholdet er ikke tilgjengelig akkurat nå.\nInnholdet er ikke tilgjengelig akkurat nå.\nInnholdet er ikke tilgjengelig akkurat nå.\nNår listen er tom skal headeren fortsatt være lesbar.\nAck list",
+  "rootDataSupplied" : true,
+  "styleNormalizationApplied" : false,
+  "surface" : {
+    "backgroundHex" : "#FFFFFF",
+    "contentMaxWidth" : 1180,
+    "height" : 1000,
+    "isDarkMode" : false,
+    "padding" : 16,
+    "width" : 390
+  }
+}

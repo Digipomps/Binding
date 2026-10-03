@@ -1,0 +1,2401 @@
+[0/1] Planning build
+Building for debugging...
+[0/1] Write swift-version--58304C5D6DBC2206.txt
+[2/24] Compiling App VaporLeadVault.swift
+[3/24] Compiling App VaporMicropaymentsAudit.swift
+[4/24] Compiling App VaporInviteLanding.swift
+[5/24] Compiling App VaporJWTAuth.swift
+[6/24] Compiling App VaporButterpopStudio.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporButterpopStudio.swift:657:17: warning: variable 'response' was never mutated; consider changing to 'let' constant
+ 655 |                 resourceID: resourceID
+ 656 |             )
+ 657 |             var response = try jsonResponse(from: .object([
+     |                 `- warning: variable 'response' was never mutated; consider changing to 'let' constant
+ 658 |                 "status": .string("issued"),
+ 659 |                 "audioURL": .string(Self.playerAudioPath),
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporButterpopStudio.swift:829:17: warning: variable 'failure' was never mutated; consider changing to 'let' constant
+ 827 |         MusicPublishingPersistence.persist(delivery, owner: deliveryOwner)
+ 828 |         guard let tokenID = tokenID(from: value) else {
+ 829 |             var failure = try productActionResponse(value)
+     |                 `- warning: variable 'failure' was never mutated; consider changing to 'let' constant
+ 830 |             if let cookie { failure.cookies[Self.anonymousCookieName] = cookie }
+ 831 |             return failure
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporButterpopStudio.swift:833:13: warning: variable 'response' was never mutated; consider changing to 'let' constant
+ 831 |             return failure
+ 832 |         }
+ 833 |         var response = try jsonResponse(from: .object([
+     |             `- warning: variable 'response' was never mutated; consider changing to 'let' constant
+ 834 |             "status": .string("issued"),
+ 835 |             "access": .string(access),
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:202:33: error: cannot find 'VaporBridgeTransport' in scope
+200 |                 }
+201 | 
+202 |                 let transport = VaporBridgeTransport(webSocket: webSocket)
+    |                                 `- error: cannot find 'VaporBridgeTransport' in scope
+203 |                 let config = await VaporBridgehead.bridgeConfig(
+204 |                     publisherIdentity: publisherIdentity,
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:146:38: error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+144 |                     return nil
+145 |                 }
+146 |                 guard let cellName = normalizedCellName(request.parameters.get("cellName")),
+    |                                      `- error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+147 |                       let bridgeID = request.parameters.get("bridgeID"),
+148 |                       UUID(uuidString: bridgeID) != nil else {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:173:38: error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+171 |             }
+172 |             do {
+173 |                 guard let cellName = normalizedCellName(request.parameters.get("cellName")),
+    |                                      `- error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+174 |                       let bridgeID = request.parameters.get("bridgeID"),
+175 |                       UUID(uuidString: bridgeID) != nil else {
+[7/24] Compiling App VaporCellBridge.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporButterpopStudio.swift:657:17: warning: variable 'response' was never mutated; consider changing to 'let' constant
+ 655 |                 resourceID: resourceID
+ 656 |             )
+ 657 |             var response = try jsonResponse(from: .object([
+     |                 `- warning: variable 'response' was never mutated; consider changing to 'let' constant
+ 658 |                 "status": .string("issued"),
+ 659 |                 "audioURL": .string(Self.playerAudioPath),
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporButterpopStudio.swift:829:17: warning: variable 'failure' was never mutated; consider changing to 'let' constant
+ 827 |         MusicPublishingPersistence.persist(delivery, owner: deliveryOwner)
+ 828 |         guard let tokenID = tokenID(from: value) else {
+ 829 |             var failure = try productActionResponse(value)
+     |                 `- warning: variable 'failure' was never mutated; consider changing to 'let' constant
+ 830 |             if let cookie { failure.cookies[Self.anonymousCookieName] = cookie }
+ 831 |             return failure
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporButterpopStudio.swift:833:13: warning: variable 'response' was never mutated; consider changing to 'let' constant
+ 831 |             return failure
+ 832 |         }
+ 833 |         var response = try jsonResponse(from: .object([
+     |             `- warning: variable 'response' was never mutated; consider changing to 'let' constant
+ 834 |             "status": .string("issued"),
+ 835 |             "access": .string(access),
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:202:33: error: cannot find 'VaporBridgeTransport' in scope
+200 |                 }
+201 | 
+202 |                 let transport = VaporBridgeTransport(webSocket: webSocket)
+    |                                 `- error: cannot find 'VaporBridgeTransport' in scope
+203 |                 let config = await VaporBridgehead.bridgeConfig(
+204 |                     publisherIdentity: publisherIdentity,
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:146:38: error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+144 |                     return nil
+145 |                 }
+146 |                 guard let cellName = normalizedCellName(request.parameters.get("cellName")),
+    |                                      `- error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+147 |                       let bridgeID = request.parameters.get("bridgeID"),
+148 |                       UUID(uuidString: bridgeID) != nil else {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:173:38: error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+171 |             }
+172 |             do {
+173 |                 guard let cellName = normalizedCellName(request.parameters.get("cellName")),
+    |                                      `- error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+174 |                       let bridgeID = request.parameters.get("bridgeID"),
+175 |                       UUID(uuidString: bridgeID) != nil else {
+[8/24] Compiling App VaporChatMVP.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporButterpopStudio.swift:657:17: warning: variable 'response' was never mutated; consider changing to 'let' constant
+ 655 |                 resourceID: resourceID
+ 656 |             )
+ 657 |             var response = try jsonResponse(from: .object([
+     |                 `- warning: variable 'response' was never mutated; consider changing to 'let' constant
+ 658 |                 "status": .string("issued"),
+ 659 |                 "audioURL": .string(Self.playerAudioPath),
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporButterpopStudio.swift:829:17: warning: variable 'failure' was never mutated; consider changing to 'let' constant
+ 827 |         MusicPublishingPersistence.persist(delivery, owner: deliveryOwner)
+ 828 |         guard let tokenID = tokenID(from: value) else {
+ 829 |             var failure = try productActionResponse(value)
+     |                 `- warning: variable 'failure' was never mutated; consider changing to 'let' constant
+ 830 |             if let cookie { failure.cookies[Self.anonymousCookieName] = cookie }
+ 831 |             return failure
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporButterpopStudio.swift:833:13: warning: variable 'response' was never mutated; consider changing to 'let' constant
+ 831 |             return failure
+ 832 |         }
+ 833 |         var response = try jsonResponse(from: .object([
+     |             `- warning: variable 'response' was never mutated; consider changing to 'let' constant
+ 834 |             "status": .string("issued"),
+ 835 |             "access": .string(access),
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:202:33: error: cannot find 'VaporBridgeTransport' in scope
+200 |                 }
+201 | 
+202 |                 let transport = VaporBridgeTransport(webSocket: webSocket)
+    |                                 `- error: cannot find 'VaporBridgeTransport' in scope
+203 |                 let config = await VaporBridgehead.bridgeConfig(
+204 |                     publisherIdentity: publisherIdentity,
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:146:38: error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+144 |                     return nil
+145 |                 }
+146 |                 guard let cellName = normalizedCellName(request.parameters.get("cellName")),
+    |                                      `- error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+147 |                       let bridgeID = request.parameters.get("bridgeID"),
+148 |                       UUID(uuidString: bridgeID) != nil else {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:173:38: error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+171 |             }
+172 |             do {
+173 |                 guard let cellName = normalizedCellName(request.parameters.get("cellName")),
+    |                                      `- error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+174 |                       let bridgeID = request.parameters.get("bridgeID"),
+175 |                       UUID(uuidString: bridgeID) != nil else {
+[9/56] Compiling App VaporBridgehead.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserGatekeeper.swift:217:1: warning: extension declares a conformance of imported type 'PublicKeyCredentialCreationOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+215 | 
+216 | 
+217 | extension PublicKeyCredentialCreationOptions: AsyncResponseEncodable {
+    | |- warning: extension declares a conformance of imported type 'PublicKeyCredentialCreationOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+    | `- note: add '@retroactive' to silence this warning
+218 |     public func encodeResponse(for request: Request) async throws -> Response {
+219 |         var headers = HTTPHeaders()
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserGatekeeper.swift:225:1: warning: extension declares a conformance of imported type 'PublicKeyCredentialRequestOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+223 | }
+224 | 
+225 | extension PublicKeyCredentialRequestOptions: AsyncResponseEncodable {
+    | |- warning: extension declares a conformance of imported type 'PublicKeyCredentialRequestOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+    | `- note: add '@retroactive' to silence this warning
+226 |     public func encodeResponse(for request: Request) async throws -> Response {
+227 |         var headers = HTTPHeaders()
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserGatekeeper.swift:73:31: warning: no calls to throwing functions occur within 'try' expression
+ 71 |             // step 1 for authentication
+ 72 |             authSessionRoutes.get("authenticate") { req -> PublicKeyCredentialRequestOptions in
+ 73 |                 let options = try req.webAuthn.beginAuthentication()
+    |                               `- warning: no calls to throwing functions occur within 'try' expression
+ 74 |                 
+ 75 |                 req.session.data["authChallenge"] = Data(options.challenge).base64EncodedString()
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserhead.swift:159:17: warning: variable 'user' was never mutated; consider changing to 'let' constant
+ 157 |         // Testing widgets
+ 158 |         protected.get("webo") {  req async throws -> Response in
+ 159 |             var user = try req.auth.require(FidoUser.self)
+     |                 `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+ 160 |             guard let identityDomain = user.id?.uuidString else {
+ 161 |                 throw CellBaseError.noIdentityUUID
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserhead.swift:178:17: warning: variable 'conferencePersonaWarning' was never mutated; consider changing to 'let' constant
+ 176 |             )
+ 177 |             let activeConferencePersonaID = requestedConferencePersonaID
+ 178 |             var conferencePersonaWarning = conferencePersonaRequest.warning
+     |                 `- warning: variable 'conferencePersonaWarning' was never mutated; consider changing to 'let' constant
+ 179 | 
+ 180 |             print("* webo identityDomain: \(identityDomain)")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserhead.swift:375:23: warning: value 'keypath' was defined but never used; consider replacing with boolean test [#no-usage]
+ 373 | 
+ 374 |             let action = try req.content.decode(PortholeActionRequest.self)
+ 375 |             guard let keypath = action.resolvedKeypath else {
+     |                       `- warning: value 'keypath' was defined but never used; consider replacing with boolean test [#no-usage]
+ 376 |                 throw Abort(.badRequest, reason: "Missing action keypath.")
+ 377 |             }
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserhead.swift:455:17: warning: initialization of immutable value 'targetMeddleCell' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 453 |             let session = await VaporWebSessions.shared.session(for: sessionId)!
+ 454 |             
+ 455 |             let targetMeddleCell = await session.controlCell as Meddle
+     |                 `- warning: initialization of immutable value 'targetMeddleCell' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 456 |             let uuid = try req.parameters.require("uuid")
+ 457 |             
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserhead.swift:465:17: warning: initialization of immutable value 'didDocument' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 463 |             }
+ 464 |             
+ 465 |             let didDocument = try await identitiesCell.get(keypath: "identities.\(uuid)", requester: requester)
+     |                 `- warning: initialization of immutable value 'didDocument' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 466 |             
+ 467 |             
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserhead.swift:483:13: warning: variable 'user' was never mutated; consider changing to 'let' constant
+ 481 |     
+ 482 |     func getIdentity(from req: Request) async throws -> Identity {
+ 483 |         var user = try req.auth.require(FidoUser.self)
+     |             `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+ 484 |         guard let identityDomain = user.id?.uuidString else {
+ 485 |             throw CellBaseError.noIdentityUUID
+[10/56] Compiling App VaporBrowserGatekeeper.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserGatekeeper.swift:217:1: warning: extension declares a conformance of imported type 'PublicKeyCredentialCreationOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+215 | 
+216 | 
+217 | extension PublicKeyCredentialCreationOptions: AsyncResponseEncodable {
+    | |- warning: extension declares a conformance of imported type 'PublicKeyCredentialCreationOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+    | `- note: add '@retroactive' to silence this warning
+218 |     public func encodeResponse(for request: Request) async throws -> Response {
+219 |         var headers = HTTPHeaders()
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserGatekeeper.swift:225:1: warning: extension declares a conformance of imported type 'PublicKeyCredentialRequestOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+223 | }
+224 | 
+225 | extension PublicKeyCredentialRequestOptions: AsyncResponseEncodable {
+    | |- warning: extension declares a conformance of imported type 'PublicKeyCredentialRequestOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+    | `- note: add '@retroactive' to silence this warning
+226 |     public func encodeResponse(for request: Request) async throws -> Response {
+227 |         var headers = HTTPHeaders()
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserGatekeeper.swift:73:31: warning: no calls to throwing functions occur within 'try' expression
+ 71 |             // step 1 for authentication
+ 72 |             authSessionRoutes.get("authenticate") { req -> PublicKeyCredentialRequestOptions in
+ 73 |                 let options = try req.webAuthn.beginAuthentication()
+    |                               `- warning: no calls to throwing functions occur within 'try' expression
+ 74 |                 
+ 75 |                 req.session.data["authChallenge"] = Data(options.challenge).base64EncodedString()
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserhead.swift:159:17: warning: variable 'user' was never mutated; consider changing to 'let' constant
+ 157 |         // Testing widgets
+ 158 |         protected.get("webo") {  req async throws -> Response in
+ 159 |             var user = try req.auth.require(FidoUser.self)
+     |                 `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+ 160 |             guard let identityDomain = user.id?.uuidString else {
+ 161 |                 throw CellBaseError.noIdentityUUID
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserhead.swift:178:17: warning: variable 'conferencePersonaWarning' was never mutated; consider changing to 'let' constant
+ 176 |             )
+ 177 |             let activeConferencePersonaID = requestedConferencePersonaID
+ 178 |             var conferencePersonaWarning = conferencePersonaRequest.warning
+     |                 `- warning: variable 'conferencePersonaWarning' was never mutated; consider changing to 'let' constant
+ 179 | 
+ 180 |             print("* webo identityDomain: \(identityDomain)")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserhead.swift:375:23: warning: value 'keypath' was defined but never used; consider replacing with boolean test [#no-usage]
+ 373 | 
+ 374 |             let action = try req.content.decode(PortholeActionRequest.self)
+ 375 |             guard let keypath = action.resolvedKeypath else {
+     |                       `- warning: value 'keypath' was defined but never used; consider replacing with boolean test [#no-usage]
+ 376 |                 throw Abort(.badRequest, reason: "Missing action keypath.")
+ 377 |             }
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserhead.swift:455:17: warning: initialization of immutable value 'targetMeddleCell' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 453 |             let session = await VaporWebSessions.shared.session(for: sessionId)!
+ 454 |             
+ 455 |             let targetMeddleCell = await session.controlCell as Meddle
+     |                 `- warning: initialization of immutable value 'targetMeddleCell' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 456 |             let uuid = try req.parameters.require("uuid")
+ 457 |             
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserhead.swift:465:17: warning: initialization of immutable value 'didDocument' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 463 |             }
+ 464 |             
+ 465 |             let didDocument = try await identitiesCell.get(keypath: "identities.\(uuid)", requester: requester)
+     |                 `- warning: initialization of immutable value 'didDocument' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 466 |             
+ 467 |             
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserhead.swift:483:13: warning: variable 'user' was never mutated; consider changing to 'let' constant
+ 481 |     
+ 482 |     func getIdentity(from req: Request) async throws -> Identity {
+ 483 |         var user = try req.auth.require(FidoUser.self)
+     |             `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+ 484 |         guard let identityDomain = user.id?.uuidString else {
+ 485 |             throw CellBaseError.noIdentityUUID
+[11/56] Compiling App VaporBrowserhead.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserGatekeeper.swift:217:1: warning: extension declares a conformance of imported type 'PublicKeyCredentialCreationOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+215 | 
+216 | 
+217 | extension PublicKeyCredentialCreationOptions: AsyncResponseEncodable {
+    | |- warning: extension declares a conformance of imported type 'PublicKeyCredentialCreationOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+    | `- note: add '@retroactive' to silence this warning
+218 |     public func encodeResponse(for request: Request) async throws -> Response {
+219 |         var headers = HTTPHeaders()
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserGatekeeper.swift:225:1: warning: extension declares a conformance of imported type 'PublicKeyCredentialRequestOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+223 | }
+224 | 
+225 | extension PublicKeyCredentialRequestOptions: AsyncResponseEncodable {
+    | |- warning: extension declares a conformance of imported type 'PublicKeyCredentialRequestOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+    | `- note: add '@retroactive' to silence this warning
+226 |     public func encodeResponse(for request: Request) async throws -> Response {
+227 |         var headers = HTTPHeaders()
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserGatekeeper.swift:73:31: warning: no calls to throwing functions occur within 'try' expression
+ 71 |             // step 1 for authentication
+ 72 |             authSessionRoutes.get("authenticate") { req -> PublicKeyCredentialRequestOptions in
+ 73 |                 let options = try req.webAuthn.beginAuthentication()
+    |                               `- warning: no calls to throwing functions occur within 'try' expression
+ 74 |                 
+ 75 |                 req.session.data["authChallenge"] = Data(options.challenge).base64EncodedString()
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserhead.swift:159:17: warning: variable 'user' was never mutated; consider changing to 'let' constant
+ 157 |         // Testing widgets
+ 158 |         protected.get("webo") {  req async throws -> Response in
+ 159 |             var user = try req.auth.require(FidoUser.self)
+     |                 `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+ 160 |             guard let identityDomain = user.id?.uuidString else {
+ 161 |                 throw CellBaseError.noIdentityUUID
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserhead.swift:178:17: warning: variable 'conferencePersonaWarning' was never mutated; consider changing to 'let' constant
+ 176 |             )
+ 177 |             let activeConferencePersonaID = requestedConferencePersonaID
+ 178 |             var conferencePersonaWarning = conferencePersonaRequest.warning
+     |                 `- warning: variable 'conferencePersonaWarning' was never mutated; consider changing to 'let' constant
+ 179 | 
+ 180 |             print("* webo identityDomain: \(identityDomain)")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserhead.swift:375:23: warning: value 'keypath' was defined but never used; consider replacing with boolean test [#no-usage]
+ 373 | 
+ 374 |             let action = try req.content.decode(PortholeActionRequest.self)
+ 375 |             guard let keypath = action.resolvedKeypath else {
+     |                       `- warning: value 'keypath' was defined but never used; consider replacing with boolean test [#no-usage]
+ 376 |                 throw Abort(.badRequest, reason: "Missing action keypath.")
+ 377 |             }
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserhead.swift:455:17: warning: initialization of immutable value 'targetMeddleCell' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 453 |             let session = await VaporWebSessions.shared.session(for: sessionId)!
+ 454 |             
+ 455 |             let targetMeddleCell = await session.controlCell as Meddle
+     |                 `- warning: initialization of immutable value 'targetMeddleCell' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 456 |             let uuid = try req.parameters.require("uuid")
+ 457 |             
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserhead.swift:465:17: warning: initialization of immutable value 'didDocument' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 463 |             }
+ 464 |             
+ 465 |             let didDocument = try await identitiesCell.get(keypath: "identities.\(uuid)", requester: requester)
+     |                 `- warning: initialization of immutable value 'didDocument' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 466 |             
+ 467 |             
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserhead.swift:483:13: warning: variable 'user' was never mutated; consider changing to 'let' constant
+ 481 |     
+ 482 |     func getIdentity(from req: Request) async throws -> Identity {
+ 483 |         var user = try req.auth.require(FidoUser.self)
+     |             `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+ 484 |         guard let identityDomain = user.id?.uuidString else {
+ 485 |             throw CellBaseError.noIdentityUUID
+[12/71] Compiling App VaporEntityAtlas.swift
+[13/71] Compiling App VaporEventPlatform.swift
+[14/71] Compiling App VaporAlertmanagerNotificationRelay.swift
+[15/71] Compiling App VaporAssistantCorrespondence.swift
+[16/71] Compiling App VaporBookReference.swift
+[17/71] Compiling App VaporDocumentationWorkbench.swift
+[18/71] Compiling App VaporEntityAnchorDataContract.swift
+[19/71] Compiling App VaporConferenceMVP.swift
+[20/71] Compiling App VaporDeviceCallback.swift
+[21/71] Compiling App VaporDiMyMint.swift
+[22/129] Compiling App VaporPaidAIUsageCanary.swift
+[23/129] Compiling App VaporPalazzoCommunale.swift
+[24/143] Compiling App ConferenceSessionPollingCell.swift
+[25/143] Compiling App ConferenceSessionThreadCell.swift
+[26/143] Compiling App ConferenceSimulationPopulationCell.swift
+[27/143] Compiling App ConferenceSimulationStudioCell.swift
+[28/143] Compiling App ConferenceSponsorLeadAggregateCell.swift
+[29/143] Compiling App ConferenceAudienceDiscoverySupport.swift
+[30/143] Compiling App ConferenceLiveInteractionIntegration.swift
+[31/143] Compiling App ConferenceOrganizerAccessSupport.swift
+[32/143] Compiling App ConferencePublishedContentCatalog.swift
+[33/143] Compiling App ConferenceSessionEngagementSupport.swift
+[34/143] Compiling App ConferenceKPIAggregator.swift
+[35/143] Compiling App BridgePresenceRegistry.swift
+[36/143] Compiling App ConferenceBroadcastStudioCell.swift
+[37/143] Compiling App DeviceRegistrationCell.swift
+[38/143] Compiling App NotificationOutboxCell.swift
+[39/157] Compiling App ConferenceShellConfigurationFactory.swift
+[40/157] Compiling App InMemoryConferenceStorage.swift
+[41/157] Compiling App SQLiteConferenceStorage.swift
+[42/157] Compiling App ConfigurationCatalogCell.swift
+[43/157] Compiling App ContactEndpointCell.swift
+[44/157] Compiling App ContactEndpointContracts.swift
+[45/157] Compiling App ContactRegistryCell.swift
+[46/157] Compiling App EntityCellGraphCell.swift
+[47/157] Compiling App EntityScaffoldEnrollmentCell.swift
+[48/157] Compiling App EntityStudioCell.swift
+[49/157] Compiling App ContextTransitionPayloadFactory.swift
+[50/157] Compiling App EventActorDirectoryCell.swift
+[51/157] Compiling App EventDirectoryAggregatorCell.swift
+[52/157] Compiling App EventFederationBrokerCell.swift
+[53/157] Compiling App EventPlatformModels.swift
+[54/171] Compiling App VaporMicropaymentsMVP.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporMusicPublishingMVP.swift:382:31: warning: no calls to throwing functions occur within 'try' expression
+380 | 
+381 |     private func deliveryRequesterUUID(from req: Request) async throws -> String {
+382 |         let rawIdentityUUID = try req.query[String.self, at: "identityUUID"]
+    |                               `- warning: no calls to throwing functions occur within 'try' expression
+383 |         if let identityUUID = rawIdentityUUID?.trimmingCharacters(in: .whitespacesAndNewlines),
+384 |            !identityUUID.isEmpty {
+[55/171] Compiling App VaporMusicPublishingMVP.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporMusicPublishingMVP.swift:382:31: warning: no calls to throwing functions occur within 'try' expression
+380 | 
+381 |     private func deliveryRequesterUUID(from req: Request) async throws -> String {
+382 |         let rawIdentityUUID = try req.query[String.self, at: "identityUUID"]
+    |                               `- warning: no calls to throwing functions occur within 'try' expression
+383 |         if let identityUUID = rawIdentityUUID?.trimmingCharacters(in: .whitespacesAndNewlines),
+384 |            !identityUUID.isEmpty {
+[56/171] Emitting module App
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:75:13: warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  73 |         var purposes: [String]
+  74 |         var matchmakingConsent: Bool
+  75 |         var purposeInterestValue: ValueType
+     |             `- warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  76 |     }
+  77 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   3 | 
+   4 | import Foundation
+   5 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   6 | 
+   7 | final class ConferenceRecommendationCell: GeneralCell {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:12:9: warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  10 | struct PortholeActionRequest: Content, Codable {
+  11 |     let keypath: String?
+  12 |     let payload: ValueType?
+     |         `- warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  13 |     let command: String?
+  14 |     let args: ValueType?
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:6:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   4 | import Foundation
+   5 | import Vapor
+   6 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   7 | import CellVapor
+   8 | import ScaffoldKit
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:14:9: warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  12 |     let payload: ValueType?
+  13 |     let command: String?
+  14 |     let args: ValueType?
+     |         `- warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  15 | 
+  16 |     var resolvedKeypath: String? {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserGatekeeper.swift:217:1: warning: extension declares a conformance of imported type 'PublicKeyCredentialCreationOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+215 | 
+216 | 
+217 | extension PublicKeyCredentialCreationOptions: AsyncResponseEncodable {
+    | |- warning: extension declares a conformance of imported type 'PublicKeyCredentialCreationOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+    | `- note: add '@retroactive' to silence this warning
+218 |     public func encodeResponse(for request: Request) async throws -> Response {
+219 |         var headers = HTTPHeaders()
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporBrowserGatekeeper.swift:225:1: warning: extension declares a conformance of imported type 'PublicKeyCredentialRequestOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+223 | }
+224 | 
+225 | extension PublicKeyCredentialRequestOptions: AsyncResponseEncodable {
+    | |- warning: extension declares a conformance of imported type 'PublicKeyCredentialRequestOptions' to imported protocol 'AsyncResponseEncodable'; this will not behave correctly if the owners of 'WebAuthn' introduce this conformance in the future
+    | `- note: add '@retroactive' to silence this warning
+226 |     public func encodeResponse(for request: Request) async throws -> Response {
+227 |         var headers = HTTPHeaders()
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/AdminActionAuditEvent.swift:11:9: warning: stored property '_id' of 'Sendable'-conforming class 'AdminActionAuditEvent' is mutable; this is an error in the Swift 6 language mode
+ 9 | 
+10 |     @ID
+11 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'AdminActionAuditEvent' is mutable; this is an error in the Swift 6 language mode
+12 | 
+13 |     @OptionalField(key: "actor_user_id")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/ChatRememberToken.swift:11:9: warning: stored property '_id' of 'Sendable'-conforming class 'ChatRememberToken' is mutable; this is an error in the Swift 6 language mode
+ 9 | 
+10 |     @ID
+11 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'ChatRememberToken' is mutable; this is an error in the Swift 6 language mode
+12 | 
+13 |     @Field(key: "jti")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/FidoUser.swift:15:9: warning: stored property '_id' of 'Sendable'-conforming class 'FidoUser' is mutable; this is an error in the Swift 6 language mode
+13 | 
+14 |     @ID
+15 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'FidoUser' is mutable; this is an error in the Swift 6 language mode
+16 | 
+17 |     @Field(key: "username")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/FundingRequest.swift:20:9: warning: stored property '_id' of 'Sendable'-conforming class 'FundingRequest' is mutable; this is an error in the Swift 6 language mode
+ 18 | 
+ 19 |     @ID
+ 20 |     var id: UUID?
+    |         `- warning: stored property '_id' of 'Sendable'-conforming class 'FundingRequest' is mutable; this is an error in the Swift 6 language mode
+ 21 | 
+ 22 |     @Parent(key: "user_id")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/GraphStoreEdgeRow.swift:10:9: warning: stored property '_id' of 'Sendable'-conforming class 'GraphStoreEdgeRow' is mutable; this is an error in the Swift 6 language mode
+ 8 | 
+ 9 |     @ID(custom: "id", generatedBy: .user)
+10 |     var id: String?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'GraphStoreEdgeRow' is mutable; this is an error in the Swift 6 language mode
+11 | 
+12 |     @Field(key: "cell_uuid")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/GraphStoreNodeRow.swift:10:9: warning: stored property '_id' of 'Sendable'-conforming class 'GraphStoreNodeRow' is mutable; this is an error in the Swift 6 language mode
+ 8 | 
+ 9 |     @ID(custom: "id", generatedBy: .user)
+10 |     var id: String?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'GraphStoreNodeRow' is mutable; this is an error in the Swift 6 language mode
+11 | 
+12 |     @Field(key: "cell_uuid")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/JWTRefreshToken.swift:11:9: warning: stored property '_id' of 'Sendable'-conforming class 'JWTRefreshToken' is mutable; this is an error in the Swift 6 language mode
+ 9 | 
+10 |     @ID
+11 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'JWTRefreshToken' is mutable; this is an error in the Swift 6 language mode
+12 | 
+13 |     @Field(key: "token_hash")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/PaymentAccessCredentialRecords.swift:11:9: warning: stored property '_id' of 'Sendable'-conforming class 'PaymentAccessCredentialIssueEvent' is mutable; this is an error in the Swift 6 language mode
+ 9 | 
+10 |     @ID(custom: "jti", generatedBy: .user)
+11 |     var id: String?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'PaymentAccessCredentialIssueEvent' is mutable; this is an error in the Swift 6 language mode
+12 | 
+13 |     @Field(key: "subject_id") var subjectID: String
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/PaymentAccessCredentialRecords.swift:62:9: warning: stored property '_id' of 'Sendable'-conforming class 'PaymentAccessCredentialConsumptionEvent' is mutable; this is an error in the Swift 6 language mode
+60 | 
+61 |     @ID(custom: "jti", generatedBy: .user)
+62 |     var id: String?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'PaymentAccessCredentialConsumptionEvent' is mutable; this is an error in the Swift 6 language mode
+63 | 
+64 |     @Field(key: "subject_id") var subjectID: String
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/TopUpAuditEvent.swift:11:9: warning: stored property '_id' of 'Sendable'-conforming class 'TopUpAuditEvent' is mutable; this is an error in the Swift 6 language mode
+ 9 | 
+10 |     @ID
+11 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'TopUpAuditEvent' is mutable; this is an error in the Swift 6 language mode
+12 | 
+13 |     @OptionalField(key: "actor_user_id")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/TopUpOrder.swift:22:9: warning: stored property '_id' of 'Sendable'-conforming class 'TopUpOrder' is mutable; this is an error in the Swift 6 language mode
+ 20 | 
+ 21 |     @ID
+ 22 |     var id: UUID?
+    |         `- warning: stored property '_id' of 'Sendable'-conforming class 'TopUpOrder' is mutable; this is an error in the Swift 6 language mode
+ 23 | 
+ 24 |     @Parent(key: "user_id")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/TopUpSettlementOutbox.swift:20:9: warning: stored property '_id' of 'Sendable'-conforming class 'TopUpSettlementOutbox' is mutable; this is an error in the Swift 6 language mode
+18 | 
+19 |     @ID
+20 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'TopUpSettlementOutbox' is mutable; this is an error in the Swift 6 language mode
+21 | 
+22 |     @Parent(key: "order_id")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/UsageMeterEvent.swift:11:9: warning: stored property '_id' of 'Sendable'-conforming class 'UsageMeterEvent' is mutable; this is an error in the Swift 6 language mode
+ 9 | 
+10 |     @ID
+11 |     var id: UUID?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'UsageMeterEvent' is mutable; this is an error in the Swift 6 language mode
+12 | 
+13 |     @Field(key: "schema_version")
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Models/WebAuthnCredential.swift:12:9: warning: stored property '_id' of 'Sendable'-conforming class 'WebAuthnCredential' is mutable; this is an error in the Swift 6 language mode
+10 | 
+11 |     @ID(custom: "id", generatedBy: .user)
+12 |     var id: String?
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'WebAuthnCredential' is mutable; this is an error in the Swift 6 language mode
+13 | 
+14 |     @Field(key: "public_key")
+[57/171] Compiling App VaultStudioWorkspaceCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:246:33: warning: no 'async' operations occur within 'await' expression
+244 | 
+245 |             case "porthole.bootstrap":
+246 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+247 |                 responsePayload = try await PortholeWebSessionSupport.bootstrapValue(
+248 |                     controlCell: self.controlCell,
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:261:33: warning: no 'async' operations occur within 'await' expression
+259 | 
+260 |             case "porthole.action":
+261 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+262 |                 let action = try decodePortholeActionRequest(from: webCommand.payload)
+263 |                 responsePayload = try await PortholeWebSessionSupport.executeAction(
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:12:9: warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  10 | struct PortholeActionRequest: Content, Codable {
+  11 |     let keypath: String?
+  12 |     let payload: ValueType?
+     |         `- warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  13 |     let command: String?
+  14 |     let args: ValueType?
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:6:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   4 | import Foundation
+   5 | import Vapor
+   6 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   7 | import CellVapor
+   8 | import ScaffoldKit
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:14:9: warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  12 |     let payload: ValueType?
+  13 |     let command: String?
+  14 |     let args: ValueType?
+     |         `- warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  15 | 
+  16 |     var resolvedKeypath: String? {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:610:28: warning: no 'async' operations occur within 'await' expression
+ 608 |         fallbackRequester: Identity? = nil
+ 609 |     ) async -> Identity {
+ 610 |         let sessionOwner = await session.owner
+     |                            `- warning: no 'async' operations occur within 'await' expression
+ 611 |         if await identityIsBoundToAttachedHomeVault(sessionOwner) {
+ 612 |             return sessionOwner
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporAdminMVP.swift:700:13: warning: variable 'user' was never mutated; consider changing to 'let' constant
+698 | 
+699 |     private func ensurePortholeControlCell(for req: Request) async throws -> (OrchestratorCell, Identity, String) {
+700 |         var user = try req.auth.require(FidoUser.self)
+    |             `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+701 |         guard let identityDomain = user.id?.uuidString else {
+702 |             throw Abort(.internalServerError, reason: "Authenticated user has no identity domain.")
+[58/171] Compiling App AgentRunCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:246:33: warning: no 'async' operations occur within 'await' expression
+244 | 
+245 |             case "porthole.bootstrap":
+246 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+247 |                 responsePayload = try await PortholeWebSessionSupport.bootstrapValue(
+248 |                     controlCell: self.controlCell,
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:261:33: warning: no 'async' operations occur within 'await' expression
+259 | 
+260 |             case "porthole.action":
+261 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+262 |                 let action = try decodePortholeActionRequest(from: webCommand.payload)
+263 |                 responsePayload = try await PortholeWebSessionSupport.executeAction(
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:12:9: warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  10 | struct PortholeActionRequest: Content, Codable {
+  11 |     let keypath: String?
+  12 |     let payload: ValueType?
+     |         `- warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  13 |     let command: String?
+  14 |     let args: ValueType?
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:6:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   4 | import Foundation
+   5 | import Vapor
+   6 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   7 | import CellVapor
+   8 | import ScaffoldKit
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:14:9: warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  12 |     let payload: ValueType?
+  13 |     let command: String?
+  14 |     let args: ValueType?
+     |         `- warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  15 | 
+  16 |     var resolvedKeypath: String? {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:610:28: warning: no 'async' operations occur within 'await' expression
+ 608 |         fallbackRequester: Identity? = nil
+ 609 |     ) async -> Identity {
+ 610 |         let sessionOwner = await session.owner
+     |                            `- warning: no 'async' operations occur within 'await' expression
+ 611 |         if await identityIsBoundToAttachedHomeVault(sessionOwner) {
+ 612 |             return sessionOwner
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporAdminMVP.swift:700:13: warning: variable 'user' was never mutated; consider changing to 'let' constant
+698 | 
+699 |     private func ensurePortholeControlCell(for req: Request) async throws -> (OrchestratorCell, Identity, String) {
+700 |         var user = try req.auth.require(FidoUser.self)
+    |             `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+701 |         guard let identityDomain = user.id?.uuidString else {
+702 |             throw Abort(.internalServerError, reason: "Authenticated user has no identity domain.")
+[59/171] Compiling App GitHubWorkSyncCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:246:33: warning: no 'async' operations occur within 'await' expression
+244 | 
+245 |             case "porthole.bootstrap":
+246 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+247 |                 responsePayload = try await PortholeWebSessionSupport.bootstrapValue(
+248 |                     controlCell: self.controlCell,
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:261:33: warning: no 'async' operations occur within 'await' expression
+259 | 
+260 |             case "porthole.action":
+261 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+262 |                 let action = try decodePortholeActionRequest(from: webCommand.payload)
+263 |                 responsePayload = try await PortholeWebSessionSupport.executeAction(
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:12:9: warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  10 | struct PortholeActionRequest: Content, Codable {
+  11 |     let keypath: String?
+  12 |     let payload: ValueType?
+     |         `- warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  13 |     let command: String?
+  14 |     let args: ValueType?
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:6:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   4 | import Foundation
+   5 | import Vapor
+   6 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   7 | import CellVapor
+   8 | import ScaffoldKit
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:14:9: warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  12 |     let payload: ValueType?
+  13 |     let command: String?
+  14 |     let args: ValueType?
+     |         `- warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  15 | 
+  16 |     var resolvedKeypath: String? {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:610:28: warning: no 'async' operations occur within 'await' expression
+ 608 |         fallbackRequester: Identity? = nil
+ 609 |     ) async -> Identity {
+ 610 |         let sessionOwner = await session.owner
+     |                            `- warning: no 'async' operations occur within 'await' expression
+ 611 |         if await identityIsBoundToAttachedHomeVault(sessionOwner) {
+ 612 |             return sessionOwner
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporAdminMVP.swift:700:13: warning: variable 'user' was never mutated; consider changing to 'let' constant
+698 | 
+699 |     private func ensurePortholeControlCell(for req: Request) async throws -> (OrchestratorCell, Identity, String) {
+700 |         var user = try req.auth.require(FidoUser.self)
+    |             `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+701 |         guard let identityDomain = user.id?.uuidString else {
+702 |             throw Abort(.internalServerError, reason: "Authenticated user has no identity domain.")
+[60/171] Compiling App ProjectPortfolioCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:246:33: warning: no 'async' operations occur within 'await' expression
+244 | 
+245 |             case "porthole.bootstrap":
+246 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+247 |                 responsePayload = try await PortholeWebSessionSupport.bootstrapValue(
+248 |                     controlCell: self.controlCell,
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:261:33: warning: no 'async' operations occur within 'await' expression
+259 | 
+260 |             case "porthole.action":
+261 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+262 |                 let action = try decodePortholeActionRequest(from: webCommand.payload)
+263 |                 responsePayload = try await PortholeWebSessionSupport.executeAction(
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:12:9: warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  10 | struct PortholeActionRequest: Content, Codable {
+  11 |     let keypath: String?
+  12 |     let payload: ValueType?
+     |         `- warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  13 |     let command: String?
+  14 |     let args: ValueType?
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:6:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   4 | import Foundation
+   5 | import Vapor
+   6 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   7 | import CellVapor
+   8 | import ScaffoldKit
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:14:9: warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  12 |     let payload: ValueType?
+  13 |     let command: String?
+  14 |     let args: ValueType?
+     |         `- warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  15 | 
+  16 |     var resolvedKeypath: String? {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:610:28: warning: no 'async' operations occur within 'await' expression
+ 608 |         fallbackRequester: Identity? = nil
+ 609 |     ) async -> Identity {
+ 610 |         let sessionOwner = await session.owner
+     |                            `- warning: no 'async' operations occur within 'await' expression
+ 611 |         if await identityIsBoundToAttachedHomeVault(sessionOwner) {
+ 612 |             return sessionOwner
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporAdminMVP.swift:700:13: warning: variable 'user' was never mutated; consider changing to 'let' constant
+698 | 
+699 |     private func ensurePortholeControlCell(for req: Request) async throws -> (OrchestratorCell, Identity, String) {
+700 |         var user = try req.auth.require(FidoUser.self)
+    |             `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+701 |         guard let identityDomain = user.id?.uuidString else {
+702 |             throw Abort(.internalServerError, reason: "Authenticated user has no identity domain.")
+[61/171] Compiling App WorkItemCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:246:33: warning: no 'async' operations occur within 'await' expression
+244 | 
+245 |             case "porthole.bootstrap":
+246 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+247 |                 responsePayload = try await PortholeWebSessionSupport.bootstrapValue(
+248 |                     controlCell: self.controlCell,
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:261:33: warning: no 'async' operations occur within 'await' expression
+259 | 
+260 |             case "porthole.action":
+261 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+262 |                 let action = try decodePortholeActionRequest(from: webCommand.payload)
+263 |                 responsePayload = try await PortholeWebSessionSupport.executeAction(
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:12:9: warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  10 | struct PortholeActionRequest: Content, Codable {
+  11 |     let keypath: String?
+  12 |     let payload: ValueType?
+     |         `- warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  13 |     let command: String?
+  14 |     let args: ValueType?
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:6:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   4 | import Foundation
+   5 | import Vapor
+   6 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   7 | import CellVapor
+   8 | import ScaffoldKit
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:14:9: warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  12 |     let payload: ValueType?
+  13 |     let command: String?
+  14 |     let args: ValueType?
+     |         `- warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  15 | 
+  16 |     var resolvedKeypath: String? {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:610:28: warning: no 'async' operations occur within 'await' expression
+ 608 |         fallbackRequester: Identity? = nil
+ 609 |     ) async -> Identity {
+ 610 |         let sessionOwner = await session.owner
+     |                            `- warning: no 'async' operations occur within 'await' expression
+ 611 |         if await identityIsBoundToAttachedHomeVault(sessionOwner) {
+ 612 |             return sessionOwner
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporAdminMVP.swift:700:13: warning: variable 'user' was never mutated; consider changing to 'let' constant
+698 | 
+699 |     private func ensurePortholeControlCell(for req: Request) async throws -> (OrchestratorCell, Identity, String) {
+700 |         var user = try req.auth.require(FidoUser.self)
+    |             `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+701 |         guard let identityDomain = user.id?.uuidString else {
+702 |             throw Abort(.internalServerError, reason: "Authenticated user has no identity domain.")
+[62/171] Compiling App WorkMutationSync.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:246:33: warning: no 'async' operations occur within 'await' expression
+244 | 
+245 |             case "porthole.bootstrap":
+246 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+247 |                 responsePayload = try await PortholeWebSessionSupport.bootstrapValue(
+248 |                     controlCell: self.controlCell,
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:261:33: warning: no 'async' operations occur within 'await' expression
+259 | 
+260 |             case "porthole.action":
+261 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+262 |                 let action = try decodePortholeActionRequest(from: webCommand.payload)
+263 |                 responsePayload = try await PortholeWebSessionSupport.executeAction(
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:12:9: warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  10 | struct PortholeActionRequest: Content, Codable {
+  11 |     let keypath: String?
+  12 |     let payload: ValueType?
+     |         `- warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  13 |     let command: String?
+  14 |     let args: ValueType?
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:6:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   4 | import Foundation
+   5 | import Vapor
+   6 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   7 | import CellVapor
+   8 | import ScaffoldKit
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:14:9: warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  12 |     let payload: ValueType?
+  13 |     let command: String?
+  14 |     let args: ValueType?
+     |         `- warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  15 | 
+  16 |     var resolvedKeypath: String? {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:610:28: warning: no 'async' operations occur within 'await' expression
+ 608 |         fallbackRequester: Identity? = nil
+ 609 |     ) async -> Identity {
+ 610 |         let sessionOwner = await session.owner
+     |                            `- warning: no 'async' operations occur within 'await' expression
+ 611 |         if await identityIsBoundToAttachedHomeVault(sessionOwner) {
+ 612 |             return sessionOwner
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporAdminMVP.swift:700:13: warning: variable 'user' was never mutated; consider changing to 'let' constant
+698 | 
+699 |     private func ensurePortholeControlCell(for req: Request) async throws -> (OrchestratorCell, Identity, String) {
+700 |         var user = try req.auth.require(FidoUser.self)
+    |             `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+701 |         guard let identityDomain = user.id?.uuidString else {
+702 |             throw Abort(.internalServerError, reason: "Authenticated user has no identity domain.")
+[63/171] Compiling App WorkbenchAccessGrantCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:246:33: warning: no 'async' operations occur within 'await' expression
+244 | 
+245 |             case "porthole.bootstrap":
+246 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+247 |                 responsePayload = try await PortholeWebSessionSupport.bootstrapValue(
+248 |                     controlCell: self.controlCell,
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:261:33: warning: no 'async' operations occur within 'await' expression
+259 | 
+260 |             case "porthole.action":
+261 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+262 |                 let action = try decodePortholeActionRequest(from: webCommand.payload)
+263 |                 responsePayload = try await PortholeWebSessionSupport.executeAction(
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:12:9: warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  10 | struct PortholeActionRequest: Content, Codable {
+  11 |     let keypath: String?
+  12 |     let payload: ValueType?
+     |         `- warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  13 |     let command: String?
+  14 |     let args: ValueType?
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:6:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   4 | import Foundation
+   5 | import Vapor
+   6 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   7 | import CellVapor
+   8 | import ScaffoldKit
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:14:9: warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  12 |     let payload: ValueType?
+  13 |     let command: String?
+  14 |     let args: ValueType?
+     |         `- warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  15 | 
+  16 |     var resolvedKeypath: String? {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:610:28: warning: no 'async' operations occur within 'await' expression
+ 608 |         fallbackRequester: Identity? = nil
+ 609 |     ) async -> Identity {
+ 610 |         let sessionOwner = await session.owner
+     |                            `- warning: no 'async' operations occur within 'await' expression
+ 611 |         if await identityIsBoundToAttachedHomeVault(sessionOwner) {
+ 612 |             return sessionOwner
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporAdminMVP.swift:700:13: warning: variable 'user' was never mutated; consider changing to 'let' constant
+698 | 
+699 |     private func ensurePortholeControlCell(for req: Request) async throws -> (OrchestratorCell, Identity, String) {
+700 |         var user = try req.auth.require(FidoUser.self)
+    |             `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+701 |         guard let identityDomain = user.id?.uuidString else {
+702 |             throw Abort(.internalServerError, reason: "Authenticated user has no identity domain.")
+[64/171] Compiling App WebCellEmbeddings.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:246:33: warning: no 'async' operations occur within 'await' expression
+244 | 
+245 |             case "porthole.bootstrap":
+246 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+247 |                 responsePayload = try await PortholeWebSessionSupport.bootstrapValue(
+248 |                     controlCell: self.controlCell,
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:261:33: warning: no 'async' operations occur within 'await' expression
+259 | 
+260 |             case "porthole.action":
+261 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+262 |                 let action = try decodePortholeActionRequest(from: webCommand.payload)
+263 |                 responsePayload = try await PortholeWebSessionSupport.executeAction(
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:12:9: warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  10 | struct PortholeActionRequest: Content, Codable {
+  11 |     let keypath: String?
+  12 |     let payload: ValueType?
+     |         `- warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  13 |     let command: String?
+  14 |     let args: ValueType?
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:6:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   4 | import Foundation
+   5 | import Vapor
+   6 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   7 | import CellVapor
+   8 | import ScaffoldKit
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:14:9: warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  12 |     let payload: ValueType?
+  13 |     let command: String?
+  14 |     let args: ValueType?
+     |         `- warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  15 | 
+  16 |     var resolvedKeypath: String? {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:610:28: warning: no 'async' operations occur within 'await' expression
+ 608 |         fallbackRequester: Identity? = nil
+ 609 |     ) async -> Identity {
+ 610 |         let sessionOwner = await session.owner
+     |                            `- warning: no 'async' operations occur within 'await' expression
+ 611 |         if await identityIsBoundToAttachedHomeVault(sessionOwner) {
+ 612 |             return sessionOwner
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporAdminMVP.swift:700:13: warning: variable 'user' was never mutated; consider changing to 'let' constant
+698 | 
+699 |     private func ensurePortholeControlCell(for req: Request) async throws -> (OrchestratorCell, Identity, String) {
+700 |         var user = try req.auth.require(FidoUser.self)
+    |             `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+701 |         guard let identityDomain = user.id?.uuidString else {
+702 |             throw Abort(.internalServerError, reason: "Authenticated user has no identity domain.")
+[65/171] Compiling App DeviceIngressRegisterRuntime.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:246:33: warning: no 'async' operations occur within 'await' expression
+244 | 
+245 |             case "porthole.bootstrap":
+246 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+247 |                 responsePayload = try await PortholeWebSessionSupport.bootstrapValue(
+248 |                     controlCell: self.controlCell,
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:261:33: warning: no 'async' operations occur within 'await' expression
+259 | 
+260 |             case "porthole.action":
+261 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+262 |                 let action = try decodePortholeActionRequest(from: webCommand.payload)
+263 |                 responsePayload = try await PortholeWebSessionSupport.executeAction(
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:12:9: warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  10 | struct PortholeActionRequest: Content, Codable {
+  11 |     let keypath: String?
+  12 |     let payload: ValueType?
+     |         `- warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  13 |     let command: String?
+  14 |     let args: ValueType?
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:6:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   4 | import Foundation
+   5 | import Vapor
+   6 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   7 | import CellVapor
+   8 | import ScaffoldKit
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:14:9: warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  12 |     let payload: ValueType?
+  13 |     let command: String?
+  14 |     let args: ValueType?
+     |         `- warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  15 | 
+  16 |     var resolvedKeypath: String? {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:610:28: warning: no 'async' operations occur within 'await' expression
+ 608 |         fallbackRequester: Identity? = nil
+ 609 |     ) async -> Identity {
+ 610 |         let sessionOwner = await session.owner
+     |                            `- warning: no 'async' operations occur within 'await' expression
+ 611 |         if await identityIsBoundToAttachedHomeVault(sessionOwner) {
+ 612 |             return sessionOwner
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporAdminMVP.swift:700:13: warning: variable 'user' was never mutated; consider changing to 'let' constant
+698 | 
+699 |     private func ensurePortholeControlCell(for req: Request) async throws -> (OrchestratorCell, Identity, String) {
+700 |         var user = try req.auth.require(FidoUser.self)
+    |             `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+701 |         guard let identityDomain = user.id?.uuidString else {
+702 |             throw Abort(.internalServerError, reason: "Authenticated user has no identity domain.")
+[66/171] Compiling App PortholeBootstrapProjection.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:246:33: warning: no 'async' operations occur within 'await' expression
+244 | 
+245 |             case "porthole.bootstrap":
+246 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+247 |                 responsePayload = try await PortholeWebSessionSupport.bootstrapValue(
+248 |                     controlCell: self.controlCell,
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:261:33: warning: no 'async' operations occur within 'await' expression
+259 | 
+260 |             case "porthole.action":
+261 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+262 |                 let action = try decodePortholeActionRequest(from: webCommand.payload)
+263 |                 responsePayload = try await PortholeWebSessionSupport.executeAction(
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:12:9: warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  10 | struct PortholeActionRequest: Content, Codable {
+  11 |     let keypath: String?
+  12 |     let payload: ValueType?
+     |         `- warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  13 |     let command: String?
+  14 |     let args: ValueType?
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:6:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   4 | import Foundation
+   5 | import Vapor
+   6 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   7 | import CellVapor
+   8 | import ScaffoldKit
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:14:9: warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  12 |     let payload: ValueType?
+  13 |     let command: String?
+  14 |     let args: ValueType?
+     |         `- warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  15 | 
+  16 |     var resolvedKeypath: String? {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:610:28: warning: no 'async' operations occur within 'await' expression
+ 608 |         fallbackRequester: Identity? = nil
+ 609 |     ) async -> Identity {
+ 610 |         let sessionOwner = await session.owner
+     |                            `- warning: no 'async' operations occur within 'await' expression
+ 611 |         if await identityIsBoundToAttachedHomeVault(sessionOwner) {
+ 612 |             return sessionOwner
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporAdminMVP.swift:700:13: warning: variable 'user' was never mutated; consider changing to 'let' constant
+698 | 
+699 |     private func ensurePortholeControlCell(for req: Request) async throws -> (OrchestratorCell, Identity, String) {
+700 |         var user = try req.auth.require(FidoUser.self)
+    |             `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+701 |         guard let identityDomain = user.id?.uuidString else {
+702 |             throw Abort(.internalServerError, reason: "Authenticated user has no identity domain.")
+[67/171] Compiling App PortholeWebEditorSupport.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:246:33: warning: no 'async' operations occur within 'await' expression
+244 | 
+245 |             case "porthole.bootstrap":
+246 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+247 |                 responsePayload = try await PortholeWebSessionSupport.bootstrapValue(
+248 |                     controlCell: self.controlCell,
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:261:33: warning: no 'async' operations occur within 'await' expression
+259 | 
+260 |             case "porthole.action":
+261 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+262 |                 let action = try decodePortholeActionRequest(from: webCommand.payload)
+263 |                 responsePayload = try await PortholeWebSessionSupport.executeAction(
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:12:9: warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  10 | struct PortholeActionRequest: Content, Codable {
+  11 |     let keypath: String?
+  12 |     let payload: ValueType?
+     |         `- warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  13 |     let command: String?
+  14 |     let args: ValueType?
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:6:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   4 | import Foundation
+   5 | import Vapor
+   6 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   7 | import CellVapor
+   8 | import ScaffoldKit
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:14:9: warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  12 |     let payload: ValueType?
+  13 |     let command: String?
+  14 |     let args: ValueType?
+     |         `- warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  15 | 
+  16 |     var resolvedKeypath: String? {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:610:28: warning: no 'async' operations occur within 'await' expression
+ 608 |         fallbackRequester: Identity? = nil
+ 609 |     ) async -> Identity {
+ 610 |         let sessionOwner = await session.owner
+     |                            `- warning: no 'async' operations occur within 'await' expression
+ 611 |         if await identityIsBoundToAttachedHomeVault(sessionOwner) {
+ 612 |             return sessionOwner
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporAdminMVP.swift:700:13: warning: variable 'user' was never mutated; consider changing to 'let' constant
+698 | 
+699 |     private func ensurePortholeControlCell(for req: Request) async throws -> (OrchestratorCell, Identity, String) {
+700 |         var user = try req.auth.require(FidoUser.self)
+    |             `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+701 |         guard let identityDomain = user.id?.uuidString else {
+702 |             throw Abort(.internalServerError, reason: "Authenticated user has no identity domain.")
+[68/171] Compiling App PortholeWebSessionSupport.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:246:33: warning: no 'async' operations occur within 'await' expression
+244 | 
+245 |             case "porthole.bootstrap":
+246 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+247 |                 responsePayload = try await PortholeWebSessionSupport.bootstrapValue(
+248 |                     controlCell: self.controlCell,
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:261:33: warning: no 'async' operations occur within 'await' expression
+259 | 
+260 |             case "porthole.action":
+261 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+262 |                 let action = try decodePortholeActionRequest(from: webCommand.payload)
+263 |                 responsePayload = try await PortholeWebSessionSupport.executeAction(
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:12:9: warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  10 | struct PortholeActionRequest: Content, Codable {
+  11 |     let keypath: String?
+  12 |     let payload: ValueType?
+     |         `- warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  13 |     let command: String?
+  14 |     let args: ValueType?
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:6:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   4 | import Foundation
+   5 | import Vapor
+   6 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   7 | import CellVapor
+   8 | import ScaffoldKit
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:14:9: warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  12 |     let payload: ValueType?
+  13 |     let command: String?
+  14 |     let args: ValueType?
+     |         `- warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  15 | 
+  16 |     var resolvedKeypath: String? {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:610:28: warning: no 'async' operations occur within 'await' expression
+ 608 |         fallbackRequester: Identity? = nil
+ 609 |     ) async -> Identity {
+ 610 |         let sessionOwner = await session.owner
+     |                            `- warning: no 'async' operations occur within 'await' expression
+ 611 |         if await identityIsBoundToAttachedHomeVault(sessionOwner) {
+ 612 |             return sessionOwner
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporAdminMVP.swift:700:13: warning: variable 'user' was never mutated; consider changing to 'let' constant
+698 | 
+699 |     private func ensurePortholeControlCell(for req: Request) async throws -> (OrchestratorCell, Identity, String) {
+700 |         var user = try req.auth.require(FidoUser.self)
+    |             `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+701 |         guard let identityDomain = user.id?.uuidString else {
+702 |             throw Abort(.internalServerError, reason: "Authenticated user has no identity domain.")
+[69/171] Compiling App VaporAdminMVP.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:246:33: warning: no 'async' operations occur within 'await' expression
+244 | 
+245 |             case "porthole.bootstrap":
+246 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+247 |                 responsePayload = try await PortholeWebSessionSupport.bootstrapValue(
+248 |                     controlCell: self.controlCell,
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:261:33: warning: no 'async' operations occur within 'await' expression
+259 | 
+260 |             case "porthole.action":
+261 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+262 |                 let action = try decodePortholeActionRequest(from: webCommand.payload)
+263 |                 responsePayload = try await PortholeWebSessionSupport.executeAction(
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:12:9: warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  10 | struct PortholeActionRequest: Content, Codable {
+  11 |     let keypath: String?
+  12 |     let payload: ValueType?
+     |         `- warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  13 |     let command: String?
+  14 |     let args: ValueType?
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:6:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   4 | import Foundation
+   5 | import Vapor
+   6 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   7 | import CellVapor
+   8 | import ScaffoldKit
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:14:9: warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  12 |     let payload: ValueType?
+  13 |     let command: String?
+  14 |     let args: ValueType?
+     |         `- warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  15 | 
+  16 |     var resolvedKeypath: String? {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:610:28: warning: no 'async' operations occur within 'await' expression
+ 608 |         fallbackRequester: Identity? = nil
+ 609 |     ) async -> Identity {
+ 610 |         let sessionOwner = await session.owner
+     |                            `- warning: no 'async' operations occur within 'await' expression
+ 611 |         if await identityIsBoundToAttachedHomeVault(sessionOwner) {
+ 612 |             return sessionOwner
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporAdminMVP.swift:700:13: warning: variable 'user' was never mutated; consider changing to 'let' constant
+698 | 
+699 |     private func ensurePortholeControlCell(for req: Request) async throws -> (OrchestratorCell, Identity, String) {
+700 |         var user = try req.auth.require(FidoUser.self)
+    |             `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+701 |         guard let identityDomain = user.id?.uuidString else {
+702 |             throw Abort(.internalServerError, reason: "Authenticated user has no identity domain.")
+[70/171] Compiling App VaporAgentDeviceActionRelay.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:246:33: warning: no 'async' operations occur within 'await' expression
+244 | 
+245 |             case "porthole.bootstrap":
+246 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+247 |                 responsePayload = try await PortholeWebSessionSupport.bootstrapValue(
+248 |                     controlCell: self.controlCell,
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/interface/WebCellEmbeddings.swift:261:33: warning: no 'async' operations occur within 'await' expression
+259 | 
+260 |             case "porthole.action":
+261 |                 let sessionId = await self.controlCell.uuid
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+262 |                 let action = try decodePortholeActionRequest(from: webCommand.payload)
+263 |                 responsePayload = try await PortholeWebSessionSupport.executeAction(
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:12:9: warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  10 | struct PortholeActionRequest: Content, Codable {
+  11 |     let keypath: String?
+  12 |     let payload: ValueType?
+     |         `- warning: stored property 'payload' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  13 |     let command: String?
+  14 |     let args: ValueType?
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:6:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   4 | import Foundation
+   5 | import Vapor
+   6 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   7 | import CellVapor
+   8 | import ScaffoldKit
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:14:9: warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  12 |     let payload: ValueType?
+  13 |     let command: String?
+  14 |     let args: ValueType?
+     |         `- warning: stored property 'args' of 'Sendable'-conforming struct 'PortholeActionRequest' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  15 | 
+  16 |     var resolvedKeypath: String? {
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/PortholeWebSessionSupport.swift:610:28: warning: no 'async' operations occur within 'await' expression
+ 608 |         fallbackRequester: Identity? = nil
+ 609 |     ) async -> Identity {
+ 610 |         let sessionOwner = await session.owner
+     |                            `- warning: no 'async' operations occur within 'await' expression
+ 611 |         if await identityIsBoundToAttachedHomeVault(sessionOwner) {
+ 612 |             return sessionOwner
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporAdminMVP.swift:700:13: warning: variable 'user' was never mutated; consider changing to 'let' constant
+698 | 
+699 |     private func ensurePortholeControlCell(for req: Request) async throws -> (OrchestratorCell, Identity, String) {
+700 |         var user = try req.auth.require(FidoUser.self)
+    |             `- warning: variable 'user' was never mutated; consider changing to 'let' constant
+701 |         guard let identityDomain = user.id?.uuidString else {
+702 |             throw Abort(.internalServerError, reason: "Authenticated user has no identity domain.")
+[71/171] Compiling App EventPublisherRegistryCell.swift
+[72/171] Compiling App FlowDebugProbeCell.swift
+[73/171] Compiling App GraphStoreCell.swift
+[74/171] Compiling App IdeaTaskShareCell.swift
+[75/171] Compiling App IdeaTaskWorkspaceCell.swift
+[76/171] Compiling App LeadVaultModels.swift
+[77/171] Compiling App LiveInteractionCell.swift
+[78/171] Compiling App BookReferenceCatalog.swift
+[79/171] Compiling App MediaCollectionCell.swift
+[80/171] Compiling App MermaidRenderSupport.swift
+[81/171] Compiling App PaymentAccessCredentialPolicy.swift
+[82/171] Compiling App PaymentGateCell.swift
+[83/171] Compiling App MusicAccessAndDeliveryCells.swift
+[84/171] Compiling App MusicPublishingCells.swift
+[85/171] Compiling App MusicPublishingSupport.swift
+[86/171] Compiling App PurposeCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:440:17: warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 438 |         await addInterceptForGet(requester: owner, key: "setupMenus", getValueIntercept:  { [weak self] keypath, requester in
+ 439 |             guard let self = self else { return .string("failure") }
+ 440 |             var resultString = "denied"
+     |                 `- warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 441 |             if await self.validateAccess("r---", at: "skeleton", for: requester) {
+ 442 |                 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1349:13: warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1347 |         var menuItems = Object()
+1348 |         
+1349 |         var cellReference1 = CellReference(endpoint: "cell:///TimesWrapper", label: "times")
+     |             `- warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1350 | //        cellReference1.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1351 |         let cellConfiguration1 = CellConfiguration(name: "Times", cellReferences: [cellReference1])
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1354:13: warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1352 |         
+1353 |         
+1354 |         var cellReference2 = CellReference(endpoint: "cell:///EntitiesWrapper", label: "entities")
+     |             `- warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1355 | //        cellReference2.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1356 |         let cellConfiguration2 = CellConfiguration(name: "Entities", cellReferences: [cellReference2])
+[87/171] Compiling App PurposeCoverage.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:440:17: warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 438 |         await addInterceptForGet(requester: owner, key: "setupMenus", getValueIntercept:  { [weak self] keypath, requester in
+ 439 |             guard let self = self else { return .string("failure") }
+ 440 |             var resultString = "denied"
+     |                 `- warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 441 |             if await self.validateAccess("r---", at: "skeleton", for: requester) {
+ 442 |                 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1349:13: warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1347 |         var menuItems = Object()
+1348 |         
+1349 |         var cellReference1 = CellReference(endpoint: "cell:///TimesWrapper", label: "times")
+     |             `- warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1350 | //        cellReference1.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1351 |         let cellConfiguration1 = CellConfiguration(name: "Times", cellReferences: [cellReference1])
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1354:13: warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1352 |         
+1353 |         
+1354 |         var cellReference2 = CellReference(endpoint: "cell:///EntitiesWrapper", label: "entities")
+     |             `- warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1355 | //        cellReference2.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1356 |         let cellConfiguration2 = CellConfiguration(name: "Entities", cellReferences: [cellReference2])
+[88/171] Compiling App PurposeQualityMonitorCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:440:17: warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 438 |         await addInterceptForGet(requester: owner, key: "setupMenus", getValueIntercept:  { [weak self] keypath, requester in
+ 439 |             guard let self = self else { return .string("failure") }
+ 440 |             var resultString = "denied"
+     |                 `- warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 441 |             if await self.validateAccess("r---", at: "skeleton", for: requester) {
+ 442 |                 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1349:13: warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1347 |         var menuItems = Object()
+1348 |         
+1349 |         var cellReference1 = CellReference(endpoint: "cell:///TimesWrapper", label: "times")
+     |             `- warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1350 | //        cellReference1.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1351 |         let cellConfiguration1 = CellConfiguration(name: "Times", cellReferences: [cellReference1])
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1354:13: warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1352 |         
+1353 |         
+1354 |         var cellReference2 = CellReference(endpoint: "cell:///EntitiesWrapper", label: "entities")
+     |             `- warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1355 | //        cellReference2.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1356 |         let cellConfiguration2 = CellConfiguration(name: "Entities", cellReferences: [cellReference2])
+[89/171] Compiling App QuestionnaireCampaignCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:440:17: warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 438 |         await addInterceptForGet(requester: owner, key: "setupMenus", getValueIntercept:  { [weak self] keypath, requester in
+ 439 |             guard let self = self else { return .string("failure") }
+ 440 |             var resultString = "denied"
+     |                 `- warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 441 |             if await self.validateAccess("r---", at: "skeleton", for: requester) {
+ 442 |                 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1349:13: warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1347 |         var menuItems = Object()
+1348 |         
+1349 |         var cellReference1 = CellReference(endpoint: "cell:///TimesWrapper", label: "times")
+     |             `- warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1350 | //        cellReference1.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1351 |         let cellConfiguration1 = CellConfiguration(name: "Times", cellReferences: [cellReference1])
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1354:13: warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1352 |         
+1353 |         
+1354 |         var cellReference2 = CellReference(endpoint: "cell:///EntitiesWrapper", label: "entities")
+     |             `- warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1355 | //        cellReference2.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1356 |         let cellConfiguration2 = CellConfiguration(name: "Entities", cellReferences: [cellReference2])
+[90/171] Compiling App RestaurantExperiencePlanCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:440:17: warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 438 |         await addInterceptForGet(requester: owner, key: "setupMenus", getValueIntercept:  { [weak self] keypath, requester in
+ 439 |             guard let self = self else { return .string("failure") }
+ 440 |             var resultString = "denied"
+     |                 `- warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 441 |             if await self.validateAccess("r---", at: "skeleton", for: requester) {
+ 442 |                 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1349:13: warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1347 |         var menuItems = Object()
+1348 |         
+1349 |         var cellReference1 = CellReference(endpoint: "cell:///TimesWrapper", label: "times")
+     |             `- warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1350 | //        cellReference1.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1351 |         let cellConfiguration1 = CellConfiguration(name: "Times", cellReferences: [cellReference1])
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1354:13: warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1352 |         
+1353 |         
+1354 |         var cellReference2 = CellReference(endpoint: "cell:///EntitiesWrapper", label: "entities")
+     |             `- warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1355 | //        cellReference2.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1356 |         let cellConfiguration2 = CellConfiguration(name: "Entities", cellReferences: [cellReference2])
+[91/171] Compiling App RestaurantOnboardingCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:440:17: warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 438 |         await addInterceptForGet(requester: owner, key: "setupMenus", getValueIntercept:  { [weak self] keypath, requester in
+ 439 |             guard let self = self else { return .string("failure") }
+ 440 |             var resultString = "denied"
+     |                 `- warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 441 |             if await self.validateAccess("r---", at: "skeleton", for: requester) {
+ 442 |                 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1349:13: warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1347 |         var menuItems = Object()
+1348 |         
+1349 |         var cellReference1 = CellReference(endpoint: "cell:///TimesWrapper", label: "times")
+     |             `- warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1350 | //        cellReference1.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1351 |         let cellConfiguration1 = CellConfiguration(name: "Times", cellReferences: [cellReference1])
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1354:13: warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1352 |         
+1353 |         
+1354 |         var cellReference2 = CellReference(endpoint: "cell:///EntitiesWrapper", label: "entities")
+     |             `- warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1355 | //        cellReference2.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1356 |         let cellConfiguration2 = CellConfiguration(name: "Entities", cellReferences: [cellReference2])
+[92/171] Compiling App RestaurantVisitContextCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:440:17: warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 438 |         await addInterceptForGet(requester: owner, key: "setupMenus", getValueIntercept:  { [weak self] keypath, requester in
+ 439 |             guard let self = self else { return .string("failure") }
+ 440 |             var resultString = "denied"
+     |                 `- warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 441 |             if await self.validateAccess("r---", at: "skeleton", for: requester) {
+ 442 |                 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1349:13: warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1347 |         var menuItems = Object()
+1348 |         
+1349 |         var cellReference1 = CellReference(endpoint: "cell:///TimesWrapper", label: "times")
+     |             `- warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1350 | //        cellReference1.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1351 |         let cellConfiguration1 = CellConfiguration(name: "Times", cellReferences: [cellReference1])
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1354:13: warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1352 |         
+1353 |         
+1354 |         var cellReference2 = CellReference(endpoint: "cell:///EntitiesWrapper", label: "entities")
+     |             `- warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1355 | //        cellReference2.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1356 |         let cellConfiguration2 = CellConfiguration(name: "Entities", cellReferences: [cellReference2])
+[93/171] Compiling App SalesWorkspaceCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:440:17: warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 438 |         await addInterceptForGet(requester: owner, key: "setupMenus", getValueIntercept:  { [weak self] keypath, requester in
+ 439 |             guard let self = self else { return .string("failure") }
+ 440 |             var resultString = "denied"
+     |                 `- warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 441 |             if await self.validateAccess("r---", at: "skeleton", for: requester) {
+ 442 |                 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1349:13: warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1347 |         var menuItems = Object()
+1348 |         
+1349 |         var cellReference1 = CellReference(endpoint: "cell:///TimesWrapper", label: "times")
+     |             `- warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1350 | //        cellReference1.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1351 |         let cellConfiguration1 = CellConfiguration(name: "Times", cellReferences: [cellReference1])
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1354:13: warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1352 |         
+1353 |         
+1354 |         var cellReference2 = CellReference(endpoint: "cell:///EntitiesWrapper", label: "entities")
+     |             `- warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1355 | //        cellReference2.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1356 |         let cellConfiguration2 = CellConfiguration(name: "Entities", cellReferences: [cellReference2])
+[94/171] Compiling App ScaffoldLaunchRegistryCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:440:17: warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 438 |         await addInterceptForGet(requester: owner, key: "setupMenus", getValueIntercept:  { [weak self] keypath, requester in
+ 439 |             guard let self = self else { return .string("failure") }
+ 440 |             var resultString = "denied"
+     |                 `- warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 441 |             if await self.validateAccess("r---", at: "skeleton", for: requester) {
+ 442 |                 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1349:13: warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1347 |         var menuItems = Object()
+1348 |         
+1349 |         var cellReference1 = CellReference(endpoint: "cell:///TimesWrapper", label: "times")
+     |             `- warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1350 | //        cellReference1.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1351 |         let cellConfiguration1 = CellConfiguration(name: "Times", cellReferences: [cellReference1])
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1354:13: warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1352 |         
+1353 |         
+1354 |         var cellReference2 = CellReference(endpoint: "cell:///EntitiesWrapper", label: "entities")
+     |             `- warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1355 | //        cellReference2.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1356 |         let cellConfiguration2 = CellConfiguration(name: "Entities", cellReferences: [cellReference2])
+[95/171] Compiling App OrchestratorCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:440:17: warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 438 |         await addInterceptForGet(requester: owner, key: "setupMenus", getValueIntercept:  { [weak self] keypath, requester in
+ 439 |             guard let self = self else { return .string("failure") }
+ 440 |             var resultString = "denied"
+     |                 `- warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 441 |             if await self.validateAccess("r---", at: "skeleton", for: requester) {
+ 442 |                 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1349:13: warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1347 |         var menuItems = Object()
+1348 |         
+1349 |         var cellReference1 = CellReference(endpoint: "cell:///TimesWrapper", label: "times")
+     |             `- warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1350 | //        cellReference1.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1351 |         let cellConfiguration1 = CellConfiguration(name: "Times", cellReferences: [cellReference1])
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1354:13: warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1352 |         
+1353 |         
+1354 |         var cellReference2 = CellReference(endpoint: "cell:///EntitiesWrapper", label: "entities")
+     |             `- warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1355 | //        cellReference2.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1356 |         let cellConfiguration2 = CellConfiguration(name: "Entities", cellReferences: [cellReference2])
+[96/171] Compiling App SMIAgreementSettlementCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:440:17: warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 438 |         await addInterceptForGet(requester: owner, key: "setupMenus", getValueIntercept:  { [weak self] keypath, requester in
+ 439 |             guard let self = self else { return .string("failure") }
+ 440 |             var resultString = "denied"
+     |                 `- warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 441 |             if await self.validateAccess("r---", at: "skeleton", for: requester) {
+ 442 |                 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1349:13: warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1347 |         var menuItems = Object()
+1348 |         
+1349 |         var cellReference1 = CellReference(endpoint: "cell:///TimesWrapper", label: "times")
+     |             `- warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1350 | //        cellReference1.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1351 |         let cellConfiguration1 = CellConfiguration(name: "Times", cellReferences: [cellReference1])
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1354:13: warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1352 |         
+1353 |         
+1354 |         var cellReference2 = CellReference(endpoint: "cell:///EntitiesWrapper", label: "entities")
+     |             `- warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1355 | //        cellReference2.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1356 |         let cellConfiguration2 = CellConfiguration(name: "Entities", cellReferences: [cellReference2])
+[97/171] Compiling App SpatialCells.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:440:17: warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 438 |         await addInterceptForGet(requester: owner, key: "setupMenus", getValueIntercept:  { [weak self] keypath, requester in
+ 439 |             guard let self = self else { return .string("failure") }
+ 440 |             var resultString = "denied"
+     |                 `- warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 441 |             if await self.validateAccess("r---", at: "skeleton", for: requester) {
+ 442 |                 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1349:13: warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1347 |         var menuItems = Object()
+1348 |         
+1349 |         var cellReference1 = CellReference(endpoint: "cell:///TimesWrapper", label: "times")
+     |             `- warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1350 | //        cellReference1.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1351 |         let cellConfiguration1 = CellConfiguration(name: "Times", cellReferences: [cellReference1])
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1354:13: warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1352 |         
+1353 |         
+1354 |         var cellReference2 = CellReference(endpoint: "cell:///EntitiesWrapper", label: "entities")
+     |             `- warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1355 | //        cellReference2.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1356 |         let cellConfiguration2 = CellConfiguration(name: "Entities", cellReferences: [cellReference2])
+[98/171] Compiling App TodoCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:440:17: warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 438 |         await addInterceptForGet(requester: owner, key: "setupMenus", getValueIntercept:  { [weak self] keypath, requester in
+ 439 |             guard let self = self else { return .string("failure") }
+ 440 |             var resultString = "denied"
+     |                 `- warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 441 |             if await self.validateAccess("r---", at: "skeleton", for: requester) {
+ 442 |                 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1349:13: warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1347 |         var menuItems = Object()
+1348 |         
+1349 |         var cellReference1 = CellReference(endpoint: "cell:///TimesWrapper", label: "times")
+     |             `- warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1350 | //        cellReference1.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1351 |         let cellConfiguration1 = CellConfiguration(name: "Times", cellReferences: [cellReference1])
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1354:13: warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1352 |         
+1353 |         
+1354 |         var cellReference2 = CellReference(endpoint: "cell:///EntitiesWrapper", label: "entities")
+     |             `- warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1355 | //        cellReference2.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1356 |         let cellConfiguration2 = CellConfiguration(name: "Entities", cellReferences: [cellReference2])
+[99/171] Compiling App TranscriptStoreCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:440:17: warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 438 |         await addInterceptForGet(requester: owner, key: "setupMenus", getValueIntercept:  { [weak self] keypath, requester in
+ 439 |             guard let self = self else { return .string("failure") }
+ 440 |             var resultString = "denied"
+     |                 `- warning: variable 'resultString' was never mutated; consider changing to 'let' constant
+ 441 |             if await self.validateAccess("r---", at: "skeleton", for: requester) {
+ 442 |                 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1349:13: warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1347 |         var menuItems = Object()
+1348 |         
+1349 |         var cellReference1 = CellReference(endpoint: "cell:///TimesWrapper", label: "times")
+     |             `- warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant
+1350 | //        cellReference1.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1351 |         let cellConfiguration1 = CellConfiguration(name: "Times", cellReferences: [cellReference1])
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/SimpleProjectManager/OrchestratorCell.swift:1354:13: warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1352 |         
+1353 |         
+1354 |         var cellReference2 = CellReference(endpoint: "cell:///EntitiesWrapper", label: "entities")
+     |             `- warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant
+1355 | //        cellReference2.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+1356 |         let cellConfiguration2 = CellConfiguration(name: "Entities", cellReferences: [cellReference2])
+[100/171] Compiling App VaporRAGMVP.swift
+[101/171] Compiling App VaporVaultMVP.swift
+[102/171] Compiling App DeleteUsers.swift
+[103/171] Compiling App DevelopmentStatusSnapshot.swift
+[104/171] Compiling App ScaffoldDocumentationResourceCatalog.swift
+[105/171] Compiling App SecureDevelopmentStatusSnapshotFile.swift
+[106/171] Compiling App SproutResolverCompatibility.swift
+[107/171] Compiling App ArendalsukaLocalProgramSeedRunner.swift
+[108/171] Compiling App ArendalsukaLocalSpeakerSeedRunner.swift
+[109/171] Compiling App CanonicalCellRuntimeReadinessStore.swift
+[110/171] Compiling App CellScaffoldRuntimeIdentityManifest.swift
+[111/171] Compiling App CellScaffoldRuntimeIdentityMigrationCandidateCommand.swift
+[112/171] Compiling App CellScaffoldRuntimeIdentityMigrationPlanner.swift
+[113/171] Compiling App CellScaffoldRuntimeIdentityProvisioner.swift
+[114/171] Compiling App AIAssistantThreadCell.swift
+[115/171] Compiling App AIGatewayCell.swift
+[116/171] Compiling App AIGatewaySupport.swift
+[117/171] Compiling App LocalLLMGatewayCell.swift
+[118/171] Compiling App AdminFundingQueueCell.swift
+[119/171] Compiling App AgentConversationInboxCell.swift
+[120/171] Compiling App AssistantCorrespondenceCell.swift
+[121/171] Compiling App AssistantCorrespondenceContracts.swift
+[122/171] Compiling App AgreementWorkbenchCell.swift
+[123/171] Compiling App ArendalsukaConfigurationPublishAccessCredentialSupport.swift
+[124/171] Compiling App ArendalsukaEventAtlasCell.swift
+[125/171] Compiling App ArendalsukaEventAtlasModels.swift
+[126/171] Compiling App ArendalsukaImportAccessCredentialSupport.swift
+[127/171] Compiling App ArendalsukaKnowledgeSQLiteStore.swift
+[128/171] Compiling App ArendalsukaParticipantProgramCell.swift
+[129/171] Compiling App ArtistSalesSupport.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:75:13: warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  73 |         var purposes: [String]
+  74 |         var matchmakingConsent: Bool
+  75 |         var purposeInterestValue: ValueType
+     |             `- warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  76 |     }
+  77 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   3 | 
+   4 | import Foundation
+   5 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   6 | 
+   7 | final class ConferenceRecommendationCell: GeneralCell {
+[130/171] Compiling App CalendarCells.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:75:13: warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  73 |         var purposes: [String]
+  74 |         var matchmakingConsent: Bool
+  75 |         var purposeInterestValue: ValueType
+     |             `- warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  76 |     }
+  77 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   3 | 
+   4 | import Foundation
+   5 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   6 | 
+   7 | final class ConferenceRecommendationCell: GeneralCell {
+[131/171] Compiling App ConferenceAgendaCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:75:13: warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  73 |         var purposes: [String]
+  74 |         var matchmakingConsent: Bool
+  75 |         var purposeInterestValue: ValueType
+     |             `- warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  76 |     }
+  77 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   3 | 
+   4 | import Foundation
+   5 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   6 | 
+   7 | final class ConferenceRecommendationCell: GeneralCell {
+[132/171] Compiling App ConferenceChatLaunchCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:75:13: warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  73 |         var purposes: [String]
+  74 |         var matchmakingConsent: Bool
+  75 |         var purposeInterestValue: ValueType
+     |             `- warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  76 |     }
+  77 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   3 | 
+   4 | import Foundation
+   5 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   6 | 
+   7 | final class ConferenceRecommendationCell: GeneralCell {
+[133/171] Compiling App ConferenceConnectionHubCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:75:13: warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  73 |         var purposes: [String]
+  74 |         var matchmakingConsent: Bool
+  75 |         var purposeInterestValue: ValueType
+     |             `- warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  76 |     }
+  77 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   3 | 
+   4 | import Foundation
+   5 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   6 | 
+   7 | final class ConferenceRecommendationCell: GeneralCell {
+[134/171] Compiling App ConferenceDemoStoryCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:75:13: warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  73 |         var purposes: [String]
+  74 |         var matchmakingConsent: Bool
+  75 |         var purposeInterestValue: ValueType
+     |             `- warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  76 |     }
+  77 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   3 | 
+   4 | import Foundation
+   5 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   6 | 
+   7 | final class ConferenceRecommendationCell: GeneralCell {
+[135/171] Compiling App ConferenceEntityDiscoveryCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:75:13: warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  73 |         var purposes: [String]
+  74 |         var matchmakingConsent: Bool
+  75 |         var purposeInterestValue: ValueType
+     |             `- warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  76 |     }
+  77 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   3 | 
+   4 | import Foundation
+   5 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   6 | 
+   7 | final class ConferenceRecommendationCell: GeneralCell {
+[136/171] Compiling App ConferenceInsightAggregateCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:75:13: warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  73 |         var purposes: [String]
+  74 |         var matchmakingConsent: Bool
+  75 |         var purposeInterestValue: ValueType
+     |             `- warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  76 |     }
+  77 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   3 | 
+   4 | import Foundation
+   5 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   6 | 
+   7 | final class ConferenceRecommendationCell: GeneralCell {
+[137/171] Compiling App ConferenceLocationShareCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:75:13: warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  73 |         var purposes: [String]
+  74 |         var matchmakingConsent: Bool
+  75 |         var purposeInterestValue: ValueType
+     |             `- warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  76 |     }
+  77 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   3 | 
+   4 | import Foundation
+   5 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   6 | 
+   7 | final class ConferenceRecommendationCell: GeneralCell {
+[138/171] Compiling App ConferenceOnboardingCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:75:13: warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  73 |         var purposes: [String]
+  74 |         var matchmakingConsent: Bool
+  75 |         var purposeInterestValue: ValueType
+     |             `- warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  76 |     }
+  77 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   3 | 
+   4 | import Foundation
+   5 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   6 | 
+   7 | final class ConferenceRecommendationCell: GeneralCell {
+[139/171] Compiling App ConferenceOrganizerProjectionCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:75:13: warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  73 |         var purposes: [String]
+  74 |         var matchmakingConsent: Bool
+  75 |         var purposeInterestValue: ValueType
+     |             `- warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  76 |     }
+  77 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   3 | 
+   4 | import Foundation
+   5 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   6 | 
+   7 | final class ConferenceRecommendationCell: GeneralCell {
+[140/171] Compiling App ConferencePublicProfileCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:75:13: warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  73 |         var purposes: [String]
+  74 |         var matchmakingConsent: Bool
+  75 |         var purposeInterestValue: ValueType
+     |             `- warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  76 |     }
+  77 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   3 | 
+   4 | import Foundation
+   5 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   6 | 
+   7 | final class ConferenceRecommendationCell: GeneralCell {
+[141/171] Compiling App ConferencePublishedContentCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:75:13: warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  73 |         var purposes: [String]
+  74 |         var matchmakingConsent: Bool
+  75 |         var purposeInterestValue: ValueType
+     |             `- warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  76 |     }
+  77 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   3 | 
+   4 | import Foundation
+   5 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   6 | 
+   7 | final class ConferenceRecommendationCell: GeneralCell {
+[142/171] Compiling App ConferenceRecommendationCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:75:13: warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  73 |         var purposes: [String]
+  74 |         var matchmakingConsent: Bool
+  75 |         var purposeInterestValue: ValueType
+     |             `- warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  76 |     }
+  77 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   3 | 
+   4 | import Foundation
+   5 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   6 | 
+   7 | final class ConferenceRecommendationCell: GeneralCell {
+[143/171] Compiling App ConferenceSchedulingCell.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:75:13: warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  73 |         var purposes: [String]
+  74 |         var matchmakingConsent: Bool
+  75 |         var purposeInterestValue: ValueType
+     |             `- warning: stored property 'purposeInterestValue' of 'Sendable'-conforming struct 'OnboardingContext' has non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+  76 |     }
+  77 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/.build/checkouts/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: enum 'ValueType' does not conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: enum 'ValueType' does not conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Cells/ConferenceMVP/Cells/ConferenceRecommendationCell.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   3 | 
+   4 | import Foundation
+   5 | import CellBase
+     | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase'
+   6 | 
+   7 | final class ConferenceRecommendationCell: GeneralCell {
+[144/171] Compiling App MusicReferenceLibraryCell.swift
+[145/171] Compiling App MusicReleasePipeline.swift
+[146/171] Compiling App MusicWorkspaceReviewCell.swift
+[147/171] Compiling App ObjectStorageAdapterCell.swift
+[148/171] Compiling App ParticipationHubCell.swift
+[149/171] Compiling App ParticipationModels.swift
+[150/171] Compiling App PersonalCopilotCloudStore.swift
+[151/171] Compiling App PersonalCopilotCollaborationInviteModels.swift
+[152/171] Compiling App PersonalPagePublisherCell.swift
+[153/171] Compiling App QuestionnaireResponseCell.swift
+[154/171] Compiling App PersonlogJobProjectionCell.swift
+[155/171] Compiling App PersonlogProjectionSupport.swift
+[156/171] Compiling App DraftVersionCell.swift
+[157/171] Compiling App ServiceCatalogModels.swift
+[158/171] Compiling App CellScaffoldRuntimeIdentityRegistry.swift
+[159/171] Compiling App CellScaffoldServiceIdentityManifest.swift
+[160/171] Compiling App ChatInterpreterEscalationCeiling.swift
+[161/171] Compiling App ChatInterpreterEscalationGrant.swift
+[162/171] Compiling App ChatPurposeResourceRouter.swift
+[163/171] Compiling App EntityAnchorDataV1Contract.swift
+[164/171] Compiling App NativeLocalModelBridge.swift
+[165/171] Compiling App PurposeDecomposition.swift
+[166/171] Compiling App PurposeKnowledgeBase.swift
+[167/171] Compiling App SkeletonRuntimeDecoder.swift
+[168/171] Compiling App UsageMeterContracts.swift
+[169/171] Compiling App WorkbenchSeedSupport.swift
+[170/171] Compiling App Sequence+sorted.swift
+[171/171] Compiling App routes.swift

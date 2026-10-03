@@ -1,0 +1,25 @@
+[
+  {
+    "repo": "Binding",
+    "paths": [
+      "Binding/SkeletonPresentationOverlayView.swift",
+      "Binding/FullLibraryView.swift",
+      "BindingTests/ParityNightRegressionTests.swift"
+    ],
+    "patch": "Binding-renderer-fixes.patch",
+    "sha256": "ffcc74319933c15dd44f51587471b6ad3aad18028ac019d5e48725a9aed3f22d",
+    "applyCheckExitCode": 0,
+    "output": ""
+  },
+  {
+    "repo": "CellProtocol",
+    "paths": [
+      "Sources/CellApple/Cells/Porthole/Utility Views/CellGridView.swift",
+      "Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/Suggestion/SkeletonView.swift"
+    ],
+    "patch": "CellProtocol-renderer-fixes.patch",
+    "sha256": "e398cf03bdb063af3b46b691624a05dea67dc036231e897c83fb54cfbdaaf781",
+    "applyCheckExitCode": 0,
+    "output": ""
+  }
+]

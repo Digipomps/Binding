@@ -1,0 +1,251 @@
+{
+  "observedAt": "2026-09-15T03:46:00.743490+00:00",
+  "scope": "Isolated real macOS and iOS renderers plus four synthetic iOS UI journeys; no authenticated app journey or physical iPhone",
+  "bundleID": "org.digipomps.haven.parity-night-test",
+  "xcode": "2630",
+  "xcodeBuild": "17C519",
+  "sdk": "macosx26.2",
+  "tests": {
+    "count": 19,
+    "failures": 0,
+    "macOS": {
+      "count": 15,
+      "failures": 0,
+      "result": "phase3-toolbar-mac-test-logs/parity-tests.xcresult",
+      "durationSeconds": 4.591
+    },
+    "iOS26_2": {
+      "count": 4,
+      "failures": 0,
+      "result": "phase3-toolbar-ui-test-logs/parity-ui-tests.xcresult",
+      "durationSeconds": 31.341,
+      "journeys": [
+        "Library authentication stopped → retry → close; exactly two synthetic bootstrap attempts",
+        "Compact library tab full titles and selected state",
+        "Real field/editor typing and tap on button padding; rejected action preserves draft",
+        "Scroll 12-message log independently, type chat draft with keyboard, send arrow remains hittable; one keyboard-dismiss control"
+      ]
+    }
+  },
+  "captures": {
+    "macOSCount": 20,
+    "macOSReport": "native-capture-report.json",
+    "macOSAssertions": [
+      {
+        "slug": "grid",
+        "viewport": "compact",
+        "expected": [
+          "Card one",
+          "Card two",
+          "Card three",
+          "KPI",
+          "GRID",
+          "QA"
+        ],
+        "missing": [],
+        "unexpectedUnavailable": false
+      },
+      {
+        "slug": "grid",
+        "viewport": "desktop",
+        "expected": [
+          "Card one",
+          "Card two",
+          "Card three",
+          "KPI",
+          "GRID",
+          "QA"
+        ],
+        "missing": [],
+        "unexpectedUnavailable": false
+      },
+      {
+        "slug": "list",
+        "viewport": "compact",
+        "expected": [
+          "Alpha row",
+          "Beta row",
+          "Gamma row"
+        ],
+        "missing": [],
+        "unexpectedUnavailable": false
+      },
+      {
+        "slug": "list",
+        "viewport": "desktop",
+        "expected": [
+          "Alpha row",
+          "Beta row",
+          "Gamma row"
+        ],
+        "missing": [],
+        "unexpectedUnavailable": false
+      },
+      {
+        "slug": "relative-keypath",
+        "viewport": "compact",
+        "expected": [
+          "Relative row A",
+          "Relative row B"
+        ],
+        "missing": [],
+        "unexpectedUnavailable": false
+      },
+      {
+        "slug": "relative-keypath",
+        "viewport": "desktop",
+        "expected": [
+          "Relative row A",
+          "Relative row B"
+        ],
+        "missing": [],
+        "unexpectedUnavailable": false
+      },
+      {
+        "slug": "chat",
+        "viewport": "compact",
+        "hasChat": true,
+        "unexpectedInactiveHelper": false,
+        "unexpectedLongFixture": false,
+        "hasPrimaryActionOCR": false,
+        "primaryActionVisuallyConfirmed": true,
+        "visualEvidence": "native-chat-compact.png",
+        "ocrNote": "Vision read Apne forslag; pixels manually inspected and show Åpne forslag. No OCR normalization or rerun."
+      },
+      {
+        "slug": "chat",
+        "viewport": "desktop",
+        "hasChat": true,
+        "unexpectedInactiveHelper": false,
+        "unexpectedLongFixture": false,
+        "hasPrimaryActionOCR": true,
+        "primaryActionVisuallyConfirmed": true,
+        "visualEvidence": "native-chat-desktop.png"
+      }
+    ],
+    "iOS26_2Count": 5,
+    "iOS26_2": [
+      {
+        "bytes": 279998,
+        "height": 844,
+        "outcome": "captured",
+        "slug": "text",
+        "systemVersion": "26.2",
+        "width": 390
+      },
+      {
+        "bytes": 240611,
+        "height": 844,
+        "outcome": "captured",
+        "slug": "list",
+        "systemVersion": "26.2",
+        "width": 390
+      },
+      {
+        "bytes": 209729,
+        "height": 844,
+        "outcome": "captured",
+        "slug": "grid",
+        "systemVersion": "26.2",
+        "width": 390
+      },
+      {
+        "bytes": 226351,
+        "height": 844,
+        "outcome": "captured",
+        "slug": "form",
+        "systemVersion": "26.2",
+        "width": 390
+      },
+      {
+        "bytes": 333271,
+        "height": 844,
+        "outcome": "captured",
+        "slug": "chat",
+        "systemVersion": "26.2",
+        "width": 390
+      }
+    ],
+    "iOS18_6Count": 5,
+    "iOS18_6": [
+      {
+        "bytes": 204747,
+        "height": 874,
+        "outcome": "captured",
+        "slug": "text",
+        "systemVersion": "18.6",
+        "width": 402
+      },
+      {
+        "bytes": 172160,
+        "height": 874,
+        "outcome": "captured",
+        "slug": "list",
+        "systemVersion": "18.6",
+        "width": 402
+      },
+      {
+        "bytes": 139645,
+        "height": 874,
+        "outcome": "captured",
+        "slug": "grid",
+        "systemVersion": "18.6",
+        "width": 402
+      },
+      {
+        "bytes": 153289,
+        "height": 874,
+        "outcome": "captured",
+        "slug": "form",
+        "systemVersion": "18.6",
+        "width": 402
+      },
+      {
+        "bytes": 208329,
+        "height": 874,
+        "outcome": "captured",
+        "slug": "chat",
+        "systemVersion": "18.6",
+        "width": 402
+      }
+    ],
+    "uiScreenshotCount": 10,
+    "uiImages": "phase3-ui-images",
+    "uiAttachmentManifest": "phase3-toolbar-ui-attachments/manifest.json",
+    "iOS18InteractiveJourneysTested": false
+  },
+  "patches": {
+    "Binding-renderer-fixes.patch": "ffcc74319933c15dd44f51587471b6ad3aad18028ac019d5e48725a9aed3f22d",
+    "CellProtocol-renderer-fixes.patch": "e398cf03bdb063af3b46b691624a05dea67dc036231e897c83fb54cfbdaaf781",
+    "CellScaffold-compact-text.patch": "5fa0d90f47ebe37b1fd2d312cb6256670e35ff51b9686ae2f0cbee82de0226a8"
+  },
+  "installed": true,
+  "deployed": false,
+  "actualHumanEntityLinkTested": false,
+  "installationScope": "unique app ID in Simulator only; normal HAVEN untouched",
+  "productionAppInstalled": false,
+  "minimumOSVersion": "18.0",
+  "originalSourceChanges": [],
+  "remainingGaps": [
+    "Full authenticated startup/library/chat and native action transport",
+    "Physical phone QR/nearby entity linking and data access",
+    "Native NavigationBar, Picker, Toggle, real Reference, upload not covered",
+    "Web dynamic Tabs falls back to panels when data is missing",
+    "Theme/typography/spacing differ; Mac circular badge/button has border artifacts",
+    "Interactive iOS journeys run on 26.2 only; iOS18.6 has static renderer evidence",
+    "Candidate not integrated into normal HAVEN or signed physical-phone entity-link IPA"
+  ],
+  "chatFixtureProvenance": {
+    "webAndIOSAndMacIdenticalConfiguration": true,
+    "webAndIOSAndMacIdenticalState": true,
+    "frozen": {
+      "configuration": "8bb263c7a1826b3e37977442aa7db41faea3ce1a18583732474a87ddca86e127",
+      "state": "7efbd58042f1ad2225882e3b4c0618fb32da1578a357096c850aa7f4d774f633"
+    },
+    "note": "Frozen from the actual chat configuration factory and initial Cell state with an ephemeral RAM identity in round03; final captures do not generate identities. Long-chat UI fixture substitutes 12 explicitly synthetic rows."
+  },
+  "testAppsTerminated": true,
+  "patchChecks": "phase3-patch-checks.json",
+  "browserInjectionRemoved": true,
+  "normalAppReadyForCompleteEntityLinkTest": false
+}

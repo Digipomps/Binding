@@ -1,0 +1,154 @@
+{
+  "cellReferences" : [
+    {
+      "endpoint" : "cell:\/\/\/PersonalCopilotConfigurationCatalog",
+      "label" : "personalCatalog",
+      "setKeysAndValues" : [
+
+      ],
+      "subscribeFeed" : false,
+      "subscriptions" : [
+
+      ]
+    }
+  ],
+  "description" : "App Store-godkjent katalog som kun returnerer personal-copilot-v1-konfigurasjoner med policy, scope og execution metadata.",
+  "discovery" : {
+    "interests" : [
+      "ageRatingHint=12+",
+      "appStoreScope=personal-copilot-v1",
+      "appstore",
+      "catalog",
+      "configuration",
+      "executionScope=cloud",
+      "nativePermissionRequests=none",
+      "personal",
+      "policy",
+      "policyCategory=catalog",
+      "presentationClass=list",
+      "purpose=approved-personal-catalog",
+      "requiresLogin=true",
+      "requiresUserGeneratedContentModeration=false",
+      "reviewSummary=Catalog returns only Personal Co-Pilot V1 entries and excludes Conference\/demo\/admin surfaces.",
+      "surfaceFamily=catalog",
+      "universalLink=https:\/\/staging.haven.digipomps.org\/app\/personal\/catalog",
+      "visibleAction=entries",
+      "visibleAction=entries.allowed",
+      "visibleAction=entries.unavailable",
+      "visibleAction=entryDetail",
+      "visibleAction=policySummary"
+    ],
+    "menuSlots" : [
+      "lowerRight"
+    ],
+    "purpose" : "Personal Co-Pilot approved catalog",
+    "purposeDescription" : "App Store-godkjent katalog som kun returnerer personal-copilot-v1-konfigurasjoner med policy, scope og execution metadata.",
+    "sourceCellEndpoint" : "cell:\/\/\/PersonalCopilotConfigurationCatalog",
+    "sourceCellName" : "PersonalCopilotConfigurationCatalogCell"
+  },
+  "name" : "Personal Co-Pilot Catalog",
+  "skeleton" : {
+    "VStack" : {
+      "elements" : [
+        {
+          "Text" : {
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            },
+            "text" : "Personal Co-Pilot Catalog"
+          }
+        },
+        {
+          "Text" : {
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            },
+            "text" : "Katalogen viser bare App Store-godkjente Personal Co-Pilot V1-flater."
+          }
+        },
+        {
+          "Text" : {
+            "keypath" : "personalCatalog.state.appStoreScope",
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            }
+          }
+        },
+        {
+          "Text" : {
+            "keypath" : "personalCatalog.state.configurationCount",
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            }
+          }
+        },
+        {
+          "Text" : {
+            "keypath" : "personalCatalog.state.policySummary",
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            }
+          }
+        },
+        {
+          "List" : {
+            "elements" : [
+
+            ],
+            "flowElementSkeleton" : {
+              "VStack" : {
+                "elements" : [
+                  {
+                    "Text" : {
+                      "keypath" : "configuration.name",
+                      "modifiers" : {
+                        "foregroundColor" : "#172033"
+                      }
+                    }
+                  },
+                  {
+                    "Text" : {
+                      "keypath" : "metadata.policyCategory",
+                      "modifiers" : {
+                        "foregroundColor" : "#172033"
+                      }
+                    }
+                  },
+                  {
+                    "Text" : {
+                      "keypath" : "metadata.surfaceFamily",
+                      "modifiers" : {
+                        "foregroundColor" : "#172033"
+                      }
+                    }
+                  },
+                  {
+                    "Text" : {
+                      "keypath" : "metadata.executionScope",
+                      "modifiers" : {
+                        "foregroundColor" : "#172033"
+                      }
+                    }
+                  },
+                  {
+                    "Text" : {
+                      "keypath" : "metadata.reviewSummary",
+                      "modifiers" : {
+                        "foregroundColor" : "#172033"
+                      }
+                    }
+                  }
+                ],
+                "spacing" : 4
+              }
+            },
+            "keypath" : "personalCatalog.catalogEntries",
+            "selectionMode" : "none"
+          }
+        }
+      ],
+      "spacing" : 10
+    }
+  },
+  "uuid" : "5BE8C513-81D3-4A55-B909-BB044E2BA30B"
+}

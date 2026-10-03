@@ -1,0 +1,86 @@
+START 21:06:15Z  worktree=/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/_wt-bridge-credential-20260830
+== swift build (CellBase) ==
+[1582/1620] Compiling CellBase Object.swift
+[1583/1620] Compiling CellBase ValueTypeErrors.swift
+[1584/1620] Compiling CellBase ValueType.swift
+[1585/1620] Compiling CellBase ClaimsHandlerCell.swift
+[1586/1620] Compiling CellBase DIDDocument.swift
+[1587/1620] Compiling CellBase DIDIdentityVault.swift
+[1588/1620] Compiling CellBase IssuerCell.swift
+[1589/1620] Compiling CellBase ProofType.swift
+[1590/1620] Compiling CellBase SecureKey.swift
+[1591/1620] Compiling CellBase DIDDocumentValidator.swift
+[1592/1620] Compiling CellBase JOSEAESKeyWrap.swift
+[1593/1620] Compiling CellBase JOSEBase64URL.swift
+[1594/1620] Compiling CellBase JOSECompactJWE.swift
+[1595/1620] Compiling CellBase JOSECompactJWS.swift
+[1596/1620] Compiling CellBase JOSEJWK.swift
+[1597/1620] Compiling CellBase JOSEJWSVerifier.swift
+[1598/1620] Compiling CellBase OID4VCICredentialOffer.swift
+[1599/1620] Compiling CellBase OID4VCIIssuerMetadata.swift
+[1600/1620] Compiling CellBase OID4VCIMetadataClient.swift
+[1601/1620] Compiling CellBase OID4VPDCQL.swift
+[1602/1620] Compiling CellBase OID4VPDirectPost.swift
+[1603/1620] Compiling CellBase OID4VPDirectPostJWTEncryption.swift
+[1604/1620] Compiling CellBase OID4VPDirectPostJWTSubmissionAdapter.swift
+[1605/1620] Compiling CellBase OID4VPRequestMatcher.swift
+[1606/1620] Compiling CellBase OID4VPRequestObject.swift
+[1607/1620] Compiling CellBase OID4VPResponse.swift
+[1608/1620] Compiling CellBase OID4VPSignedRequestObject.swift
+[1609/1620] Compiling CellBase OID4VPSignedRequestTrustVerifier.swift
+[1610/1620] Compiling CellBase OID4VPStaticVerifierMetadataProvider.swift
+[1611/1620] Compiling CellBase OID4VPVerifierMetadata.swift
+[1612/1620] Compiling CellBase StandardsCredentialFormat.swift
+[1613/1620] Compiling CellBase TestAgreementCell.swift
+[1614/1620] Compiling CellBase TrustedIssuerCell.swift
+[1615/1620] Compiling CellBase TrustedIssuerEvaluationReceipt.swift
+[1616/1620] Compiling CellBase VCClaim.swift
+[1617/1620] Compiling CellBase VCIssuerService.swift
+[1618/1620] Compiling CellBase VCPresentation.swift
+[1619/1620] Compiling CellBase VCProof.swift
+[1620/1620] Compiling CellBase VerifierCell.swift
+Build of target: 'CellBase' complete! (88.70s)
+BUILD_EXIT=0
+== swift test --filter DedicatedBridgeConnectionURL ==
+/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/_wt-bridge-credential-20260830/Tests/CellBaseTests/TrustedIssuerCellTests.swift:1448:13: warning: variable 'missingProof' was never mutated; consider changing to 'let' constant
+1446 |         XCTAssertEqual(decision(unsignedTimeResult), "untrusted")
+1447 | 
+1448 |         var missingProof = try await makeClaim()
+     |             `- warning: variable 'missingProof' was never mutated; consider changing to 'let' constant
+1449 |         missingProof.proof.signatureData = Data()
+1450 |         let missingProofResult = try await evaluate(
+[1633/1638] Compiling CellBaseTests VaporCellRuntimeReadinessContractTests.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/_wt-bridge-credential-20260830/Tests/CellBaseTests/TrustedIssuerCellTests.swift:1448:13: warning: variable 'missingProof' was never mutated; consider changing to 'let' constant
+1446 |         XCTAssertEqual(decision(unsignedTimeResult), "untrusted")
+1447 | 
+1448 |         var missingProof = try await makeClaim()
+     |             `- warning: variable 'missingProof' was never mutated; consider changing to 'let' constant
+1449 |         missingProof.proof.signatureData = Data()
+1450 |         let missingProofResult = try await evaluate(
+[1634/1638] Compiling CellBaseTests VaporIdentityVaultStrictTests.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/_wt-bridge-credential-20260830/Tests/CellBaseTests/TrustedIssuerCellTests.swift:1448:13: warning: variable 'missingProof' was never mutated; consider changing to 'let' constant
+1446 |         XCTAssertEqual(decision(unsignedTimeResult), "untrusted")
+1447 | 
+1448 |         var missingProof = try await makeClaim()
+     |             `- warning: variable 'missingProof' was never mutated; consider changing to 'let' constant
+1449 |         missingProof.proof.signatureData = Data()
+1450 |         let missingProofResult = try await evaluate(
+[1635/1638] Compiling CellBaseTests VaultCellTests.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/_wt-bridge-credential-20260830/Tests/CellBaseTests/TrustedIssuerCellTests.swift:1448:13: warning: variable 'missingProof' was never mutated; consider changing to 'let' constant
+1446 |         XCTAssertEqual(decision(unsignedTimeResult), "untrusted")
+1447 | 
+1448 |         var missingProof = try await makeClaim()
+     |             `- warning: variable 'missingProof' was never mutated; consider changing to 'let' constant
+1449 |         missingProof.proof.signatureData = Data()
+1450 |         let missingProofResult = try await evaluate(
+[1636/1638] Compiling CellBaseTests VaultContractsTests.swift
+/Users/kjetil/Build/Digipomps/HAVEN/CellProtocol/_wt-bridge-credential-20260830/Tests/CellBaseTests/TrustedIssuerCellTests.swift:1448:13: warning: variable 'missingProof' was never mutated; consider changing to 'let' constant
+1446 |         XCTAssertEqual(decision(unsignedTimeResult), "untrusted")
+1447 | 
+1448 |         var missingProof = try await makeClaim()
+     |             `- warning: variable 'missingProof' was never mutated; consider changing to 'let' constant
+1449 |         missingProof.proof.signatureData = Data()
+1450 |         let missingProofResult = try await evaluate(
+error: fatalError
+TEST_EXIT=1
+DONE 21:08:46Z

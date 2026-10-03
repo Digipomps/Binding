@@ -1,0 +1,66 @@
+[
+  {
+    "confidence" : 1,
+    "height" : 0.015594314999050618,
+    "text" : "Remote parity draft",
+    "width" : 0.10029069264729819,
+    "x" : 0.024709306219955516,
+    "y" : 0.8449612405807968
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.017441859775119362,
+    "text" : "Line one from the staging fixture.",
+    "width" : 0.14680231730143231,
+    "x" : 0.023255818941338085,
+    "y" : 0.81589147350391322
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015736434194776661,
+    "text" : "Line two keeps wrapping deterministic.",
+    "width" : 0.17296511332194009,
+    "x" : 0.023255817594117094,
+    "y" : 0.80426356595224391
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.017777777777777781,
+    "text" : "Form Fixture",
+    "width" : 0.066860466003417995,
+    "x" : 0.46511627851718629,
+    "y" : 0.95333333338638027
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.019798437754313225,
+    "text" : "Interactive form",
+    "width" : 0.082903334299723352,
+    "x" : 0.45782158935467748,
+    "y" : 0.92614729281185992
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.021330748664008192,
+    "text" : "TextField og TextArea skal holde draft synlig og deterministisk etter hver mutasjon",
+    "width" : 0.41569765726725261,
+    "x" : 0.29069768250009465,
+    "y" : 0.89922480636544322
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.019521963331434522,
+    "text" : "Ingen handlinger kjørt ennå.",
+    "width" : 0.1453488286336263,
+    "x" : 0.42587209549423333,
+    "y" : 0.87388888918543772
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015697674751281809,
+    "text" : "Save draft Reset draft Hard reset",
+    "width" : 0.17732557932535808,
+    "x" : 0.41133721181503413,
+    "y" : 0.60833333308523407
+  }
+]

@@ -1,0 +1,2613 @@
+[CellBase][resolver] Adding resolve: PersonalChatHub
+[CellBase][resolver] Adding resolve: AppleIntelligence
+[CellBase][resolver] Adding resolve: LocalLLM
+[CellBase][resolver] Adding resolve: RemoteLLM
+[CellBase][resolver] Adding resolve: ContactEndpoint
+[CellBase][resolver] Adding resolve: Vault
+[CellBase][resolver] Adding resolve: GraphIndex
+[CellBase][resolver] Adding resolve: Relations
+[CellBase][resolver] Adding resolve: ContactImport
+[CellBase][resolver] Adding resolve: AddressBook
+[CellBase][resolver] Adding resolve: Invitation
+[CellBase][resolver] Adding resolve: EntityResidency
+[CellBase][resolver] Adding resolve: EntityScaffoldExtension
+[CellBase][resolver] Adding resolve: BindingRuntimeSurfaceLaunchAdapter
+[CellBase][resolver] Adding resolve: EntityScanner
+[CellBase][resolver] Adding resolve: GeneralCell
+[CellBase][resolver] Adding resolve: GeneralCellTemplate
+[CellBase][resolver] Adding resolve: CloudBridge
+[CellBase][resolver] Adding resolve: EntityAnchor
+[CellBase][resolver] Adding resolve: ShoppingHandler
+[CellBase][resolver] Adding resolve: FileCrypto
+[CellBase][resolver] Adding resolve: CommonsResolver
+[CellBase][resolver] Adding resolve: CommonsTaxonomy
+[CellBase][resolver] Adding resolve: EntityAtlas
+[CellBase][resolver] Adding resolve: FlowProbe
+[CellBase][resolver] Adding resolve: StateSnapshot
+[CellBase][resolver] Adding resolve: TrustedIssuers
+[CellBase][resolver] Adding resolve: Chat
+[CellBase][resolver] Adding resolve: Identities
+[CellBase][resolver] Adding resolve: EventEmitter
+[CellBase][resolver] Adding resolve: FolderWatch
+[CellBase][resolver] Adding resolve: ConfigurationCatalog
+[CellBase][resolver] Adding resolve: Porthole
+[CellBase][resolver] Adding resolve: Perspective
+[CellBase][resolver] Adding resolve: PersonalAgendaContext
+[CellBase][resolver] Adding resolve: CalendarStore
+[CellBase][resolver] Adding resolve: CalendarImportExport
+[CellBase][resolver] Adding resolve: NativeCalendarBridge
+[CellBase][resolver] Adding resolve: PersonalIdentity
+[CellBase][resolver] Adding resolve: PersonalProfileDraft
+[CellBase][resolver] Adding resolve: PersonalProfilePublisher
+[CellBase][resolver] Adding resolve: PublicProfileDirectory
+[CellBase][resolver] Adding resolve: PersonalMatchmaking
+[CellBase][resolver] Adding resolve: PersonalChatClient
+[CellBase][resolver] Adding resolve: PersonalMeetingIntent
+[CellBase][resolver] Adding resolve: PersonalMeetingCoordinator
+[CellBase][resolver] Adding resolve: PersonalCopilotConfigurationCatalog
+[CellBase][resolver] Adding resolve: PersonalPrivacyAudit
+[CellBase][resolver] Adding resolve: PersonalUsageQuota
+[CellBase][resolver] Adding resolve: PersonalCopilotNavigator
+[CellBase][resolver] Adding resolve: ConferenceParticipantPreviewShell
+[CellBase][resolver] Adding resolve: ConferenceAdminPreviewShell
+[CellBase][resolver] Adding resolve: ConferencePublicShellFixture
+[CellBase][resolver] Adding resolve: ConferenceSponsorShellFixture
+[CellBase][resolver] Adding resolve: ConferenceNearbyRadar
+[CellBase][resolver] Adding resolve: ConferenceParticipantAgendaSnapshot
+[CellBase][resolver] Adding resolve: ConferenceParticipantDiscoverySnapshot
+[CellBase][resolver] Adding resolve: ConferenceParticipantMatchmakingSnapshot
+[CellBase][resolver] Adding resolve: ConferenceParticipantChatSnapshot
+[CellBase][resolver] Adding resolve: ConferenceChatLaunch
+[CellBase][resolver] Adding resolve: ConferenceIdentityLinkIntake
+[CellBase][resolver] Adding resolve: ConferenceAIAssistantGatewayProxy
+[CellBase][resolver] Adding resolve: ConferenceDemoLauncher
+[CellBase][resolver] Adding resolve: ConferenceConfigurationNavigator
+[CellBase][resolver] Adding resolve: WorkflowStudio
+[CellBase][resolver] Adding resolve: Lobby
+[CellBase][resolver] registerPersonalReference endpoint=Porthole identity=A00F11C8-74CD-4AC3-8880-D7049C8F9403 cell=CE6A902E-1D65-4662-9519-F6E29A1DFD37
+PerspectiveCell init. Owner: A00F11C8-74CD-4AC3-8880-D7049C8F9403
+Loading perspectiveJsonData failed with error: Error Domain=NSCocoaErrorDomain Code=260 "The file “Perspective.json” couldn’t be opened because there is no such file." UserInfo={NSFilePath=/Users/kjetil/Library/Developer/CoreSimulator/Devices/60A4509A-5AD0-42B9-A1D0-7CEBA044F514/data/Containers/Data/Application/0CAFA037-148B-40E1-B986-A554B771405C/Library/Application Support/Binding/CellDocumentRoot/CellsContainer/BA6FBB2A-6FBC-43C5-A8FC-ABB01CEA9894/Perspective.json, NSURL=file:///Users/kjetil/Library/Developer/CoreSimulator/Devices/60A4509A-5AD0-42B9-A1D0-7CEBA044F514/data/Containers/Data/Application/0CAFA037-148B-40E1-B986-A554B771405C/Library/Application%20Support/Binding/CellDocumentRoot/CellsContainer/BA6FBB2A-6FBC-43C5-A8FC-ABB01CEA9894/Perspective.json, NSUnderlyingError=0x600002dd9350 {Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"}}
+[CellBase][skeleton] Decoding key: skeleton
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: skeleton
+[CellBase][skeleton] Decoding key: Text
+[CellBase][resolver] registerPersonalReference endpoint=Perspective identity=A00F11C8-74CD-4AC3-8880-D7049C8F9403 cell=BA6FBB2A-6FBC-43C5-A8FC-ABB01CEA9894
+[CellBase][flow] INTR:get:configurations:source:D3C30AA6-DAF9-462F-B796-732F9512EE4C:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.3756418
+[CellBase][flow] get intercept key=configurations keypath=configurations
+[CellBase][resolver] registerPersonalReference endpoint=BindingRuntimeSurfaceLaunchAdapter identity=A00F11C8-74CD-4AC3-8880-D7049C8F9403 cell=CC729778-3CB2-4A40-870F-717E9DEAAA80
+[CellBase][resolver] registerPersonalReference endpoint=PersonalCopilotNavigator identity=A00F11C8-74CD-4AC3-8880-D7049C8F9403 cell=B5CFD290-A404-4989-9C92-12205FE41054
+[CellBase][flow] INTR:get:state:source:B5CFD290-A404-4989-9C92-12205FE41054:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.382862
+[CellBase][flow] get intercept key=state keypath=state
+[CellBase][skeleton] Decoding key: skeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Image
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Reference
+[CellBase][skeleton] Encoded skeleton preview context=skeletonDescriptionFromJson bytes=571
+*************** Init Porthole view model! **********************
+PortholeBindingViewModel initialized
+[CellBase][flow] attach label=resolver connectState=connected
+Attaching resolverEmitter to Porthole with status: connected
+[CellBase][skeleton] Decoding key: skeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Image
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Reference
+[CellBase][skeleton] Encoded skeleton preview context=skeletonDescriptionFromJson bytes=571
+[CellBase][flow] INTR:feed:nil:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.6024342
+[CellBase][flow] INTR:get:outwardMenu:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.602808
+[CellBase][flow] get intercept key=outwardMenu keypath=outwardMenu
+[CellBase][skeleton] Seeded SkeletonExamples.json with 3 configurations
+[CellBase][skeleton] Loaded SkeletonExamples.json with 3 configurations
+******** Got outward list (3) ********
+[CellBase][skeleton] Decoding key: skeleton
+[CellBase][skeleton] Decoding key: ScrollView
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Spacer
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Tabs
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Tabs
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Tabs
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Tabs
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Divider
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Divider
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: ScrollView
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Spacer
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Tabs
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Tabs
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Tabs
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Tabs
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Divider
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Divider
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: ScrollView
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Spacer
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Tabs
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Tabs
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Tabs
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Tabs
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Divider
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Divider
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][flow] detachAll connectedLabels=1
+[CellBase][flow] detach label=resolver auditorState=connectedCellPublishers: [:] subscribedFeeds: [:] pendingFlowSubscriptionIDs: [:] activeFlowSubscriptionIDs: [:] members: [] admissionSessions: [:] admissionTargets: [:]
+[CellBase][resolver] splitCellURL responseURL=cell:///Porthole/ keypath=chatHub.state.ui.activeToolChips
+[CellBase][resolver] splitCellURL responseURL=cell:///Porthole/ keypath=chatHub.state.ui.promptMessages
+[CellBase][resolver] splitCellURL responseURL=cell:///Porthole/ keypath=chatHub.state.assistant.latestSuggestion.candidates
+[CellBase][resolver] Resolver authorization keypath=chatHub.state.ui.promptMessages access=r--- allowed=true path=ownerProof
+[CellBase][resolver] Resolver authorization keypath=chatHub.state.ui.activeToolChips access=r--- allowed=true path=ownerProof
+[CellBase][flow] INTR:get:chatHub.state.ui.promptMessages:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.905786
+[CellBase][resolver] Resolver authorization keypath=chatHub.state.assistant.latestSuggestion.candidates access=r--- allowed=true path=ownerProof
+[CellBase][flow] INTR:get:chatHub.state.ui.activeToolChips:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.905895
+[CellBase][flow] INTR:get:chatHub.state.assistant.latestSuggestion.candidates:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.905999
+[CellBase][resolver] splitCellURL responseURL=cell:///Porthole/ keypath=chatHub.state.ui.activeToolChips
+[CellBase][resolver] splitCellURL responseURL=cell:///Porthole/ keypath=chatHub.state.ui.promptMessages
+[CellBase][resolver] splitCellURL responseURL=cell:///Porthole/ keypath=chatHub.state.assistant.latestSuggestion.candidates
+[CellBase][resolver] Resolver authorization keypath=chatHub.state.ui.activeToolChips access=r--- allowed=true path=ownerProof
+[CellBase][resolver] Resolver authorization keypath=chatHub.state.ui.promptMessages access=r--- allowed=true path=ownerProof
+[CellBase][flow] INTR:get:chatHub.state.ui.activeToolChips:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.910219
+[CellBase][flow] INTR:get:chatHub.state.ui.promptMessages:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.910311
+[CellBase][resolver] Resolver authorization keypath=chatHub.state.assistant.latestSuggestion.candidates access=r--- allowed=true path=ownerProof
+[CellBase][flow] INTR:get:chatHub.state.assistant.latestSuggestion.candidates:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.91044
+Initing Location Event Emitter
+[CellBase][flow] INTR:get:historyMenu:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.9445062
+[CellBase][flow] INTR:get:chatHub.state.ui.tabs:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.9446568
+[CellBase][skeleton] SkeletonText loading cellName=Porthole components=["/", "Porthole"]
+[CellBase][skeleton] SkeletonText loading cellName=Porthole components=["/", "Porthole"]
+[CellBase][skeleton] SkeletonText loading cellName=Porthole components=["/", "Porthole"]
+[CellBase][skeleton] SkeletonText loading cellName=Porthole components=["/", "Porthole"]
+[CellBase][flow] INTR:get:chatHub.state.ui.activeHelpers:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.9450831
+[CellBase][skeleton] SkeletonText loading cellName=Porthole components=["/", "Porthole"]
+[CellBase][flow] INTR:get:chatHub.state.ui.activeHelpers:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.945148
+[CellBase][flow] INTR:get:chatHub.state.ui.tabs:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.9451718
+[CellBase][skeleton] SkeletonText loading cellName=Porthole components=["/", "Porthole"]
+[CellBase][flow] INTR:get:chatHub.state.composer.body:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.9453201
+[CellBase][flow] INTR:get:chatHub.state.composer.body:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.945322
+[CellBase][skeleton] SkeletonText loading keypath=chatHub.state.assistant.latestSuggestion.explanation
+[CellBase][skeleton] SkeletonText loading keypath=chatHub.state.assistant.whySummary
+[CellBase][flow] INTR:get:chatHub.state.assistant.latestSuggestion.explanation:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.946625
+[CellBase][skeleton] SkeletonText loading keypath=chatHub.state.ui.primaryActionHint
+[CellBase][flow] INTR:get:chatHub.state.assistant.whySummary:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.94669
+[CellBase][flow] INTR:get:chatHub.state.ui.primaryActionHint:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.9467769
+[CellBase][skeleton] SkeletonText loading keypath=chatHub.state.ui.primaryActionHint
+[CellBase][flow] INTR:get:chatHub.state.ui.primaryActionHint:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.946913
+[CellBase][skeleton] SkeletonText loading keypath=chatHub.state.assistant.latestSuggestion.explanation
+[CellBase][flow] INTR:get:chatHub.state.assistant.latestSuggestion.explanation:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.947074
+[CellBase][skeleton] SkeletonText loading keypath=chatHub.state.assistant.whySummary
+[CellBase][flow] INTR:get:chatHub.state.assistant.whySummary:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.947258
+[CellBase][flow] get intercept key=historyMenu keypath=historyMenu
+******** Got history list (0) ********
+[CellBase][skeleton] SkeletonText asyncContent failed with error: notFound
+[CellBase][skeleton] SkeletonText asyncContent failed with error: notFound
+[CellBase][skeleton] SkeletonText asyncContent failed with error: notFound
+[CellBase][skeleton] SkeletonText asyncContent failed with error: notFound
+[CellBase][skeleton] SkeletonText asyncContent failed with error: notFound
+[CellBase][skeleton] SkeletonText asyncContent failed with error: notFound
+[CellBase][flow] INTR:get:chatHub.state.inviteDraft.title:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.955368
+[CellBase][flow] INTR:get:chatHub.state.assistant.candidateQuery:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.955401
+[CellBase][flow] INTR:get:chatHub.state.assistant.candidateQuery:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.955392
+[CellBase][flow] INTR:get:chatHub.state.inviteDraft.title:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.955401
+[CellBase][flow] INTR:get:configurations:source:D3C30AA6-DAF9-462F-B796-732F9512EE4C:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.964838
+[CellBase][flow] get intercept key=configurations keypath=configurations
+[CellBase][flow] INTR:get:chatHub.state.ui.activeHelper:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.96611
+[CellBase][flow] INTR:get:chatHub.state.ui.activeTab:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.9661121
+[CellBase][flow] INTR:get:chatHub.state.ui.activeTab:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.966125
+[CellBase][flow] INTR:get:chatHub.state.ui.activeHelper:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.966121
+[CellBase][resolver] Loaded cell at endpoint cell:///EventEmitter
+[CellBase][flow] INTR:get:state:source:B5CFD290-A404-4989-9C92-12205FE41054:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.9679961
+[CellBase][flow] attach label=eventTest connectState=connected
+[CellBase][flow] INTR:connect:connected:CE6A902E-1D65-4662-9519-F6E29A1DFD37:29094730-1389-4178-B73F-A9B225BE059A:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.968079
+[CellBase][flow] get intercept key=state keypath=state
+[CellBase][flow] INTR:feed:nil:source:29094730-1389-4178-B73F-A9B225BE059A:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.968653
+[CellBase][resolver] lookupKeysAndValues endpoint=cell:///EventEmitter
+[CellBase][resolver] Fetching key=start for assignment
+[CellBase][flow] INTR:get:start:source:29094730-1389-4178-B73F-A9B225BE059A:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.969452
+[CellBase][flow] get intercept key=start keypath=start
+[CellBase][flow] INTR:get:conferenceDemoLauncher.state.statusSummary:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.984939
+[CellBase][flow] INTR:get:historyMenu:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.9850168
+[CellBase][flow] get intercept key=historyMenu keypath=historyMenu
+******** Got history list (0) ********
+[CellBase][flow] INTR:get:skeleton:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749038.996311
+[CellBase][flow] get intercept key=skeleton keypath=skeleton
+[CellBase][flow] INTR:get:conferenceParticipantShell.state.workspace.title:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.007837
+[CellBase][flow] INTR:get:skeleton:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.008383
+[CellBase][flow] get intercept key=skeleton keypath=skeleton
+[CellBase][flow] INTR:get:conferenceAdminShell.state.workspace.title:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.0099158
+[CellBase][flow] INTR:get:skeleton:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.01051
+[CellBase][flow] get intercept key=skeleton keypath=skeleton
+[CellBase][resolver] registerPersonalReference endpoint=PersonalChatHub identity=A00F11C8-74CD-4AC3-8880-D7049C8F9403 cell=34B9BCD3-E576-421D-8FEA-C0103F7A11FF
+[CellBase][flow] INTR:get:editableCellConfigurationState:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.3079948
+[CellBase][flow] detachAll connectedLabels=1
+[CellBase][resolver] Loaded cell at endpoint cell:///PersonalChatHub
+[CellBase][flow] detach label=eventTest auditorState=connectedCellPublishers: [:] subscribedFeeds: [:] pendingFlowSubscriptionIDs: [:] activeFlowSubscriptionIDs: [:] members: [] admissionSessions: [:] admissionTargets: [:]
+[CellBase][flow] attach label=chatHub connectState=connected
+[CellBase][flow] INTR:connect:connected:CE6A902E-1D65-4662-9519-F6E29A1DFD37:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.350393
+[CellBase][flow] INTR:feed:nil:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.350946
+[CellBase][resolver] lookupKeysAndValues endpoint=cell:///PersonalChatHub
+[CellBase][resolver] Loaded cell at endpoint cell:///Perspective
+[CellBase][flow] attach label=perspective connectState=connected
+[CellBase][flow] INTR:connect:connected:CE6A902E-1D65-4662-9519-F6E29A1DFD37:BA6FBB2A-6FBC-43C5-A8FC-ABB01CEA9894:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.352016
+[CellBase][flow] INTR:get:chatHub.state:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.401665
+[CellBase][resolver] splitCellURL responseURL=cell:///Porthole/ keypath=chatHub.state.ui.promptMessages
+[CellBase][flow] INTR:get:perspective.activePurpose:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.4017792
+[CellBase][resolver] splitCellURL responseURL=cell:///Porthole/ keypath=chatHub.state.assistant.latestSuggestion.candidates
+[CellBase][flow] INTR:get:perspective.perspective:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.401912
+[CellBase][resolver] splitCellURL responseURL=cell:///Porthole/ keypath=chatHub.state.ui.activeToolChips
+[CellBase][resolver] splitCellURL responseURL=cell:///Porthole/ keypath=chatHub.state.ui.promptMessages
+[CellBase][resolver] splitCellURL responseURL=cell:///Porthole/ keypath=chatHub.state.assistant.latestSuggestion.candidates
+[CellBase][resolver] splitCellURL responseURL=cell:///Porthole/ keypath=chatHub.state.ui.activeToolChips
+[CellBase][flow] INTR:get:perspective:source:BA6FBB2A-6FBC-43C5-A8FC-ABB01CEA9894:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.4027839
+[CellBase][flow] INTR:get:activePurpose:source:BA6FBB2A-6FBC-43C5-A8FC-ABB01CEA9894:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.4028249
+[CellBase][flow] INTR:get:state:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.405029
+[CellBase][flow] INTR:get:chatHub.state.ui.tabs:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.404986
+[CellBase][flow] INTR:get:chatHub.state.ui.tabs:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.404984
+[CellBase][flow] INTR:get:chatHub.state.composer.body:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.40498
+[CellBase][flow] INTR:get:chatHub.state.ui.activeHelpers:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.404995
+[CellBase][flow] INTR:get:chatHub.state.ui.activeHelpers:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.4050689
+[CellBase][resolver] Resolver authorization keypath=chatHub.state.assistant.latestSuggestion.candidates access=r--- allowed=true path=ownerProof
+[CellBase][resolver] Resolver authorization keypath=chatHub.state.ui.activeToolChips access=r--- allowed=true path=ownerProof
+[CellBase][flow] INTR:get:chatHub.state.assistant.latestSuggestion.candidates:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.4058042
+[CellBase][flow] INTR:get:chatHub.state.ui.activeToolChips:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.40588
+[CellBase][resolver] Resolver authorization keypath=chatHub.state.ui.promptMessages access=r--- allowed=true path=ownerProof
+[CellBase][flow] INTR:get:chatHub.state.ui.promptMessages:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.4062018
+[CellBase][resolver] Resolver authorization keypath=chatHub.state.ui.promptMessages access=r--- allowed=true path=ownerProof
+[CellBase][flow] INTR:get:chatHub.state.ui.promptMessages:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.406316
+[CellBase][resolver] Resolver authorization keypath=chatHub.state.assistant.latestSuggestion.candidates access=r--- allowed=true path=ownerProof
+[CellBase][flow] INTR:get:chatHub.state.assistant.latestSuggestion.candidates:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.406498
+[CellBase][flow] INTR:get:state.composer.body:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.406546
+[CellBase][flow] INTR:get:chatHub.state.inviteDraft.title:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.406687
+[CellBase][flow] INTR:get:state.ui.tabs:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.406786
+[CellBase][flow] INTR:get:chatHub.state.composer.body:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.40692
+[CellBase][flow] INTR:get:state.ui.activeHelpers:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.407017
+[CellBase][flow] INTR:get:state.ui.tabs:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.4071112
+[CellBase][flow] INTR:get:chatHub.state.assistant.candidateQuery:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.40734
+[CellBase][flow] INTR:get:state.ui.activeHelpers:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.407402
+[CellBase][flow] INTR:get:chatHub.state.inviteDraft.title:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.407563
+[CellBase][flow] INTR:get:chatHub.state.assistant.candidateQuery:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.4076571
+[CellBase][resolver] Resolver authorization keypath=chatHub.state.ui.activeToolChips access=r--- allowed=true path=ownerProof
+[CellBase][flow] INTR:get:chatHub.state.ui.activeToolChips:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.407803
+[CellBase][flow] get intercept key=perspective keypath=perspective
+[CellBase][flow] INTR:get:state.assistant.latestSuggestion.candidates:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.408122
+[CellBase][flow] INTR:get:state.ui.activeToolChips:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.408255
+[CellBase][flow] get intercept key=activePurpose keypath=activePurpose
+[CellBase][flow] INTR:get:state.ui.promptMessages:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.408478
+[CellBase][flow] INTR:get:state.ui.promptMessages:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.408596
+[CellBase][flow] INTR:get:state.composer.body:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.408708
+[CellBase][flow] INTR:get:state.inviteDraft.title:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.4087749
+[CellBase][flow] INTR:get:state.assistant.candidateQuery:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.40926
+[CellBase][flow] get intercept key=state keypath=state
+[CellBase][flow] INTR:get:state.assistant.latestSuggestion.candidates:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.409553
+[CellBase][flow] INTR:get:state.inviteDraft.title:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.409725
+[CellBase][flow] INTR:get:state.assistant.candidateQuery:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.40992
+[CellBase][flow] INTR:get:state.ui.activeToolChips:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.410023
+[CellBase][flow] get intercept key=state keypath=state.composer.body
+[CellBase][flow] get intercept key=state keypath=state.ui.activeHelpers
+[CellBase][flow] get intercept key=state keypath=state.ui.tabs
+[CellBase][flow] get intercept key=state keypath=state.ui.activeHelpers
+[CellBase][flow] get intercept key=state keypath=state.ui.tabs
+[CellBase][flow] get intercept key=state keypath=state.assistant.latestSuggestion.candidates
+[CellBase][flow] get intercept key=state keypath=state.inviteDraft.title
+[CellBase][flow] get intercept key=state keypath=state.ui.promptMessages
+[CellBase][flow] get intercept key=state keypath=state.ui.promptMessages
+[CellBase][flow] get intercept key=state keypath=state.ui.activeToolChips
+[CellBase][flow] get intercept key=state keypath=state.composer.body
+[CellBase][flow] get intercept key=state keypath=state.assistant.candidateQuery
+[CellBase][flow] get intercept key=state keypath=state.assistant.latestSuggestion.candidates
+[CellBase][flow] get intercept key=state keypath=state.inviteDraft.title
+[CellBase][flow] get intercept key=state keypath=state.assistant.candidateQuery
+[CellBase][flow] get intercept key=state keypath=state.ui.activeToolChips
+[CellBase][resolver] Resolver get cell:///Porthole/chatHub.state.assistant.latestSuggestion.candidates -> null
+[CellBase][skeleton] Skeleton list expected List value from cell:///Porthole/chatHub.state.assistant.latestSuggestion.candidates
+[CellBase][resolver] Resolver get cell:///Porthole/chatHub.state.ui.promptMessages -> [
+  {
+    "body" : "Hva vil du få gjort? Skriv én prompt, så finner jeg forslag uten å utføre sideeffekter.",
+    "id" : "welcome",
+    "kind" : "assistant_welcome",
+    "role" : "assistant",
+    "rowStyleClasses" : [
+      "chat-prompt-row",
+      "chat-prompt-row-assistant"
+    ],
+    "sideEffect" : false,
+    "speaker" : "HAVEN Co-Pilot",
+    "statusText" : "Klar"
+  }
+]
+Initing Entity Anchor (Apple) cell for owner: A00F11C8-74CD-4AC3-8880-D7049C8F9403
+*********** Finished setup keys in Entity Anchor ***********
+[CellBase][resolver] registerPersonalReference endpoint=EntityAnchor identity=A00F11C8-74CD-4AC3-8880-D7049C8F9403 cell=6F31988B-5038-4C06-A76F-C9CE0B82EFA3
+[CellBase][resolver] Resolver get cell:///Porthole/chatHub.state.ui.activeToolChips -> [
+
+]
+[CellBase][resolver] Resolver get cell:///Porthole/chatHub.state.ui.promptMessages -> [
+  {
+    "body" : "Hva vil du få gjort? Skriv én prompt, så finner jeg forslag uten å utføre sideeffekter.",
+    "id" : "welcome",
+    "kind" : "assistant_welcome",
+    "role" : "assistant",
+    "rowStyleClasses" : [
+      "chat-prompt-row",
+      "chat-prompt-row-assistant"
+    ],
+    "sideEffect" : false,
+    "speaker" : "HAVEN Co-Pilot",
+    "statusText" : "Klar"
+  }
+]
+[CellBase][flow] INTR:get:chatHub.state.ui.activeHelper:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.422319
+[CellBase][flow] INTR:get:chatHub.state.ui.activeHelper:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.422337
+[CellBase][flow] INTR:get:chatHub.state.ui.activeTab:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.422337
+[CellBase][flow] INTR:get:chatHub.state.ui.activeTab:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.422324
+[CellBase][resolver] Resolver get cell:///Porthole/chatHub.state.ui.activeToolChips -> [
+
+]
+[CellBase][resolver] Resolver get cell:///Porthole/chatHub.state.assistant.latestSuggestion.candidates -> null
+[CellBase][skeleton] Skeleton list expected List value from cell:///Porthole/chatHub.state.assistant.latestSuggestion.candidates
+[CellBase][flow] INTR:get:state.ui.activeTab:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.422713
+[CellBase][flow] INTR:get:person.copilot.chatHistoryPolicy:source:6F31988B-5038-4C06-A76F-C9CE0B82EFA3:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.422751
+[CellBase][flow] INTR:get:state.ui.activeHelper:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.422925
+[CellBase][flow] INTR:get:state.ui.activeTab:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.423101
+[CellBase][flow] INTR:get:state.ui.activeHelper:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.423242
+[CellBase][flow] get intercept key=state keypath=state.ui.activeTab
+[CellBase][flow] get intercept key=state keypath=state.ui.activeHelper
+[CellBase][flow] get intercept key=state keypath=state.ui.activeTab
+[CellBase][flow] get intercept key=state keypath=state.ui.activeHelper
+[CellBase][flow] get nested intercept root=person keypath=person.copilot.chatHistoryPolicy
+[CellBase][skeleton] Decoding key: skeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Image
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Reference
+[CellBase][skeleton] Encoded skeleton preview context=skeletonDescriptionFromJson bytes=571
+*************** Init Porthole view model! **********************
+[CellBase][skeleton] Decoding key: ScrollView
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Spacer
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Tabs
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Tabs
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Tabs
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Tabs
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: TextField
+[CellBase][skeleton] Decoding key: TextArea
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Divider
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Divider
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: HStack
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Button
+[CellBase][skeleton] Decoding key: Section
+[CellBase][skeleton] Decoding key: header
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: List
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][flow] attach label=resolver connectState=connected
+Attaching resolverEmitter to Porthole with status: connected
+[CellBase][resolver] splitCellURL responseURL=cell:///Porthole/ keypath=chatHub.state.ui.activeToolChips
+[CellBase][resolver] splitCellURL responseURL=cell:///Porthole/ keypath=chatHub.state.assistant.latestSuggestion.candidates
+[CellBase][resolver] splitCellURL responseURL=cell:///Porthole/ keypath=chatHub.state.assistant.latestSuggestion.candidates
+[CellBase][resolver] splitCellURL responseURL=cell:///Porthole/ keypath=chatHub.state.ui.promptMessages
+[CellBase][resolver] splitCellURL responseURL=cell:///Porthole/ keypath=chatHub.state.ui.promptMessages
+[CellBase][resolver] splitCellURL responseURL=cell:///Porthole/ keypath=chatHub.state.ui.activeToolChips
+[CellBase][resolver] Resolver authorization keypath=chatHub.state.ui.activeToolChips access=r--- allowed=true path=ownerProof
+[CellBase][flow] INTR:get:chatHub.state.ui.activeToolChips:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.4913158
+[CellBase][resolver] Resolver authorization keypath=chatHub.state.assistant.latestSuggestion.candidates access=r--- allowed=true path=ownerProof
+[CellBase][flow] INTR:get:chatHub.state.assistant.latestSuggestion.candidates:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.491437
+[CellBase][resolver] Resolver authorization keypath=chatHub.state.ui.promptMessages access=r--- allowed=true path=ownerProof
+[CellBase][flow] INTR:get:chatHub.state.ui.promptMessages:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.491581
+[CellBase][resolver] Resolver authorization keypath=chatHub.state.ui.promptMessages access=r--- allowed=true path=ownerProof
+[CellBase][flow] INTR:get:chatHub.state.ui.promptMessages:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.491798
+[CellBase][resolver] Resolver authorization keypath=chatHub.state.assistant.latestSuggestion.candidates access=r--- allowed=true path=ownerProof
+[CellBase][flow] INTR:get:chatHub.state.assistant.latestSuggestion.candidates:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.4919128
+[CellBase][flow] INTR:get:state.ui.activeToolChips:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.492045
+[CellBase][resolver] Resolver authorization keypath=chatHub.state.ui.activeToolChips access=r--- allowed=true path=ownerProof
+[CellBase][flow] INTR:get:chatHub.state.ui.activeToolChips:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.4921598
+[CellBase][flow] INTR:get:state.assistant.latestSuggestion.candidates:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.49227
+[CellBase][flow] INTR:get:state.ui.promptMessages:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.492425
+[CellBase][flow] INTR:get:state.assistant.latestSuggestion.candidates:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.492609
+[CellBase][flow] INTR:get:state.ui.promptMessages:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.492789
+[CellBase][flow] INTR:get:state.ui.activeToolChips:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.493243
+[CellBase][flow] get intercept key=state keypath=state.ui.activeToolChips
+[CellBase][flow] get intercept key=state keypath=state.assistant.latestSuggestion.candidates
+[CellBase][flow] get intercept key=state keypath=state.ui.promptMessages
+[CellBase][flow] get intercept key=state keypath=state.assistant.latestSuggestion.candidates
+[CellBase][flow] get intercept key=state keypath=state.ui.promptMessages
+[CellBase][flow] get intercept key=state keypath=state.ui.activeToolChips
+[CellBase][skeleton] SkeletonText loading cellName=Porthole components=["/", "Porthole"]
+[CellBase][skeleton] SkeletonText loading cellName=Porthole components=["/", "Porthole"]
+[CellBase][skeleton] SkeletonText loading cellName=Porthole components=["/", "Porthole"]
+[CellBase][skeleton] SkeletonText loading cellName=Porthole components=["/", "Porthole"]
+[CellBase][flow] INTR:get:chatHub.state.ui.activeHelpers:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.51222
+[CellBase][flow] INTR:get:chatHub.state.ui.tabs:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.5122252
+[CellBase][flow] INTR:get:chatHub.state.ui.activeHelpers:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.5122452
+[CellBase][flow] INTR:get:chatHub.state.ui.tabs:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.512298
+[CellBase][flow] INTR:feed:nil:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.51249
+[CellBase][skeleton] SkeletonText loading cellName=Porthole components=["/", "Porthole"]
+[CellBase][resolver] Resolver get cell:///Porthole/chatHub.state.ui.activeToolChips -> [
+
+]
+[CellBase][resolver] Resolver get cell:///Porthole/chatHub.state.ui.promptMessages -> [
+  {
+    "body" : "Hva vil du få gjort? Skriv én prompt, så finner jeg forslag uten å utføre sideeffekter.",
+    "id" : "welcome",
+    "kind" : "assistant_welcome",
+    "role" : "assistant",
+    "rowStyleClasses" : [
+      "chat-prompt-row",
+      "chat-prompt-row-assistant"
+    ],
+    "sideEffect" : false,
+    "speaker" : "HAVEN Co-Pilot",
+    "statusText" : "Klar"
+  }
+]
+[CellBase][resolver] Resolver get cell:///Porthole/chatHub.state.assistant.latestSuggestion.candidates -> null
+[CellBase][resolver] Resolver get cell:///Porthole/chatHub.state.ui.activeToolChips -> [
+
+]
+[CellBase][resolver] Resolver get cell:///Porthole/chatHub.state.ui.promptMessages -> [
+  {
+    "body" : "Hva vil du få gjort? Skriv én prompt, så finner jeg forslag uten å utføre sideeffekter.",
+    "id" : "welcome",
+    "kind" : "assistant_welcome",
+    "role" : "assistant",
+    "rowStyleClasses" : [
+      "chat-prompt-row",
+      "chat-prompt-row-assistant"
+    ],
+    "sideEffect" : false,
+    "speaker" : "HAVEN Co-Pilot",
+    "statusText" : "Klar"
+  }
+]
+[CellBase][skeleton] SkeletonText loading cellName=Porthole components=["/", "Porthole"]
+[CellBase][skeleton] Skeleton list expected List value from cell:///Porthole/chatHub.state.assistant.latestSuggestion.candidates
+[CellBase][flow] INTR:get:state.ui.tabs:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.513187
+[CellBase][flow] INTR:get:state.ui.activeHelpers:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.513136
+[CellBase][flow] INTR:get:state.ui.tabs:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.5132232
+[CellBase][flow] INTR:get:state.ui.activeHelpers:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.513243
+[CellBase][flow] INTR:get:outwardMenu:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.513348
+[CellBase][resolver] Resolver get cell:///Porthole/chatHub.state.assistant.latestSuggestion.candidates -> null
+[CellBase][skeleton] Skeleton list expected List value from cell:///Porthole/chatHub.state.assistant.latestSuggestion.candidates
+[CellBase][skeleton] SkeletonText loading keypath=chatHub.state.assistant.whySummary
+[CellBase][flow] INTR:get:chatHub.state.assistant.whySummary:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.514051
+[CellBase][skeleton] SkeletonText loading keypath=chatHub.state.assistant.latestSuggestion.explanation
+[CellBase][flow] INTR:get:chatHub.state.assistant.latestSuggestion.explanation:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.514252
+[CellBase][skeleton] SkeletonText loading keypath=chatHub.state.assistant.whySummary
+[CellBase][flow] INTR:get:chatHub.state.assistant.whySummary:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.514519
+[CellBase][skeleton] SkeletonText loading keypath=chatHub.state.ui.primaryActionHint
+[CellBase][flow] INTR:get:chatHub.state.ui.primaryActionHint:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.514676
+[CellBase][skeleton] SkeletonText loading keypath=chatHub.state.assistant.latestSuggestion.explanation
+[CellBase][skeleton] SkeletonText loading keypath=chatHub.state.ui.primaryActionHint
+[CellBase][flow] INTR:get:chatHub.state.assistant.latestSuggestion.explanation:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.51483
+[CellBase][flow] INTR:get:chatHub.state.ui.primaryActionHint:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.5149322
+[CellBase][flow] INTR:get:state.assistant.whySummary:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.5156178
+[CellBase][flow] INTR:get:state.assistant.latestSuggestion.explanation:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.5157108
+[CellBase][flow] INTR:get:state.assistant.whySummary:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.515805
+[CellBase][flow] INTR:get:state.ui.primaryActionHint:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.515922
+[CellBase][flow] get intercept key=state keypath=state.ui.tabs
+[CellBase][flow] INTR:get:state.assistant.latestSuggestion.explanation:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.5160599
+[CellBase][flow] get intercept key=state keypath=state.ui.activeHelpers
+[CellBase][flow] INTR:get:state.ui.primaryActionHint:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.5164099
+[CellBase][flow] get intercept key=state keypath=state.ui.activeHelpers
+[CellBase][flow] get intercept key=state keypath=state.ui.tabs
+[CellBase][flow] get intercept key=outwardMenu keypath=outwardMenu
+[CellBase][flow] get intercept key=state keypath=state.assistant.whySummary
+[CellBase][flow] get intercept key=state keypath=state.assistant.latestSuggestion.explanation
+[CellBase][flow] get intercept key=state keypath=state.assistant.whySummary
+[CellBase][skeleton] Decoding key: skeleton
+[CellBase][skeleton] Decoding key: Text
+[CellBase][flow] get nested intercept root=state keypath=state.ui.primaryActionHint
+[CellBase][skeleton] Decoding key: skeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Image
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: skeleton
+[CellBase][skeleton] Decoding key: Reference
+[CellBase][skeleton] Decoding key: flowElementSkeleton
+[CellBase][skeleton] Decoding key: VStack
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Decoding key: Text
+[CellBase][skeleton] Loaded SkeletonExamples.json with 3 configurations
+******** Got outward list (3) ********
+[CellBase][flow] get nested intercept root=state keypath=state.ui.primaryActionHint
+[CellBase][flow] get intercept key=state keypath=state.assistant.latestSuggestion.explanation
+[CellBase][flow] INTR:get:chatHub.state.inviteDraft.title:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.523759
+[CellBase][flow] INTR:get:state.inviteDraft.title:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.524037
+[CellBase][flow] INTR:get:chatHub.state.inviteDraft.title:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.524294
+[CellBase][flow] INTR:get:chatHub.state.assistant.candidateQuery:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.524272
+[CellBase][flow] INTR:get:chatHub.state.assistant.candidateQuery:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.524273
+[CellBase][flow] INTR:get:state.assistant.candidateQuery:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.524516
+[CellBase][flow] INTR:get:state.assistant.candidateQuery:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.524621
+[CellBase][flow] get intercept key=state keypath=state.inviteDraft.title
+[CellBase][flow] INTR:get:state.inviteDraft.title:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.525642
+[CellBase][flow] get intercept key=state keypath=state.assistant.candidateQuery
+[CellBase][flow] get intercept key=state keypath=state.assistant.candidateQuery
+[CellBase][flow] get intercept key=state keypath=state.inviteDraft.title
+[CellBase][skeleton] SkeletonText fetched content for keypath=chatHub.state.assistant.whySummary
+[CellBase][skeleton] SkeletonText fetched content for keypath=chatHub.state.assistant.whySummary
+[CellBase][skeleton] SkeletonText fetched content for keypath=chatHub.state.ui.primaryActionHint
+[CellBase][skeleton] SkeletonText fetched content for keypath=chatHub.state.assistant.latestSuggestion.explanation
+[CellBase][skeleton] SkeletonText fetched content for keypath=chatHub.state.ui.primaryActionHint
+[CellBase][skeleton] SkeletonText fetched content for keypath=chatHub.state.assistant.latestSuggestion.explanation
+[CellBase][flow] INTR:get:historyMenu:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.543242
+[CellBase][flow] get intercept key=historyMenu keypath=historyMenu
+******** Got history list (0) ********
+[CellBase][flow] INTR:get:chatHub.state.ui.activeHelper:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.570441
+[CellBase][flow] INTR:get:chatHub.state.ui.activeHelper:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.570446
+[CellBase][flow] INTR:get:chatHub.state.ui.activeTab:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.570506
+[CellBase][flow] INTR:get:chatHub.state.ui.activeTab:source:CE6A902E-1D65-4662-9519-F6E29A1DFD37:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.570502
+[CellBase][flow] INTR:get:state.ui.activeHelper:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.570692
+[CellBase][flow] INTR:get:state.ui.activeHelper:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.5708241
+[CellBase][flow] INTR:get:state.ui.activeTab:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.570998
+[CellBase][flow] INTR:get:state.ui.activeTab:source:34B9BCD3-E576-421D-8FEA-C0103F7A11FF:A00F11C8-74CD-4AC3-8880-D7049C8F9403:1787749039.571095
+[CellBase][flow] get intercept key=state keypath=state.ui.activeHelper
+[CellBase][flow] get intercept key=state keypath=state.ui.activeTab
+[CellBase][flow] get intercept key=state keypath=state.ui.activeHelper
+[CellBase][flow] get intercept key=state keypath=state.ui.activeTab
+org.digipomps.haven: 90279

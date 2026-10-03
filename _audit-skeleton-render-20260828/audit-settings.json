@@ -1,0 +1,34 @@
+{
+  "hosts": [
+    "staging.haven.digipomps.org",
+    "haven.digipomps.org"
+  ],
+  "phases": [
+    "local",
+    "bridge",
+    "http",
+    "load"
+  ],
+  "resolveDeadlineSeconds": 10,
+  "loadDeadlineSeconds": 20,
+  "renderDeadlineSeconds": 20,
+  "coldThresholdMilliseconds": 3000,
+  "warmThresholdMilliseconds": 1500,
+  "maxLoadPathSurfacesPerHost": 80,
+  "extraCellNames": [
+    "Porthole",
+    "Chat",
+    "Todo",
+    "WorkItem",
+    "ProjectPortfolio",
+    "IdeaTaskWorkspace",
+    "AgreementWorkbench",
+    "ConferenceUIRouter",
+    "ConferenceParticipantShell",
+    "AdminEntry",
+    "AdminOverview",
+    "ConferenceAIGatewayPreview",
+    "AgentConversationInbox",
+    "SkeletonParityTextFixture"
+  ]
+}

@@ -1,0 +1,116 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "5ACCE1D8-512D-433C-9FFF-0BDE956D180D.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "library-compact-full-tab-labels-selected_0_BF7162EE-5489-4B68-BE7D-CFAA84C99E05.png",
+        "timestamp" : 1789443695.713
+      }
+    ],
+    "testIdentifier" : "ParityNightUITests/testCompactLibraryTabsKeepFullLabelsAndSelection()",
+    "testIdentifierURL" : "test://com.apple.xcode/Binding/BindingUITests/ParityNightUITests/testCompactLibraryTabsKeepFullLabelsAndSelection"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "AC512E94-6B62-4CDA-869A-A328C0FC5A80.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "form-action-denied-without-identity_0_C87BD534-66FB-4A94-8D54-94239195FDBF.png",
+        "timestamp" : 1789443703.7
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "EB051075-2931-4E07-9CB5-CEE3250968A5.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "form-edit-with-keyboard_0_E180C207-F5A2-4D34-B5DE-D6EB5C30E5DE.png",
+        "timestamp" : 1789443702.107
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "D82CD33A-434F-40AA-AECE-CE35D5FA43B4.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "form-controls-before-edit_0_2F28A125-0C8C-4C79-B84B-C37ABE3C3A12.png",
+        "timestamp" : 1789443700.019
+      }
+    ],
+    "testIdentifier" : "ParityNightUITests/testFormFieldsAreEditableAndButtonPaddingReceivesTap()",
+    "testIdentifierURL" : "test://com.apple.xcode/Binding/BindingUITests/ParityNightUITests/testFormFieldsAreEditableAndButtonPaddingReceivesTap"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "24513EF6-D0F1-477C-9F9F-BC208FDD819B.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "library-closed-with-two-auth-attempts_0_1DAE3111-BE3E-4945-8159-3BA492CA6278.png",
+        "timestamp" : 1789443711.783
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "2D7083F5-4BAF-4FC8-81ED-CA7D56AE093C.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "library-auth-stopped-after-retry_0_0B645B5A-AA66-428D-BD43-8FFFF7417A11.png",
+        "timestamp" : 1789443709.925
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "56F545B9-14C1-4FAF-84DA-306C94BA8B35.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "library-auth-stopped-initial_0_35F8FCFD-1F38-4ACB-B0CE-3A4E5EDE5EBF.png",
+        "timestamp" : 1789443708.148
+      }
+    ],
+    "testIdentifier" : "ParityNightUITests/testLibraryAuthenticationFailureCanRetryAndClose()",
+    "testIdentifierURL" : "test://com.apple.xcode/Binding/BindingUITests/ParityNightUITests/testLibraryAuthenticationFailureCanRetryAndClose"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "E3EC502E-F9F0-4A86-A994-2F8A94D8F5F1.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "chat-composer-and-send-with-keyboard_0_E8D56D6A-C7CF-487C-8577-04D69973C297.png",
+        "timestamp" : 1789443721.343
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "6345B766-4D2E-488D-823C-0C1816EB92B2.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "chat-long-final-message-visible_0_66ABB18C-F786-4836-BD49-3943328FBF4E.png",
+        "timestamp" : 1789443719.959
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "6C1B613E-0025-45B4-AB58-22705BEC5280.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "chat-long-before-scroll_0_9AC0E536-9230-4F65-9A7C-F483E3FD6968.png",
+        "timestamp" : 1789443716.154
+      }
+    ],
+    "testIdentifier" : "ParityNightUITests/testLongChatScrollsInsideLogWhileComposerStaysAvailable()",
+    "testIdentifierURL" : "test://com.apple.xcode/Binding/BindingUITests/ParityNightUITests/testLongChatScrollsInsideLogWhileComposerStaysAvailable"
+  }
+]

@@ -1,0 +1,4 @@
+Build capacity: 102.9 GiB free (11%); reserving 10 GiB leaves 92.9 GiB (10%).
+[haven-swiftpm] ERROR: existing cache lacks the required ownership marker: /private/tmp/haven-swiftpm-bounded/caches/28516ddea851c0a34e66587bfbc5148e7d1c2675e48e01c064089a936ae5d4fd
+Build disk result: cache=12709484 KiB (delta=+0 KiB), available delta=-568 KiB, status=64.
+WARNING: the active managed cache exceeds its 12582912 KiB cap; another build is not sustainable until reviewed.

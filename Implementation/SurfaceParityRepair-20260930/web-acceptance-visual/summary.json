@@ -1,0 +1,16 @@
+{
+  "rendered": 70,
+  "failed": [],
+  "rasterOnlyNames": [
+    "divider-basic-compact",
+    "divider-basic-wide",
+    "image-data-url-compact",
+    "image-data-url-wide",
+    "spacer-fixed-width-compact",
+    "spacer-fixed-width-wide"
+  ],
+  "assetHashes": {
+    "/css/porthole-webo.css": "07845ea4e7d0d0b71ce95bd042ace835fd98df5ec2ca69e1fd6d7f9247aca525",
+    "/js/skeleton-runtime.js": "4f957ac8206f6777b7845d3cc41eec10c94bfb7ca8ca572f77c95cff6735b508"
+  }
+}

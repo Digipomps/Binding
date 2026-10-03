@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Default",
+        "deviceId" : "00008142-001411C11A22401C",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "FDA88647-D744-4358-A385-4376BEF9C13B.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Person entity invitation before any signature_0_BCC82488-0267-4997-B43F-65BEF0E75374.png",
+        "timestamp" : 1790602982.477
+      }
+    ],
+    "testIdentifier" : "BindingUITests/testPersonalEntityInvitationRequiresVisibleReviewAndCanCancel()",
+    "testIdentifierURL" : "test://com.apple.xcode/Binding/BindingUITests/BindingUITests/testPersonalEntityInvitationRequiresVisibleReviewAndCanCancel"
+  }
+]

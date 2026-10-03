@@ -1,0 +1,7 @@
+Writing result bundle at path:
+	/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/baseline-renderer-tests.xcresult
+
+2026-09-30 01:37:08.793 xcodebuild[4681:32641579] [MT] IDETestOperationsObserverDebug: 8.374 elapsed -- Testing started completed.
+2026-09-30 01:37:08.793 xcodebuild[4681:32641579] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-09-30 01:37:08.793 xcodebuild[4681:32641579] [MT] IDETestOperationsObserverDebug: 8.374 sec, +8.374 sec -- end
+Testing started

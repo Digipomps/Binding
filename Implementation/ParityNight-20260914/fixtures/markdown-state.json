@@ -1,0 +1,7 @@
+{
+  "headline" : "Markdown and rendered HTML",
+  "mode" : "overview",
+  "renderedHTML" : "<article><h2>Markdown parity<\/h2><p><strong>Rendered HTML<\/strong> should stay readable across clients.<\/p><ul><li>bullet one<\/li><li>bullet two<\/li><\/ul><\/article>",
+  "source" : "# Markdown parity\n\nThis fixture keeps **source** and rendered HTML side by side.\n\n- bullet one\n- bullet two",
+  "status" : "Ingen handlinger kjørt ennå."
+}

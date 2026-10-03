@@ -1,0 +1,27 @@
+{
+  "expectedTextCount" : 2,
+  "materialized" : false,
+  "missingExpectedText" : [
+
+  ],
+  "observedStyleTokens" : [
+
+  ],
+  "pixelHeight" : 2000,
+  "pixelWidth" : 780,
+  "rasterResults" : [
+
+  ],
+  "recognizedText" : "Unavailable Fixture\nUnavailable and loading\nunavailable\nUnavailable by design for parity.\nIngen handlinger kjørt ennå.\nToggle placeholder",
+  "rootDataSupplied" : true,
+  "rootDelivery" : "PortholeViewModel.skeletonRootData",
+  "styleNormalizationApplied" : false,
+  "surface" : {
+    "backgroundHex" : "#FFFFFF",
+    "contentMaxWidth" : 1180,
+    "height" : 1000,
+    "isDarkMode" : false,
+    "padding" : 16,
+    "width" : 390
+  }
+}

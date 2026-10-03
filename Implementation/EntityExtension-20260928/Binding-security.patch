@@ -1,0 +1,659 @@
+From 811c3e5323730ca0e69b2f7efdc22816c75aa228 Mon Sep 17 00:00:00 2001
+From: Kjetil Hustveit <kjetil@digipomps.org>
+Date: Mon, 28 Sep 2026 15:46:01 +0200
+Subject: [PATCH] Fail closed for unverified legacy entity extension operations
+
+---
+ .../xcshareddata/swiftpm/Package.resolved     |   2 +-
+ ...EntityScaffoldExtensionSecurityTests.swift |  95 ++++
+ Cells/EntityScaffoldExtensionCell.swift       | 411 +++---------------
+ 3 files changed, 154 insertions(+), 354 deletions(-)
+ create mode 100644 BindingTests/EntityScaffoldExtensionSecurityTests.swift
+
+diff --git a/Binding.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved b/Binding.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+index 842f2369..102a3537 100644
+--- a/Binding.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
++++ b/Binding.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+@@ -33,7 +33,7 @@
+       "kind" : "remoteSourceControl",
+       "location" : "https://github.com/Digipomps/CellProtocol.git",
+       "state" : {
+-        "revision" : "b5b7282b495e96a7899a189087592581426f4bfb"
++        "revision" : "79497e85ef2f3fb02db0d6df5b601c5f1bc76391"
+       }
+     },
+     {
+diff --git a/BindingTests/EntityScaffoldExtensionSecurityTests.swift b/BindingTests/EntityScaffoldExtensionSecurityTests.swift
+new file mode 100644
+index 00000000..56a21e0b
+--- /dev/null
++++ b/BindingTests/EntityScaffoldExtensionSecurityTests.swift
+@@ -0,0 +1,95 @@
++import Foundation
++import Testing
++import CellBase
++@testable import Binding
++
++@Suite struct EntityScaffoldExtensionSecurityTests {
++    @Test func legacyMutationsCannotCreateAnActiveLinkEvenWithClaimedFreshAuthentication() async throws {
++        let vault = EphemeralIdentityVault()
++        var owner = Identity(UUID().uuidString, displayName: "Test owner", identityVault: vault)
++        await vault.addIdentity(identity: &owner, for: "private")
++        let cell = await BindingEntityScaffoldExtensionCell(owner: owner)
++        for key in ["extension.beginRequest", "extension.approveRequest", "extension.acceptApproval", "extension.revokeLink"] {
++            for payload: ValueType in [.null, .string("unsigned-approval"), .object([
++                "audience": .string("staging.haven.digipomps.org"),
++                "freshAuthMethod": .string("biometric"),
++                "approvedScopes": .list([.string("entity.write")])
++            ])] {
++                let reply = try #require(HavenValue.object(try await cell.set(keypath: key, value: payload, requester: owner)))
++                #expect(HavenValue.string(reply["code"]) == "verified_completion_required")
++                #expect(reply["sideEffect"] == .bool(false))
++                let links = try await cell.get(keypath: "extension.links", requester: owner)
++                #expect(try #require(HavenValue.list(links)).isEmpty)
++            }
++        }
++    }
++
++    @Test func legacyActiveRowsAreQuarantinedOnDecodeWithoutLosingRevocations() async throws {
++        let vault = EphemeralIdentityVault()
++        var owner = Identity(UUID().uuidString, displayName: "Test owner", identityVault: vault)
++        await vault.addIdentity(identity: &owner, for: "private")
++        let descriptor = try #require(IdentityPublicKeySignatureVerifier.descriptor(for: owner))
++        let cell = await BindingEntityScaffoldExtensionCell(owner: owner)
++        let records = [IdentityLinkStatus.active, .revoked, .expired, .pending].map { status in
++            IdentityLinkRecord(linkID: "legacy-\(status.rawValue)",
++                entityBinding: EntityBindingDescriptor(mode: .localEntityAnchor, audience: "test"),
++                linkedIdentity: descriptor, approvedDomains: [], approvedIdentityContexts: [],
++                approvedScopes: ["entity.read"], issuerIdentityUUID: owner.uuid,
++                issuerType: .existingDevice, status: status, linkedAt: "2026-09-01T00:00:00Z",
++                revokedAt: status == .revoked ? "2026-09-02T00:00:00Z" : nil,
++                revocationReference: status == .revoked ? "retained-evidence" : nil)
++        }
++        var archived = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(cell)) as? [String: Any])
++        archived["links"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(records))
++        archived["lastResult"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(
++            HavenValue.ok("Koblet", sideEffect: true)))
++        let restored = try JSONDecoder().decode(BindingEntityScaffoldExtensionCell.self,
++            from: JSONSerialization.data(withJSONObject: archived))
++        let reencoded = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(restored)) as? [String: Any])
++        let restoredRecords = try JSONDecoder().decode([IdentityLinkRecord].self,
++            from: JSONSerialization.data(withJSONObject: try #require(reencoded["links"])))
++        #expect(restoredRecords.map(\.status) == [.pending, .revoked, .expired, .pending])
++        #expect(restoredRecords.map(\.linkID) == records.map(\.linkID))
++        #expect(restoredRecords[1].revocationReference == "retained-evidence")
++        #expect(restoredRecords[1].revokedAt == records[1].revokedAt)
++        let lastResult = try JSONDecoder().decode(Object.self,
++            from: JSONSerialization.data(withJSONObject: try #require(reencoded["lastResult"])))
++        #expect(HavenValue.string(lastResult["code"]) == "verified_completion_required")
++    }
++    @Test func matchingRequestHashDoesNotMakeAnUnsignedApprovalAuthoritative() async throws {
++        let vault = EphemeralIdentityVault()
++        var owner = Identity(UUID().uuidString, displayName: "Test owner", identityVault: vault)
++        await vault.addIdentity(identity: &owner, for: "private")
++        let descriptor = try #require(IdentityPublicKeySignatureVerifier.descriptor(for: owner))
++        let cell = await BindingEntityScaffoldExtensionCell(owner: owner)
++        let now = Date()
++        let binding = EntityBindingDescriptor(mode: .localEntityAnchor, audience: "test.invalid")
++        let request = IdentityEnrollmentRequest(requestID: "legacy-pending", entityBinding: binding,
++            newIdentity: descriptor, requestedDomains: ["private"], requestedIdentityContexts: ["default"],
++            requestedScopes: ["entity.read"], audience: "test.invalid", origin: "cell:///EntityScaffoldExtension",
++            createdAt: HavenValue.iso(now), expiresAt: HavenValue.iso(now.addingTimeInterval(600)),
++            nonce: Data(repeating: 1, count: 32))
++        var archived = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(cell)) as? [String: Any])
++        archived["outgoingRequests"] = [[
++            "request": try JSONSerialization.jsonObject(with: JSONEncoder().encode(request)),
++            "humanCode": "synthetic", "createdAt": now.timeIntervalSinceReferenceDate
++        ]]
++        let restored = try JSONDecoder().decode(BindingEntityScaffoldExtensionCell.self,
++            from: JSONSerialization.data(withJSONObject: archived))
++        let approval = IdentityEnrollmentApproval(approvalID: "unsigned",
++            requestHash: Data(HavenRelationNormalizer.sha256Hex(try request.canonicalPayloadData().base64EncodedString()).utf8),
++            entityBinding: binding, subjectIdentity: descriptor, approvedDomains: ["private"],
++            approvedIdentityContexts: ["default"], approvedScopes: ["entity.write"],
++            issuerIdentityUUID: "invented-issuer", issuerType: .existingDevice,
++            audience: "wrong-audience", origin: "https://untrusted.invalid",
++            createdAt: HavenValue.iso(now), expiresAt: "invalid-date", jti: "replayable",
++            freshAuthRequired: true)
++        #expect(approval.proof == nil)
++        let reply = try #require(HavenValue.object(try await restored.set(keypath: "extension.acceptApproval",
++            value: HavenValue.value(approval), requester: owner)))
++        #expect(HavenValue.string(reply["code"]) == "verified_completion_required")
++        let links = try await restored.get(keypath: "extension.links", requester: owner)
++        #expect(try #require(HavenValue.list(links)).isEmpty)
++    }
++
++}
+diff --git a/Cells/EntityScaffoldExtensionCell.swift b/Cells/EntityScaffoldExtensionCell.swift
+index 5397a07e..cf098587 100644
+--- a/Cells/EntityScaffoldExtensionCell.swift
++++ b/Cells/EntityScaffoldExtensionCell.swift
+@@ -13,15 +13,9 @@
+ //  second way to say the same thing. The cell is the choreography, not the
+ //  cryptography.
+ //
+-//  The shape is three moves:
+-//    1. the new place asks, signing with its own fresh key
+-//    2. somewhere I already control reviews and approves, signing over a hash
+-//       of the exact request it saw
+-//    3. the new place accepts, and both sides hold a link record
+-//
+-//  Because the approval covers the request hash, an intercepted request cannot
+-//  be re-pointed at a different key: changing anything invalidates the
+-//  approval that was issued for it.
++//  Legacy enrollment mutations are disabled: this cell did not retain the
++//  verified completion evidence needed to activate an identity link. The native
++//  IdentityLinkFlow owns the supported ceremony. Old records remain reviewable.
+ //
+ 
+ import Foundation
+@@ -62,9 +56,22 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
+ 
+     nonisolated required init(from decoder: Decoder) throws {
+         let container = try decoder.container(keyedBy: CodingKeys.self)
+-        links = try container.decodeIfPresent([IdentityLinkRecord].self, forKey: .links) ?? []
++        // This legacy cell never retained a verified completion envelope. Its
++        // historical active rows are presentation records, not authority. Keep
++        // them for review, but never restore an unverified active claim.
++        links = Self.quarantineLegacyLinks(
++            try container.decodeIfPresent([IdentityLinkRecord].self, forKey: .links) ?? []
++        )
+         outgoingRequests = try container.decodeIfPresent([OutgoingRequest].self, forKey: .outgoingRequests) ?? []
+-        lastResult = try container.decodeIfPresent(Object.self, forKey: .lastResult) ?? [:]
++        // Do not resurrect a historical “Koblet” success message either.
++        lastResult = HavenValue.error(code: "verified_completion_required",
++            message: "Historiske koblinger her er ikke verifisert. Bruk «Utvid min entitet …».")
++        outgoingRequests = outgoingRequests.map { entry in
++            var result = entry
++            result.approvedAt = nil
++            result.linkID = nil
++            return result
++        }
+         try super.init(from: decoder)
+     }
+ 
+@@ -81,6 +88,14 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
+         try container.encode(snapshot.2, forKey: .lastResult)
+     }
+ 
++    nonisolated static func quarantineLegacyLinks(_ records: [IdentityLinkRecord]) -> [IdentityLinkRecord] {
++        records.map { record in
++            var result = record
++            if result.status == .active { result.status = .pending }
++            return result
++        }
++    }
++
+     private func setup(owner: Identity) async {
+         for key in readableKeys {
+             agreementTemplate.addGrant("r---", for: key)
+@@ -218,93 +233,9 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
+ 
+     // MARK: - 1. Ask
+ 
+-    /// Run on the *new* place. Produces a signed request the existing entity
+-    /// can review.
++    /// Compatibility endpoint: start new ceremonies through the native flow.
+     private func beginRequest(_ value: ValueType) async -> Object {
+-        let payload = HavenValue.object(value) ?? [:]
+-        guard let audience = HavenValue.string(payload["audience"]) else {
+-            return fail(HavenValue.error(
+-                code: "missing_audience",
+-                message: "Si hvilket scaffold dette gjelder — `audience`, for eksempel https://staging.haven.digipomps.org."
+-            ))
+-        }
+-        guard let descriptor = IdentityPublicKeySignatureVerifier.descriptor(for: storedOwnerIdentity) else {
+-            return fail(HavenValue.error(
+-                code: "no_signing_identity",
+-                message: "Denne identiteten har ingen signeringsnøkkel, så den kan ikke be om å bli koblet."
+-            ))
+-        }
+-
+-        let now = Date()
+-        let ttlMinutes = min(1440, max(2, HavenValue.int(payload["ttlMinutes"]) ?? 15))
+-        let requestID = "enr-\(UUID().uuidString.lowercased())"
+-        var nonceBytes = [UInt8](repeating: 0, count: 16)
+-        for index in nonceBytes.indices { nonceBytes[index] = UInt8.random(in: 0...255) }
+-
+-        var request = IdentityEnrollmentRequest(
+-            requestID: requestID,
+-            entityBinding: EntityBindingDescriptor(
+-                mode: .localEntityAnchor,
+-                entityAnchorReference: storedOwnerIdentity.entityAnchorReference,
+-                audience: audience
+-            ),
+-            newIdentity: descriptor,
+-            requestedDomains: HavenValue.stringList(payload["requestedDomains"]).nilWhenEmpty ?? ["private"],
+-            requestedIdentityContexts: HavenValue.stringList(payload["requestedIdentityContexts"]).nilWhenEmpty ?? ["default"],
+-            requestedScopes: HavenValue.stringList(payload["requestedScopes"]).nilWhenEmpty ?? Self.defaultOnScopes,
+-            audience: audience,
+-            origin: HavenValue.string(payload["origin"]) ?? Self.endpoint,
+-            createdAt: HavenValue.iso(now),
+-            expiresAt: HavenValue.iso(now.addingTimeInterval(TimeInterval(ttlMinutes) * 60)),
+-            nonce: Data(nonceBytes),
+-            platform: Self.platformName,
+-            deviceLabel: HavenValue.string(payload["deviceLabel"]) ?? storedOwnerIdentity.displayName
+-        )
+-
+-        guard let canonical = try? request.canonicalPayloadData(),
+-              let signature = try? await storedOwnerIdentity.sign(data: canonical) else {
+-            return fail(HavenValue.error(
+-                code: "signing_failed",
+-                message: "Kunne ikke signere forespørselen."
+-            ))
+-        }
+-        request.proof = IdentityEnrollmentRequestProof(
+-            byIdentityUUID: descriptor.uuid,
+-            algorithm: descriptor.algorithm,
+-            curveType: descriptor.curveType,
+-            signature: signature
+-        )
+-
+-        let transport = Self.encode(request)
+-        let humanCode = HavenInviteLink.humanCode(from: requestID + audience)
+-
+-        stateQueue.sync {
+-            outgoingRequests.removeAll { $0.request.requestID == requestID }
+-            outgoingRequests.insert(
+-                OutgoingRequest(request: request, humanCode: humanCode, createdAt: now),
+-                at: 0
+-            )
+-        }
+-
+-        let result = HavenValue.ok(
+-            "Forespørselen er klar. Vis koden \(humanCode) eller send pakken til en enhet du allerede bruker, og godkjenn der.",
+-            sideEffect: true,
+-            extra: [
+-                "requestID": .string(requestID),
+-                "humanCode": .string(humanCode),
+-                "payload": .string(transport ?? ""),
+-                "expiresAt": .string(request.expiresAt),
+-                "expiresInMinutes": .integer(ttlMinutes),
+-                "requestedScopes": .list(request.requestedScopes.map(ValueType.string)),
+-                "audience": .string(audience),
+-                "nextStep": .string("Åpne HAVEN på en enhet du allerede bruker, og send pakken til extension.approveRequest der."),
+-                "warning": .string(
+-                    "Godkjenn aldri en forespørsel du ikke selv startet. Sjekk at koden på denne skjermen er den samme som på den andre."
+-                )
+-            ]
+-        )
+-        stateQueue.sync { lastResult = result }
+-        return result
++        verifiedCompletionRequired()
+     }
+ 
+     // MARK: - 2. Review and approve
+@@ -396,260 +327,40 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
+         return "\(device) ber om å bli en del av entiteten din på \(request.audience), med \(request.requestedScopes.count) rettighet(er)."
+     }
+ 
+-    /// Signs an approval bound to the hash of the exact request we reviewed.
++    /// Compatibility endpoint: legacy approvals must never activate authority.
+     private func approveRequest(_ value: ValueType) async -> Object {
+-        let payload = HavenValue.object(value) ?? [:]
+-        guard let request = Self.decodeRequest(from: value) else {
+-            return fail(HavenValue.error(code: "bad_payload", message: "Fant ingen gyldig forespørsel i det du sendte."))
+-        }
+-
+-        // Never approve something we would refuse to show.
+-        let review = reviewRequest(value)
+-        guard HavenValue.string(review["status"]) == "reviewable" else {
+-            return fail(HavenValue.error(
+-                code: "not_approvable",
+-                message: HavenValue.string(review["summaryText"]) ?? "Forespørselen kan ikke godkjennes.",
+-                extra: ["review": .object(review)]
+-            ))
+-        }
+-
+-        guard let canonicalRequest = try? request.canonicalPayloadData() else {
+-            return fail(HavenValue.error(code: "bad_payload", message: "Forespørselen kunne ikke kanoniseres."))
+-        }
+-        guard let issuerDescriptor = IdentityPublicKeySignatureVerifier.descriptor(for: storedOwnerIdentity) else {
+-            return fail(HavenValue.error(
+-                code: "no_signing_identity",
+-                message: "Denne identiteten kan ikke signere en godkjenning."
+-            ))
+-        }
+-
+-        // The approver decides the scopes; the request only asks.
+-        let requested = Set(request.requestedScopes)
+-        let granted = HavenValue.stringList(payload["approvedScopes"]).nilWhenEmpty
+-            ?? request.requestedScopes.filter { scope in
+-                Self.defaultScopes.contains { $0.id == scope }
+-            }
+-        let refused = requested.subtracting(granted).sorted()
+-
+-        guard !granted.isEmpty else {
+-            return fail(HavenValue.error(
+-                code: "no_scopes",
+-                message: "Ingen rettigheter ble godkjent, så det er ikke noe å koble."
+-            ))
+-        }
+-
+-        let now = Date()
+-        let ttlMinutes = min(1440, max(2, HavenValue.int(payload["ttlMinutes"]) ?? 15))
+-        var approval = IdentityEnrollmentApproval(
+-            approvalID: "apr-\(UUID().uuidString.lowercased())",
+-            requestHash: Data(HavenRelationNormalizer.sha256Hex(canonicalRequest.base64EncodedString()).utf8),
+-            entityBinding: request.entityBinding
+-                ?? EntityBindingDescriptor(mode: .localEntityAnchor, audience: request.audience),
+-            subjectIdentity: request.newIdentity,
+-            approvedDomains: HavenValue.stringList(payload["approvedDomains"]).nilWhenEmpty ?? request.requestedDomains,
+-            approvedIdentityContexts: request.requestedIdentityContexts,
+-            approvedScopes: granted,
+-            issuerIdentityUUID: issuerDescriptor.uuid,
+-            issuerType: .existingDevice,
+-            audience: request.audience,
+-            origin: Self.endpoint,
+-            createdAt: HavenValue.iso(now),
+-            expiresAt: HavenValue.iso(now.addingTimeInterval(TimeInterval(ttlMinutes) * 60)),
+-            jti: UUID().uuidString.lowercased(),
+-            freshAuthRequired: true,
+-            freshAuthMethod: HavenValue.string(payload["freshAuthMethod"]),
+-            freshAuthPerformedAt: HavenValue.string(payload["freshAuthMethod"]) == nil ? nil : HavenValue.iso(now)
+-        )
+-
+-        guard let canonicalApproval = try? approval.canonicalPayloadData(),
+-              let signature = try? await storedOwnerIdentity.sign(data: canonicalApproval) else {
+-            return fail(HavenValue.error(code: "signing_failed", message: "Kunne ikke signere godkjenningen."))
+-        }
+-        approval.proof = IdentityEnrollmentApprovalProof(
+-            issuerIdentityUUID: issuerDescriptor.uuid,
+-            issuerType: .existingDevice,
+-            algorithm: issuerDescriptor.algorithm,
+-            curveType: issuerDescriptor.curveType,
+-            signature: signature
+-        )
+-
+-        // The approving side records the link too, so revocation has something
+-        // to act on even if the other side never reports back.
+-        let record = IdentityLinkRecord(
+-            linkID: "lnk-\(UUID().uuidString.lowercased())",
+-            entityBinding: approval.entityBinding,
+-            linkedIdentity: request.newIdentity,
+-            approvedDomains: approval.approvedDomains,
+-            approvedIdentityContexts: approval.approvedIdentityContexts,
+-            approvedScopes: approval.approvedScopes,
+-            issuerIdentityUUID: issuerDescriptor.uuid,
+-            issuerType: .existingDevice,
+-            status: .active,
+-            linkedAt: HavenValue.iso(now)
+-        )
+-        stateQueue.sync {
+-            links.removeAll { $0.linkedIdentity.uuid == record.linkedIdentity.uuid && $0.status != .revoked }
+-            links.insert(record, at: 0)
+-        }
+-
+-        var message = "Godkjent. \(request.deviceLabel ?? "Den nye enheten") får \(granted.count) rettighet(er)."
+-        if !refused.isEmpty {
+-            message += " Jeg holdt tilbake: \(refused.joined(separator: ", "))."
+-        }
+-
+-        let result = HavenValue.ok(
+-            message,
+-            sideEffect: true,
+-            extra: [
+-                "approvalID": .string(approval.approvalID),
+-                "linkID": .string(record.linkID),
+-                "payload": .string(Self.encode(approval) ?? ""),
+-                "approvedScopes": .list(granted.map(ValueType.string)),
+-                "refusedScopes": .list(refused.map(ValueType.string)),
+-                "expiresAt": .string(approval.expiresAt),
+-                "nextStep": .string("Send denne pakken tilbake til den nye enheten og kjør extension.acceptApproval der."),
+-                "links": .list(linkRows().map(ValueType.object))
+-            ]
+-        )
+-        stateQueue.sync { lastResult = result }
+-        return result
++        verifiedCompletionRequired()
+     }
+ 
+     // MARK: - 3. Accept
+ 
+-    /// Run back on the new place. Checks that the approval really covers the
+-    /// request this device issued, then records the link.
++    /// Compatibility endpoint: a bare approval is insufficient completion evidence.
+     private func acceptApproval(_ value: ValueType) -> Object {
+-        guard let approval = Self.decodeApproval(from: value) else {
+-            return fail(HavenValue.error(code: "bad_payload", message: "Fant ingen gyldig godkjenning i det du sendte."))
+-        }
+-
+-        guard let pending = stateQueue.sync(execute: {
+-            outgoingRequests.first { $0.request.newIdentity.uuid == approval.subjectIdentity.uuid }
+-        }) else {
+-            return fail(HavenValue.error(
+-                code: "no_matching_request",
+-                message: "Denne godkjenningen hører ikke til noen forespørsel denne enheten har sendt."
+-            ))
+-        }
+-
+-        guard let canonicalRequest = try? pending.request.canonicalPayloadData() else {
+-            return fail(HavenValue.error(code: "bad_request", message: "Den lagrede forespørselen kunne ikke kanoniseres."))
+-        }
+-        let expectedHash = Data(HavenRelationNormalizer.sha256Hex(canonicalRequest.base64EncodedString()).utf8)
+-        guard approval.requestHash == expectedHash else {
+-            return fail(HavenValue.error(
+-                code: "request_hash_mismatch",
+-                message: "Godkjenningen gjelder en annen forespørsel enn den denne enheten sendte. Jeg kobler ingenting."
+-            ))
+-        }
+-
+-        let now = Date()
+-        if let expiry = HavenValue.isoFormatter.date(from: approval.expiresAt), now > expiry {
+-            return fail(HavenValue.error(
+-                code: "expired",
+-                message: "Godkjenningen er utløpt. Start forespørselen på nytt."
+-            ))
+-        }
+-
+-        // We can only check the issuer's signature when the approval carries a
+-        // descriptor we can use. It does not, by design — so say so plainly
+-        // rather than implying a check we did not perform.
+-        let signaturePresent = approval.proof?.signature != nil
+-
+-        let record = IdentityLinkRecord(
+-            linkID: "lnk-\(UUID().uuidString.lowercased())",
+-            entityBinding: approval.entityBinding,
+-            linkedIdentity: approval.subjectIdentity,
+-            approvedDomains: approval.approvedDomains,
+-            approvedIdentityContexts: approval.approvedIdentityContexts,
+-            approvedScopes: approval.approvedScopes,
+-            issuerIdentityUUID: approval.issuerIdentityUUID,
+-            issuerType: approval.issuerType,
+-            status: .active,
+-            linkedAt: HavenValue.iso(now)
+-        )
+-        stateQueue.sync {
+-            links.removeAll { $0.linkedIdentity.uuid == record.linkedIdentity.uuid && $0.status != .revoked }
+-            links.insert(record, at: 0)
+-            if let index = outgoingRequests.firstIndex(where: { $0.request.requestID == pending.request.requestID }) {
+-                outgoingRequests[index].approvedAt = now
+-                outgoingRequests[index].linkID = record.linkID
+-            }
+-        }
++        verifiedCompletionRequired()
++    }
+ 
+-        let result = HavenValue.ok(
+-            "Koblet. Dette stedet er nå en del av entiteten din, med \(approval.approvedScopes.count) rettighet(er).",
+-            sideEffect: true,
++    /// An approval alone cannot establish issuer authority, fresh authentication,
++    /// replay consumption or a shared revocable link. Use the native ceremony,
++    /// which verifies an IdentityLinkCompletionEnvelope through CellBase.
++    private func verifiedCompletionRequired() -> Object {
++        fail(HavenValue.error(
++            code: "verified_completion_required",
++            message: "Denne eldre koblingsflyten kan ikke aktivere tilgang. Bruk QR eller nærhet i «Utvid min entitet …».",
+             extra: [
+-                "linkID": .string(record.linkID),
+-                "approvedScopes": .list(approval.approvedScopes.map(ValueType.string)),
+-                "issuerIdentityUUID": .string(approval.issuerIdentityUUID),
+-                "signaturePresent": .bool(signaturePresent),
++                "sideEffect": .bool(false),
+                 "signatureVerified": .bool(false),
+-                "verificationNote": .string(
+-                    "Forespørselens hash stemmer, og godkjenningen er signert, men denne enheten har ikke godkjennerens offentlige nøkkel og kan derfor ikke sjekke signaturen selv. Bekreft koden muntlig, eller hent nøkkelen fra scaffoldet."
+-                ),
+-                "links": .list(linkRows().map(ValueType.object))
++                "nextStep": .string("Åpne haven://link-devices for den verifiserte koblingsflyten."),
++                "verifiedFlowURL": .string("haven://link-devices")
+             ]
+-        )
+-        stateQueue.sync { lastResult = result }
+-        return result
++        ))
+     }
+ 
+     // MARK: - Revocation
+ 
+     private func revokeLink(_ value: ValueType) async -> Object {
+-        let payload = HavenValue.object(value) ?? [:]
+-        guard let linkID = HavenValue.string(payload["linkID"]) ?? HavenValue.string(value) else {
+-            return fail(HavenValue.error(code: "missing_id", message: "Mangler `linkID`."))
+-        }
+-        guard stateQueue.sync(execute: { links.contains { $0.linkID == linkID } }) else {
+-            return fail(HavenValue.error(code: "not_found", message: "Fant ingen kobling med id \(linkID)."))
+-        }
+-
+-        let now = Date()
+-        let reason = HavenValue.string(payload["reason"]) ?? "Trukket tilbake av eier."
+-        var revocation = IdentityLinkRevocation(
+-            linkID: linkID,
+-            reason: reason,
+-            revokedAt: HavenValue.iso(now),
+-            revokedByIdentityUUID: storedOwnerIdentity.uuid,
+-            issuerType: .existingDevice
+-        )
+-        if let descriptor = IdentityPublicKeySignatureVerifier.descriptor(for: storedOwnerIdentity),
+-           let canonical = try? revocation.canonicalPayloadData(),
+-           let signature = try? await storedOwnerIdentity.sign(data: canonical) {
+-            revocation.proof = IdentityEnrollmentApprovalProof(
+-                issuerIdentityUUID: descriptor.uuid,
+-                issuerType: .existingDevice,
+-                algorithm: descriptor.algorithm,
+-                curveType: descriptor.curveType,
+-                signature: signature
+-            )
+-        }
+-
+-        stateQueue.sync {
+-            if let index = links.firstIndex(where: { $0.linkID == linkID }) {
+-                links[index].status = .revoked
+-                links[index].revokedAt = HavenValue.iso(now)
+-                links[index].revocationReference = revocation.proof?.signature?.base64EncodedString()
+-            }
+-        }
+-
+-        let result = HavenValue.ok(
+-            "Koblingen er trukket tilbake her. Merk at et scaffold som allerede har koblingen slutter å godta den først når det har sett tilbakekallingen.",
+-            sideEffect: true,
+-            extra: [
+-                "linkID": .string(linkID),
+-                "revocation": HavenValue.value(revocation),
+-                "payload": .string(Self.encode(revocation) ?? ""),
+-                "enforcement": .string("local_immediately_remote_on_receipt"),
+-                "links": .list(linkRows().map(ValueType.object))
+-            ]
+-        )
+-        stateQueue.sync { lastResult = result }
+-        return result
++        // Historical rows here are not the verified registry. Claiming remote
++        // revocation from a local presentation update would be misleading.
++        verifiedCompletionRequired()
+     }
+ 
+     private func clearPending() -> Object {
+@@ -704,7 +415,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
+         case .active: return "Aktiv"
+         case .revoked: return "Trukket tilbake"
+         case .expired: return "Utløpt"
+-        case .pending: return "Venter"
++        case .pending: return "Ikke verifisert – koble på nytt"
+         }
+     }
+ 
+@@ -740,7 +451,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
+             "schema": .string("haven.entityExtension.state.v1"),
+             "summary": .string(
+                 active == 0 && waiting == 0
+-                    ? "Entiteten din finnes bare her. Du kan utvide den til et scaffold eller en annen enhet."
++                    ? "Denne eldre oversikten kan ikke bekrefte hvor entiteten din er tilgjengelig."
+                     : "\(active) aktive koblinger" + (waiting > 0 ? ", \(waiting) venter på godkjenning." : ".")
+             ),
+             "activeLinkCount": .integer(active),
+@@ -748,7 +459,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
+             "links": .list(linkRows().map(ValueType.object)),
+             "pending": .list(pendingRows().map(ValueType.object)),
+             "safetyLine": .string(
+-                "Godkjenn bare en forespørsel du selv startet, og bare når koden er den samme på begge skjermene."
++                "Bruk «Utvid min entitet …» med QR eller nærhet. Eldre poster her gir ingen bekreftet tilgang."
+             ),
+             "lastResult": .object(stateQueue.sync { lastResult }),
+             "updatedAt": .string(HavenValue.iso(Date()))
+@@ -810,10 +521,11 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
+             "providerID": .string("binding.entity-scaffold-extension"),
+             "kind": .string("entity_extension"),
+             "title": .string("Utvid entiteten"),
+-            "summary": .string("Koble en ny enhet eller et nytt scaffold til entiteten din, med godkjenning fra et sted du allerede bruker."),
++            "summary": .string("Historiske koblingsposter. Bruk appens verifiserte QR- og nærhetsflyt for nye koblinger."),
+             "endpoint": .string(Self.endpoint),
+             "sourceCellName": .string(Self.sourceCellName),
+             "actionKeypath": .string("extension.beginRequest"),
++            "verifiedFlowURL": .string("haven://link-devices"),
+             "purposeRefs": .list([
+                 .string("personal.entity.extend"),
+                 .string("purpose://extend-my-entity")
+@@ -825,13 +537,13 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
+                 .string("multi-device"),
+                 .string("requires-user-approval")
+             ]),
+-            "availability": .string("available_in_cell_scope"),
++            "availability": .string("requires_verified_native_flow"),
+             "privacyLevel": .string("owner_approved_identity_link"),
+             "executionScope": .string("binding_local_cell"),
+             "requiresUserApproval": .bool(true),
+             "requiresNetwork": .bool(false),
+-            "canInvokeFromChat": .bool(true),
+-            "score": .float(0.87),
++            "canInvokeFromChat": .bool(false),
++            "score": .float(0),
+             "reason": .string("Å ta entiteten med til et nytt sted skal gå gjennom signert forespørsel og godkjenning, ikke gjennom kopiering av nøkler.")
+         ]
+     }
+@@ -854,7 +566,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
+             sourceCellEndpoint: endpoint,
+             sourceCellName: sourceCellName,
+             purpose: "Utvid entiteten til nye scaffolds og enheter",
+-            purposeDescription: "Bygger på CellBase' enrollment-primitiver: signert forespørsel fra det nye stedet, godkjenning bundet til forespørselens hash fra et sted du allerede bruker, og en koblingspost begge sider kan trekke tilbake.",
++            purposeDescription: "Historiske koblingsposter. Nye koblinger må gjennom den native flyten med verifisert fullføringsbevis.",
+             interests: BindingPersonalCopilotV1Policy.discoveryInterests(
+                 [
+                     "identity-linking",
+@@ -874,11 +586,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
+             .Text(SkeletonText(keypath: "summaryLine")),
+             .Text(SkeletonText(keypath: "scopeSummary")),
+             .Text(SkeletonText(keypath: "linkedAtText")),
+-            .Button(SkeletonButton(
+-                keypath: "entityExtension.extension.revokeLink",
+-                label: "Trekk tilbake",
+-                payloadKeypath: "linkID"
+-            ))
++            .Text(SkeletonText(text: "Historisk post. Kontroller og trekk tilbake reell tilgang der koblingen ble verifisert."))
+         ], spacing: 4)
+         linkRow.modifiers = SkeletonModifiers()
+         linkRow.modifiers?.padding = 10
+@@ -915,10 +623,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
+                 .Text(SkeletonText(text: "Utvid entiteten")),
+                 .Text(SkeletonText(keypath: "entityExtension.state.summary")),
+                 .Text(SkeletonText(keypath: "entityExtension.state.safetyLine")),
+-                .TextField(SkeletonTextField(
+-                    targetKeypath: "entityExtension.extension.beginRequest",
+-                    placeholder: "Adressen til scaffoldet du vil utvide til"
+-                )),
++                .Text(SkeletonText(text: "Åpne «Utvid min entitet …» i appen for å skanne QR eller finne en invitasjon i nærheten.")),
+                 .Text(SkeletonText(keypath: "entityExtension.state.lastResult.message")),
+                 .Text(SkeletonText(keypath: "entityExtension.state.lastResult.humanCode")),
+                 .Text(SkeletonText(keypath: "entityExtension.state.lastResult.nextStep")),
+-- 
+2.54.0 (Apple Git-157)
+

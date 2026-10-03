@@ -1,0 +1,14 @@
+{
+  "date": "2026-09-13",
+  "platform": "Darwin",
+  "macOS": "26.5.1",
+  "scope": "Actual local unprivileged Python socket probe on OS-assigned127.0.0.1 port; no TLS, trust changes, sudo or builds",
+  "boundNotListeningErrno": 22,
+  "SO_ACCEPTCONNErrno": 42,
+  "emptyNonblockingListenerErrno": 35,
+  "queuedConnectionAcceptedAndClosed": true,
+  "allSocketsClosed": true,
+  "appleAcceptManual": "https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/accept.2.html",
+  "provesCorrectedHostedFDHandoff": false,
+  "provesTLS": false
+}

@@ -1,0 +1,27 @@
+{
+  "expectedTextCount" : 3,
+  "materialized" : false,
+  "missingExpectedText" : [
+
+  ],
+  "observedStyleTokens" : [
+
+  ],
+  "pixelHeight" : 2000,
+  "pixelWidth" : 780,
+  "rasterResults" : [
+
+  ],
+  "recognizedText" : "Grid Fixture\nAdaptive grid cards\nIngen handlinger kjørt ennå.\nCard one\nКРІ\n12\nAggregate-safe\nCard two\nGRID\n04\nPortable layout\nCard three\nQA\n99%\nDeterministic payload\nAck grid",
+  "rootDataSupplied" : true,
+  "rootDelivery" : "PortholeViewModel.skeletonRootData",
+  "styleNormalizationApplied" : false,
+  "surface" : {
+    "backgroundHex" : "#FFFFFF",
+    "contentMaxWidth" : 1180,
+    "height" : 1000,
+    "isDarkMode" : false,
+    "padding" : 16,
+    "width" : 390
+  }
+}

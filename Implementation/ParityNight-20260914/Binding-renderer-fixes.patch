@@ -1,0 +1,452 @@
+--- a/Binding/SkeletonPresentationOverlayView.swift
++++ b/Binding/SkeletonPresentationOverlayView.swift
+@@ -4,6 +4,7 @@
+ import SwiftUI
+ import CellBase
+ import CellApple
++import CryptoKit
+ 
+ private struct BindingRuntimeSurfaceTargetSceneIDKey: EnvironmentKey {
+     static let defaultValue: UUID? = nil
+@@ -35,7 +36,7 @@
+             targetSceneID: runtimeSurfaceTargetSceneID
+         )
+ 
+-        ZStack {
++        ZStack(alignment: .topLeading) {
+             if let baseElement = extraction.baseElement {
+                 SkeletonView(element: baseElement, userInfoValue: userInfoValue)
+                     .environmentObject(viewModel)
+@@ -53,7 +54,7 @@
+                 targetSceneID: runtimeSurfaceTargetSceneID
+             )
+         )
+-        .frame(maxWidth: .infinity, maxHeight: .infinity)
++        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+     }
+ }
+ 
+@@ -298,6 +299,35 @@
+             return .Object(value)
+         case .Button(let value):
+             return .Button(resolveButton(value, context: context))
++        case .Text(var text):
++            // Materialized rows share their parent's render context. Resolve a
++            // row-relative read before that context is discarded, otherwise a
++            // title such as "name" is read from the root instead of this item.
++            if let item = context.item,
++               let keypath = text.keypath,
++               !keypath.hasPrefix("cell://") {
++                let resolved: ValueType?
++                switch item {
++                case .string, .integer, .number, .float:
++                    // SkeletonText also renders primitive row values directly.
++                    resolved = item
++                default:
++                    resolved = value(at: keypath, in: item)
++                }
++                switch resolved {
++                case .string(let string): text.text = string
++                case .integer(let integer): text.text = String(integer)
++                case .number(let number): text.text = String(number)
++                case .float(let number): text.text = String(number)
++                case .bool(let bool): text.text = bool ? "true" : "false"
++                case .null: text.text = "null"
++                case .none: text.text = "Innholdet er ikke tilgjengelig akkurat nå."
++                default: text.text = (try? resolved?.jsonString()) ?? ""
++                }
++                text.keypath = nil
++                text.url = nil
++            }
++            return .Text(text)
+         default:
+             return element
+         }
+@@ -448,6 +478,7 @@
+         guard let rowElements = materializedRows(
+             from: rows,
+             rowSkeleton: rowSkeleton,
++            listID: list.id,
+             listStyleRole: list.modifiers?.styleRole,
+             context: context,
+             nodes: &nodes
+@@ -455,7 +486,18 @@
+             return nil
+         }
+ 
+-        return .VStack(SkeletonVStack(elements: rowElements, spacing: 8, modifiers: list.modifiers))
++        var stack = SkeletonVStack(elements: rowElements, spacing: 8, modifiers: list.modifiers)
++        stack.id = list.id
++        if (list.modifiers?.height ?? 0) > 0 || list.modifiers?.maxHeightInfinity == true {
++            // Materialization must retain the bounded list's scroll container;
++            // a clipped VStack otherwise makes later rows unreachable.
++            stack.modifiers = nil
++            var scroll = SkeletonScrollView(axis: "vertical", elements: [.VStack(stack)])
++            scroll.id = list.id
++            scroll.modifiers = list.modifiers
++            return .ScrollView(scroll)
++        }
++        return .VStack(stack)
+     }
+ 
+     private static func canMaterializeList(_ list: SkeletonList) -> Bool {
+@@ -478,6 +520,7 @@
+     private static func materializedRows(
+         from rows: ValueTypeList,
+         rowSkeleton: SkeletonVStack,
++        listID: UUID,
+         listStyleRole: String?,
+         context: BindingSkeletonRenderContext,
+         nodes: inout [BindingSkeletonPresentationNode]
+@@ -486,8 +529,13 @@
+             return nil
+         }
+ 
+-        return rows.compactMap { row in
++        return rows.enumerated().compactMap { index, row in
+             var preparedRow = rowSkeleton
++            // A template's UUID cannot identify every materialized sibling:
++            // SwiftUI otherwise reuses the first row's text/state for all rows.
++            // Keep positional identity stable across refreshes, as CellListView
++            // does for these nonselectable rows. This is only a UI identifier.
++            preparedRow.id = materializedRowID(listID: listID, index: index)
+             if listStyleRole == "chat-prompt-log" {
+                 preparedRow.modifiers = chatPromptRowModifiers(
+                     role: stringValue(at: "role", in: row)
+@@ -496,6 +544,12 @@
+             let rowElement = SkeletonElement.VStack(preparedRow)
+             return extractBaseElement(from: rowElement, context: context.row(row), nodes: &nodes)
+         }
++    }
++
++    private static func materializedRowID(listID: UUID, index: Int) -> UUID {
++        let bytes = Array(SHA256.hash(data: Data("\(listID.uuidString):\(index)".utf8)).prefix(16))
++        return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
++                           bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]))
+     }
+ 
+     private static func chatPromptRowModifiers(role: String?) -> SkeletonModifiers {
+--- a/Binding/FullLibraryView.swift
++++ b/Binding/FullLibraryView.swift
+@@ -473,14 +473,18 @@
+         onAddComponent: ((ComponentPaletteItem) -> Bool)? = nil,
+         armedComponentID: String? = nil,
+         onArmComponent: ((ComponentPaletteItem?) -> Void)? = nil,
+-        onComponentDragStateChange: ((ComponentPaletteItem?) -> Void)? = nil
++        onComponentDragStateChange: ((ComponentPaletteItem?) -> Void)? = nil,
++        bootstrapRuntime: @escaping (Bool) async -> BindingAuthenticatedRuntimeAttempt.Outcome = {
++            await BindingRuntimeBootstrap.requestAuthenticatedRuntime(retryAfterFailure: $0)
++        }
+     ) {
+         _model = StateObject(
+             wrappedValue: FullLibraryViewModel(
+                 catalogEndpoints: catalogEndpoints,
+                 queryContext: queryContext,
+                 fallbackFavorites: favorites,
+-                fallbackTemplates: templates
++                fallbackTemplates: templates,
++                bootstrapRuntime: bootstrapRuntime
+             )
+         )
+         self.onAddConfiguration = onAddConfiguration
+@@ -577,7 +581,7 @@
+                 )
+             }
+             actionBar(compact: compact)
+-            tabPicker
++            tabPicker(compact: compact)
+             searchBar(compact: compact)
+             if !model.searchSuggestions.isEmpty {
+                 suggestionsRow
+@@ -611,13 +615,37 @@
+         }
+     }
+ 
+-    private var tabPicker: some View {
+-        Picker("Biblioteksegment", selection: $model.selectedTab) {
+-            ForEach(FullLibraryViewModel.LibraryTab.allCases) { tab in
+-                Text(tab.title).tag(tab)
+-            }
+-        }
+-        .pickerStyle(.segmented)
++    @ViewBuilder
++    private func tabPicker(compact: Bool) -> some View {
++        if compact {
++            ScrollView(.horizontal, showsIndicators: false) {
++                HStack(spacing: 8) {
++                    ForEach(FullLibraryViewModel.LibraryTab.allCases) { tab in
++                        let selected = model.selectedTab == tab
++                        Button { model.selectedTab = tab } label: {
++                            Text(tab.title)
++                                .font(.subheadline.weight(selected ? .semibold : .regular))
++                                .lineLimit(1)
++                                .fixedSize(horizontal: true, vertical: false)
++                                .padding(.horizontal, 12)
++                                .frame(minHeight: 44)
++                                .foregroundStyle(selected ? Color.accentColor : Color.primary)
++                                .background(selected ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08), in: Capsule())
++                        }
++                        .buttonStyle(.plain)
++                        .accessibilityAddTraits(selected ? .isSelected : [])
++                        .accessibilityIdentifier("library.tab.\(tab.rawValue)")
++                    }
++                }
++            }
++        } else {
++            Picker("Biblioteksegment", selection: $model.selectedTab) {
++                ForEach(FullLibraryViewModel.LibraryTab.allCases) { tab in
++                    Text(tab.title).tag(tab)
++                }
++            }
++            .pickerStyle(.segmented)
++        }
+     }
+ 
+     private var headerCard: some View {
+--- /dev/null
++++ b/BindingTests/ParityNightRegressionTests.swift
+@@ -0,0 +1,244 @@
++import XCTest
++import CellBase
++import CellApple
++import SwiftUI
++#if os(macOS)
++import AppKit
++import Vision
++#endif
++@testable import Binding
++
++@MainActor
++final class ParityNightRegressionTests: XCTestCase {
++    #if os(macOS)
++    func testDynamicTabsRenderLocalLabelsAndSelectionAndClearRemovedRows() async throws {
++        XCTAssertNil(CellBase.defaultCellResolver, "Rendering must not use real cells")
++        XCTAssertNil(CellBase.defaultIdentityVault, "Rendering must not use real identities")
++        let tabs = SkeletonTabs(tabsKeypath: "tabs", activeTabStateKeypath: "active", panels: [
++            SkeletonTabPanel(id: "one", content: [.Text(SkeletonText(text: "FIRST PANEL"))]),
++            SkeletonTabPanel(id: "two", content: [.Text(SkeletonText(text: "SECOND PANEL"))])
++        ])
++        let model = PortholeViewModel()
++        func content(_ state: ValueType) -> some View {
++            VStack {
++                Text("PARITY HOST")
++                BindingSkeletonView(element: .Tabs(tabs), userInfoValue: state)
++            }.environmentObject(model).font(.system(size: 24)).padding(20)
++        }
++        let host = NSHostingView(rootView: content(.object([:])))
++        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 620, height: 320),
++                              styleMask: [.titled], backing: .buffered, defer: false)
++        window.isReleasedWhenClosed = false
++        window.contentView = host
++        window.makeKeyAndOrderFront(nil)
++        defer { window.close() }
++        func visibleText(_ state: ValueType) async throws -> String {
++            host.rootView = content(state)
++            for _ in 0..<8 {
++                host.layoutSubtreeIfNeeded()
++                host.displayIfNeeded()
++                try await Task.sleep(nanoseconds: 50_000_000)
++            }
++            let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
++            host.cacheDisplay(in: host.bounds, to: bitmap)
++            let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
++            let attachment = XCTAttachment(data: png, uniformTypeIdentifier: "public.png")
++            attachment.lifetime = .keepAlways
++            add(attachment)
++            let request = VNRecognizeTextRequest()
++            request.recognitionLevel = .accurate
++            request.recognitionLanguages = ["en-US"]
++            request.automaticallyDetectsLanguage = false
++            request.usesLanguageCorrection = false
++            try VNImageRequestHandler(data: png).perform([request])
++            return (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
++        }
++        let rows: ValueType = .list([
++            .object(["id": .string("one"), "title": .string("Alpha choice")]),
++            .object(["id": .string("two"), "title": .string("Bravo choice")])
++        ])
++        let initial = try await visibleText(.object(["tabs": rows, "active": .string("two")]))
++        XCTAssertTrue(initial.contains("Alpha choice"), initial)
++        XCTAssertTrue(initial.contains("Bravo choice"), initial)
++        XCTAssertTrue(initial.contains("SECOND PANEL"), initial)
++        XCTAssertFalse(initial.contains("FIRST PANEL"), initial)
++        for removed in [ValueType.object(["tabs": .list([])]), .object([:])] {
++            let empty = try await visibleText(removed)
++            XCTAssertTrue(empty.contains("PARITY HOST"), empty)
++            XCTAssertFalse(empty.contains("PANEL"), empty)
++            XCTAssertFalse(empty.contains("choice"), empty)
++        }
++        let refreshed = try await visibleText(.object(["tabs": rows, "active": .string("one")]))
++        XCTAssertTrue(refreshed.contains("FIRST PANEL"), refreshed)
++        XCTAssertFalse(refreshed.contains("SECOND PANEL"), refreshed)
++    }
++    #endif
++
++    #if os(macOS)
++    func testLocalFieldsRefreshClearAndGrowWithinEditorBounds() async throws {
++        XCTAssertNil(CellBase.defaultCellResolver)
++        XCTAssertNil(CellBase.defaultIdentityVault)
++        var fieldStyle = SkeletonModifiers()
++        fieldStyle.fontSize = 22
++        let skeleton = SkeletonElement.VStack(SkeletonVStack(elements: [
++            .Text(SkeletonText(text: "Default leading label")),
++            .TextField(SkeletonTextField(sourceKeypath: "title", modifiers: fieldStyle)),
++            .TextArea(SkeletonTextArea(sourceKeypath: "body", minLines: 2, maxLines: 6, modifiers: fieldStyle)),
++            .Text(SkeletonText(text: "Editor boundary"))
++        ]))
++        let model = PortholeViewModel()
++        func content(_ state: ValueType) -> some View {
++            BindingSkeletonView(element: skeleton, userInfoValue: state)
++                .environmentObject(model).font(.system(size: 22)).padding(20)
++        }
++        let host = NSHostingView(rootView: content(.object([:])))
++        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 620, height: 460),
++                              styleMask: [.titled], backing: .buffered, defer: false)
++        window.isReleasedWhenClosed = false
++        window.contentView = host
++        window.makeKeyAndOrderFront(nil)
++        defer { window.close() }
++        func capture(_ state: ValueType) async throws -> [(String, CGRect)] {
++            host.rootView = content(state)
++            for _ in 0..<8 {
++                host.layoutSubtreeIfNeeded()
++                host.displayIfNeeded()
++                try await Task.sleep(nanoseconds: 50_000_000)
++            }
++            let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
++            host.cacheDisplay(in: host.bounds, to: bitmap)
++            let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
++            let attachment = XCTAttachment(data: png, uniformTypeIdentifier: "public.png")
++            attachment.lifetime = .keepAlways
++            add(attachment)
++            let request = VNRecognizeTextRequest()
++            request.recognitionLevel = .accurate
++            request.recognitionLanguages = ["en-US"]
++            request.automaticallyDetectsLanguage = false
++            request.usesLanguageCorrection = false
++            try VNImageRequestHandler(data: png).perform([request])
++            return (request.results ?? []).compactMap { item in
++                item.topCandidates(1).first.map { ($0.string, item.boundingBox) }
++            }
++        }
++        let initial = try await capture(.object(["title": .string("Initial title"), "body": .string("Initial body")]))
++        XCTAssertTrue(initial.contains { $0.0.contains("Initial title") }, "\(initial)")
++        XCTAssertTrue(initial.contains { $0.0.contains("Initial body") }, "\(initial)")
++        let leading = try XCTUnwrap(initial.first { $0.0.contains("Default leading label") })
++        XCTAssertLessThan(leading.1.minX, 0.12, "Default text must follow the leading edge")
++        let shortBoundary = try XCTUnwrap(initial.first { $0.0.contains("Editor boundary") })
++        let updated = try await capture(.object([
++            "title": .string("Updated title"),
++            "body": .string("Updated body\nSecond line\nThird line\nFourth line\nFifth line\nSixth line")
++        ]))
++        XCTAssertTrue(updated.contains { $0.0.contains("Updated title") }, "\(updated)")
++        XCTAssertTrue(updated.contains { $0.0.contains("Updated body") }, "\(updated)")
++        XCTAssertFalse(updated.contains { $0.0.contains("Initial") })
++        let longBoundary = try XCTUnwrap(updated.first { $0.0.contains("Editor boundary") })
++        XCTAssertGreaterThan(shortBoundary.1.minY - longBoundary.1.minY, 0.08, "The editor should grow with its draft")
++        let capped = try await capture(.object([
++            "title": .string("Updated title"),
++            "body": .string((1...20).map { "Content line \($0)" }.joined(separator: "\n"))
++        ]))
++        let cappedBoundary = try XCTUnwrap(capped.first { $0.0.contains("Editor boundary") })
++        XCTAssertEqual(cappedBoundary.1.minY, longBoundary.1.minY, accuracy: 0.025, "Maximum lines must bound the editor")
++        let empty = try await capture(.object([:]))
++        XCTAssertTrue(empty.contains { $0.0.contains("Editor boundary") })
++        XCTAssertFalse(empty.contains { $0.0.contains("Updated") || $0.0.contains("Content line") })
++    }
++    #endif
++
++    func testPrimitiveRowTextMatchesUnmaterializedRenderer() async {
++        let source = SkeletonText(keypath: "value")
++        let root = ValueType.object(["value": .string("Wrong root")])
++        for item in [ValueType.string("Scalar row"), .integer(7), .float(2.5)] {
++            let expected = await source.asyncContent(userInfoValue: item)
++            guard case .Text(let bound) = BindingSkeletonPresentationSupport.prepareRowElement(.Text(source), root: root, item: item) else {
++                return XCTFail("Expected text")
++            }
++            let actual = await bound.asyncContent(userInfoValue: root)
++            XCTAssertEqual(actual, expected)
++        }
++    }
++
++    func testMaterializedSiblingRowsHaveDistinctStableIdentities() async throws {
++        let row = SkeletonVStack(elements: [.Text(SkeletonText(keypath: "name"))])
++        let list = SkeletonList(keypath: "rows", flowElementSkeleton: row)
++        let root = ValueType.object(["rows": .list([
++            .object(["name": .string("Alpha")]),
++            .object(["name": .string("Beta")]),
++            .object(["name": .string("Gamma")])
++        ])])
++        func extract() throws -> SkeletonVStack {
++            let result = BindingSkeletonPresentationSupport.extract(from: .List(list), context: .root(root))
++            guard case .VStack(let stack) = result.baseElement else {
++                throw NSError(domain: "Expected materialized rows", code: 1)
++            }
++            return stack
++        }
++        let first = try extract()
++        let next = try extract()
++        XCTAssertEqual(first.id, list.id)
++        XCTAssertEqual(first.elements.count, 3)
++        XCTAssertEqual(Set(first.elements.map(\.id)).count, 3, "Duplicate UUIDs reuse the first rendered row")
++        XCTAssertEqual(first.elements.map(\.id), next.elements.map(\.id))
++        var names: [String] = []
++        for element in first.elements {
++            guard case .VStack(let row) = element, case .Text(let text) = row.elements.first else {
++                return XCTFail("Expected row text")
++            }
++            names.append(await text.asyncContent(userInfoValue: root))
++        }
++        XCTAssertEqual(names, ["Alpha", "Beta", "Gamma"])
++    }
++
++    func testMaterializedRowKeepsItsTextInsteadOfReadingTheRoot() async {
++        let root = ValueType.object(["name": .string("Wrong root name")])
++        let item = ValueType.object(["name": .string("Correct row name")])
++        let source = SkeletonElement.Text(SkeletonText(keypath: "name"))
++        guard case .Text(let text) = BindingSkeletonPresentationSupport.prepareRowElement(source, root: root, item: item) else {
++            return XCTFail("Expected text")
++        }
++        // Exercise the real deferred read after the row has been materialized.
++        let rendered = await text.asyncContent(userInfoValue: root)
++        XCTAssertEqual(rendered, "Correct row name")
++    }
++
++    func testChangedRowRebindsAndMissingRowValueDoesNotLeakRootText() async {
++        let root = ValueType.object(["title": .string("Private root title")])
++        let source = SkeletonElement.Text(SkeletonText(keypath: "title"))
++        for title in ["First", "Updated"] {
++            guard case .Text(let text) = BindingSkeletonPresentationSupport.prepareRowElement(source, root: root, item: .object(["title": .string(title)])) else {
++                return XCTFail("Expected text")
++            }
++            let rendered = await text.asyncContent(userInfoValue: root)
++            XCTAssertEqual(rendered, title)
++        }
++        guard case .Text(let missing) = BindingSkeletonPresentationSupport.prepareRowElement(source, root: root, item: .object([:])) else {
++            return XCTFail("Expected text")
++        }
++        let rendered = await missing.asyncContent(userInfoValue: root)
++        XCTAssertFalse(rendered.contains("Private root title"))
++        XCTAssertTrue(rendered.contains("ikke tilgjengelig"))
++    }
++
++    func testRowBindingPreservesNumbersAndStaticAndRemoteText() async {
++        let root = ValueType.object([:])
++        let source = SkeletonElement.Text(SkeletonText(keypath: "metric"))
++        guard case .Text(let text) = BindingSkeletonPresentationSupport.prepareRowElement(source, root: root, item: .object(["metric": .integer(42)])) else {
++            return XCTFail("Expected text")
++        }
++        let rendered = await text.asyncContent(userInfoValue: root)
++        XCTAssertEqual(rendered, "42")
++        let remote = SkeletonElement.Text(SkeletonText(keypath: "cell://example.test/Cell/title"))
++        guard case .Text(let remoteText) = BindingSkeletonPresentationSupport.prepareRowElement(remote, root: root, item: .object([:])) else {
++            return XCTFail("Expected text")
++        }
++        XCTAssertEqual(remoteText.keypath, "cell://example.test/Cell/title")
++        let literal = SkeletonElement.Text(SkeletonText(text: "Literal"))
++        guard case .Text(let staticText) = BindingSkeletonPresentationSupport.prepareRowElement(literal, root: root, item: .object([:])) else {
++            return XCTFail("Expected text")
++        }
++        XCTAssertEqual(staticText.text, "Literal")
++    }
++}

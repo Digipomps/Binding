@@ -1,0 +1,26 @@
+BUILD_EXIT=1
+== ekte kompileringsfeil ==
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:202:33: error: cannot find 'VaporBridgeTransport' in scope
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:146:38: error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:173:38: error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:202:33: error: cannot find 'VaporBridgeTransport' in scope
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:146:38: error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:173:38: error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:202:33: error: cannot find 'VaporBridgeTransport' in scope
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:146:38: error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:173:38: error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+count=9
+== VaporCellBridge kompilert? ==
+33:/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:202:33: error: cannot find 'VaporBridgeTransport' in scope
+41:/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:146:38: error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+45:    |                                      `- error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+49:/Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/_wt-bridge-identity-20260830/Sources/App/Controllers/VaporCellBridge.swift:173:38: error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+53:    |                                      `- error: static member 'normalizedCellName' cannot be used on instance of type 'VaporCellBridge'
+== sluttlinjer ==
+[166/171] Compiling App PurposeKnowledgeBase.swift
+[167/171] Compiling App SkeletonRuntimeDecoder.swift
+[168/171] Compiling App UsageMeterContracts.swift
+[169/171] Compiling App WorkbenchSeedSupport.swift
+[170/171] Compiling App Sequence+sorted.swift
+[171/171] Compiling App routes.swift
+DONE 21:31:25Z

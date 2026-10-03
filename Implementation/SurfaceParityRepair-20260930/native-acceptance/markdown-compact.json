@@ -1,0 +1,30 @@
+{
+  "expectedTextCount" : 3,
+  "materialized" : false,
+  "missingExpectedText" : [
+
+  ],
+  "observedStyleTokens" : [
+    {
+      "kind" : "webOnly",
+      "path" : "$.VStack[0].Section.content[3].Text.modifiers.styleRole",
+      "token" : "rendered-html"
+    }
+  ],
+  "pixelHeight" : 2000,
+  "pixelWidth" : 780,
+  "rasterResults" : [
+
+  ],
+  "recognizedText" : "Markdown Fixture\nMarkdown and rendered HTML\nIngen handlinger kjørt ennå.\n# Markdown parity\nThis fixture keeps **source** and rendered\nHTML side by side.\n- bullet one\n- bullet two\n<article><h2>Markdown parity<\/\nh2><p><strong>Rendered HTML<\/strong>\nshould stay readable across clients.<\/\np><ul><li>bullet one<\/li><|i>bullet two<\/li><\/\nul><\/article>\nToggle mode",
+  "rootDataSupplied" : true,
+  "styleNormalizationApplied" : false,
+  "surface" : {
+    "backgroundHex" : "#FFFFFF",
+    "contentMaxWidth" : 1180,
+    "height" : 1000,
+    "isDarkMode" : false,
+    "padding" : 16,
+    "width" : 390
+  }
+}

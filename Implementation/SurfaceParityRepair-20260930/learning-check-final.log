@@ -1,0 +1,15 @@
+HAVEN-rot: /Users/kjetil/Build/Digipomps/HAVEN
+Åpne læringer (mål ikke oppdatert): 2
+  L-2026-09-29-rydding-i-private-tmp-etter-bare-eier-alder-uten: Rydding i /private/tmp etter bare eier+alder+uten-.git traff også launchd-, app- og socketkataloger (0 B, men i bruk); velg etter hvem som laget katalogen og hopp over com.*/sockets.
+      → /Users/kjetil/Build/Digipomps/HAVEN/HAVEN-Deploy/_handoff/RYDD/wp-rydd-tmp-bygg.sh
+      → /Users/kjetil/Build/Digipomps/HAVEN/_losen-queue/LES_MEG.md
+  L-2026-09-29-haven-learn-py-feilbestemmer-haven-rota-fra-en: haven_learn.py feilbestemmer HAVEN-rota fra en Cowork-VM: den gaar opp fra CellScaffold og lander paa $HOME/mnt, som bare er en syntetisk rot med de fire tilkoblede mappene. 'sync' skriver da jobben til en .agent-spool/inbox som ikke finnes paa Mac-en og melder det som koeet; 'check' viser fantomstier (_losen-queue, HAVEN-Deploy) som ikke er der.
+      → /Users/kjetil/Build/Digipomps/HAVEN/CellScaffold/Documentation/Learnings/README.md
+Oppdatert men ikke distribuert: 7
+  L-2026-09-29-nar-codex-kvoten-er-tom-fullforer-kojobbene-pa → sync --id L-2026-09-29-nar-codex-kvoten-er-tom-fullforer-kojobbene-pa
+  L-2026-09-29-xcodebuild-for-en-swift-pakke-krasjer-the-xcode → sync --id L-2026-09-29-xcodebuild-for-en-swift-pakke-krasjer-the-xcode
+  L-2026-09-29-en-kobane-som-starter-med-tom-innboks-avsluttet → sync --id L-2026-09-29-en-kobane-som-starter-med-tom-innboks-avsluttet
+  L-2026-09-29-dommerbenk-runde-3-notatfeltet-traff-fasiten-der → sync --id L-2026-09-29-dommerbenk-runde-3-notatfeltet-traff-fasiten-der
+  L-2026-09-29-fra-en-cowork-oekt-device-bash-er-en-linux-vm → sync --id L-2026-09-29-fra-en-cowork-oekt-device-bash-er-en-linux-vm
+  L-2026-09-29-ios-minimum-verify-macho-target → sync --id L-2026-09-29-ios-minimum-verify-macho-target
+  L-2026-09-29-codex-skriver-innholdet-i-filer-den-leser-til → sync --id L-2026-09-29-codex-skriver-innholdet-i-filer-den-leser-til

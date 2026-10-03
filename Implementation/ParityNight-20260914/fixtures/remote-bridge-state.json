@@ -1,0 +1,8 @@
+{
+  "cellURLExample" : "cell:\/\/staging.haven.digipomps.org\/SkeletonParityTextFixture",
+  "headline" : "Remote bridge contract",
+  "hostSummary" : "Bruk host-mapping til cell:\/\/<host>\/SkeletonParityTextFixture for direkte remote parity.",
+  "httpConfigurationRoute" : "https:\/\/staging.haven.digipomps.org\/skeleton-parity\/text\/api\/configuration",
+  "status" : "Ingen handlinger kjørt ennå.",
+  "websocketRoute" : "wss:\/\/staging.haven.digipomps.org\/bridgehead\/Porthole\/SkeletonParityTextFixture"
+}

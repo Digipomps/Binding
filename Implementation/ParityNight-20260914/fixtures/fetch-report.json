@@ -1,0 +1,182 @@
+[
+  {
+    "slug": "text",
+    "kind": "configuration",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/text/api/configuration",
+    "status": 200,
+    "bytes": 2895,
+    "sha256": "673301874b0ac934f2cee2858f2f1ac06aa10703c53bc219ef75bfa3c16d1972",
+    "observedAt": "2026-09-14T23:06:43.589640+00:00"
+  },
+  {
+    "slug": "text",
+    "kind": "state",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/text/api/state",
+    "status": 200,
+    "bytes": 673,
+    "sha256": "abf096ffa4be6149196a7f22642eee9176ebb4fa1c303464bf66a609242709c8",
+    "observedAt": "2026-09-14T23:06:43.589452+00:00"
+  },
+  {
+    "slug": "list",
+    "kind": "configuration",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/list/api/configuration",
+    "status": 200,
+    "bytes": 2819,
+    "sha256": "cf385fd58be83ebe87fb9c2d3836a029cf799d64eb9b45905b2fbbc2fb6cf340",
+    "observedAt": "2026-09-14T23:06:43.587345+00:00"
+  },
+  {
+    "slug": "list",
+    "kind": "state",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/list/api/state",
+    "status": 200,
+    "bytes": 626,
+    "sha256": "182a6a34d1a2f0bc68db6a26d57a9ceb211190fb88ca23ccc8b7d2e0f26e0621",
+    "observedAt": "2026-09-14T23:06:43.679881+00:00"
+  },
+  {
+    "slug": "grid",
+    "kind": "configuration",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/grid/api/configuration",
+    "status": 200,
+    "bytes": 2914,
+    "sha256": "8919957930d4b0440bcc6dbefb230de19e35e5399bc89c1927a36c18cc64f40a",
+    "observedAt": "2026-09-14T23:06:43.680440+00:00"
+  },
+  {
+    "slug": "grid",
+    "kind": "state",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/grid/api/state",
+    "status": 200,
+    "bytes": 479,
+    "sha256": "1277910619512cbc27d33dd1ce4f0fa05778d419ea97281bd413f3b5a4973337",
+    "observedAt": "2026-09-14T23:06:43.680106+00:00"
+  },
+  {
+    "slug": "form",
+    "kind": "configuration",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/form/api/configuration",
+    "status": 200,
+    "bytes": 2904,
+    "sha256": "b1cfeefdc381bbf9a25970a17efff7309d529987e94cc2f2387f3c578652df53",
+    "observedAt": "2026-09-14T23:06:43.773779+00:00"
+  },
+  {
+    "slug": "form",
+    "kind": "state",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/form/api/state",
+    "status": 200,
+    "bytes": 331,
+    "sha256": "04394af010c94d2952347c776b33d7b058dca485dbb8d8cea9fd620c9b431a3a",
+    "observedAt": "2026-09-14T23:06:43.773602+00:00"
+  },
+  {
+    "slug": "markdown",
+    "kind": "configuration",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/markdown/api/configuration",
+    "status": 200,
+    "bytes": 1927,
+    "sha256": "c491f0b664dd087bb1619368efc17f4e6433457dc93607c985f724e2619abc52",
+    "observedAt": "2026-09-14T23:06:43.772257+00:00"
+  },
+  {
+    "slug": "markdown",
+    "kind": "state",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/markdown/api/state",
+    "status": 200,
+    "bytes": 440,
+    "sha256": "5676723540152c693ed730e98b02ea8e49001c1524db456901424809c792c920",
+    "observedAt": "2026-09-14T23:06:43.861828+00:00"
+  },
+  {
+    "slug": "relative-keypath",
+    "kind": "configuration",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/relative-keypath/api/configuration",
+    "status": 200,
+    "bytes": 2209,
+    "sha256": "ab7a0e1eea09d3a36da65db5527fb05ce9a81be0743afdf8b0c0172fe3f14c74",
+    "observedAt": "2026-09-14T23:06:43.869683+00:00"
+  },
+  {
+    "slug": "relative-keypath",
+    "kind": "state",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/relative-keypath/api/state",
+    "status": 200,
+    "bytes": 441,
+    "sha256": "7e01ba807421f97ffe3524d09ee3651421404da56e073a1155d9f4e0b0efe47f",
+    "observedAt": "2026-09-14T23:06:43.869493+00:00"
+  },
+  {
+    "slug": "nested-reference",
+    "kind": "configuration",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/nested-reference/api/configuration",
+    "status": 200,
+    "bytes": 2881,
+    "sha256": "8e1b2f8f220cebb7f5648adc537a80d891791c26b3bfab2f262a10e590ba9059",
+    "observedAt": "2026-09-14T23:06:43.952369+00:00"
+  },
+  {
+    "slug": "nested-reference",
+    "kind": "state",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/nested-reference/api/state",
+    "status": 200,
+    "bytes": 425,
+    "sha256": "0b183a8b8bbb33c74423e1a677f88d0735682c0cde508efe131b12aeb29a778d",
+    "observedAt": "2026-09-14T23:06:43.959089+00:00"
+  },
+  {
+    "slug": "remote-bridge",
+    "kind": "configuration",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/remote-bridge/api/configuration",
+    "status": 200,
+    "bytes": 2201,
+    "sha256": "85bd1782e0551d88392e5fb2714db9006158b489593d208b9bf34c8937efc481",
+    "observedAt": "2026-09-14T23:06:43.958932+00:00"
+  },
+  {
+    "slug": "remote-bridge",
+    "kind": "state",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/remote-bridge/api/state",
+    "status": 200,
+    "bytes": 513,
+    "sha256": "62c211c87a69db4f697da96486b3020ee9e5e786a1ff9a4ea6d520019d5eb9e3",
+    "observedAt": "2026-09-14T23:06:44.037572+00:00"
+  },
+  {
+    "slug": "unavailable",
+    "kind": "configuration",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/unavailable/api/configuration",
+    "status": 200,
+    "bytes": 3013,
+    "sha256": "93ea2736e7e026abe9fb07c50152a4a2ee14af5f5ff5601be217fc08160a7e23",
+    "observedAt": "2026-09-14T23:06:44.058794+00:00"
+  },
+  {
+    "slug": "unavailable",
+    "kind": "state",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/unavailable/api/state",
+    "status": 200,
+    "bytes": 191,
+    "sha256": "1f4588334d22395f801c203da218ee624ed6edfe4b5807acc8dbbba567f91e3d",
+    "observedAt": "2026-09-14T23:06:44.058619+00:00"
+  },
+  {
+    "slug": "invalid",
+    "kind": "configuration",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/invalid/api/configuration",
+    "status": 422,
+    "bytes": 203,
+    "sha256": "950c43e003a3faf9fdf4e414506b56722e224b20531780815d96ab60bd36dcab",
+    "observedAt": "2026-09-14T23:06:44.117884+00:00"
+  },
+  {
+    "slug": "invalid",
+    "kind": "state",
+    "url": "https://staging.haven.digipomps.org/skeleton-parity/invalid/api/state",
+    "status": 200,
+    "bytes": 233,
+    "sha256": "dd392499b37065f332d8aedf2230bc5eeec1c8b3441f85fdd330a7684baf5c64",
+    "observedAt": "2026-09-14T23:06:44.138224+00:00"
+  }
+]

@@ -1,0 +1,9 @@
+{
+  "draft" : {
+    "body" : "Line one from the staging fixture.\nLine two keeps wrapping deterministic.",
+    "title" : "Remote parity draft"
+  },
+  "headline" : "Interactive form",
+  "helper" : "TextField og TextArea skal holde draft synlig og deterministisk etter hver mutasjon.",
+  "status" : "Ingen handlinger kjørt ennå."
+}

@@ -1,0 +1,24 @@
+{
+  "cards" : [
+    {
+      "badge" : "KPI",
+      "detail" : "Aggregate-safe",
+      "metric" : "12",
+      "title" : "Card one"
+    },
+    {
+      "badge" : "GRID",
+      "detail" : "Portable layout",
+      "metric" : "04",
+      "title" : "Card two"
+    },
+    {
+      "badge" : "QA",
+      "detail" : "Deterministic payload",
+      "metric" : "99%",
+      "title" : "Card three"
+    }
+  ],
+  "headline" : "Adaptive grid cards",
+  "status" : "Ingen handlinger kjørt ennå."
+}

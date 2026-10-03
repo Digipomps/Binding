@@ -1,0 +1,17 @@
++ xcodebuild build -project Binding.xcodeproj -scheme HAVEN -configuration Debug -destination id=60A4509A-5AD0-42B9-A1D0-7CEBA044F514 -derivedDataPath /tmp/HavenIOS18Signed
++ grep -E 'error:|BUILD (SUCCEEDED|FAILED)'
++ head -30
+** BUILD SUCCEEDED **
++ RC=0
++ echo BUILD_RC=0
+BUILD_RC=0
++ '[' 0 -ne 0 ']'
++ APP=/tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app
++ xcrun simctl terminate 60A4509A-5AD0-42B9-A1D0-7CEBA044F514 org.digipomps.haven
++ xcrun simctl uninstall 60A4509A-5AD0-42B9-A1D0-7CEBA044F514 org.digipomps.haven
++ xcrun simctl install 60A4509A-5AD0-42B9-A1D0-7CEBA044F514 /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app
++ echo '===== KJØRING 1 (ren install) ====='
+===== KJØRING 1 (ren install) =====
++ P=70257
++ sleep 40
++ xcrun simctl launch --console-pty 60A4509A-5AD0-42B9-A1D0-7CEBA044F514 org.digipomps.haven --haven-runtime-diagnostics

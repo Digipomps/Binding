@@ -1,0 +1,74 @@
+[
+  {
+    "confidence" : 1,
+    "height" : 0.011834625667995979,
+    "text" : "Markdown Fixture",
+    "width" : 0.090116278330485022,
+    "x" : 0.45494186173592027,
+    "y" : 0.60444444430017907
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.013591731389363648,
+    "text" : "Markdown and rendered HTML",
+    "width" : 0.1569767379760742,
+    "x" : 0.42151162904975364,
+    "y" : 0.57751937993330049
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015620155334472585,
+    "text" : "Ingen handlinger kjørt ennå.",
+    "width" : 0.14389533996582032,
+    "x" : 0.42732558822929906,
+    "y" : 0.54833333308989851
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015710593859354582,
+    "text" : "# Markdown parity",
+    "width" : 0.095930233001708998,
+    "x" : 0.34011628001077338,
+    "y" : 0.52111111136088217
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.01360465102725561,
+    "text" : "This fixture keeps **source** and rendered HTML side by side.",
+    "width" : 0.31831395467122398,
+    "x" : 0.34156977082935874,
+    "y" : 0.48833333328362993
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.011782945526970678,
+    "text" : "- bullet one",
+    "width" : 0.05959302266438804,
+    "x" : 0.34011628011039313,
+    "y" : 0.45333333318464097
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.016564082569546223,
+    "text" : "- bullet two",
+    "width" : 0.059743061065673841,
+    "x" : 0.33858777206719115,
+    "y" : 0.43357842428534177
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015503875944349432,
+    "text" : "<article ><h2>Markdown parity<\/h2><p><strong>Rendered HTML<|strong> should stay readable across clients.<\/p><ul><li>bullet one<\/li><li>bullet two<\/li><\/ul><\/article>",
+    "width" : 0.86337209065755216,
+    "x" : 0.068313963304944797,
+    "y" : 0.40697674427588737
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015756333139207657,
+    "text" : "Toggle mode",
+    "width" : 0.066893132527669263,
+    "x" : 0.46655343290051587,
+    "y" : 0.37971873286850599
+  }
+]

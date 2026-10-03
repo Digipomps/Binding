@@ -1,0 +1,78 @@
+{
+  "createdAtUTC": "2026-09-30T01:22:43.711116+00:00",
+  "repos": {
+    "Binding": {
+      "revision": "b18e267d6e103c2bcb2ebda9f91215fc435861f2",
+      "branch": "codex/surface-parity-20260930",
+      "workingTreeClean": true
+    },
+    "CellProtocol": {
+      "revision": "41139185b00e2abb7b6c28c212fc64140e60d083",
+      "branch": "codex/surface-parity-20260930",
+      "workingTreeClean": true
+    },
+    "CellScaffold": {
+      "revision": "bdc9f8302691d8af7ee16e7f0fa659dddf500fac",
+      "branch": "codex/surface-parity-20260930",
+      "workingTreeClean": true
+    }
+  },
+  "app": "/tmp/HAVEN-SurfaceParity-Integrated-20260930/Build/Products/Debug/HAVEN.app",
+  "appExecutable": "HAVEN",
+  "appExecutableSHA256": "1c9b5704209c0d1e0134f607cb7cea49c1cde8b8093e4724a356e453f35befa9",
+  "provenance": {
+    "bindingCompilerArtifactSHA256": "604941c8ce275d070a0e88f2e5546ba99d76f01edade17776f6076262abe454b",
+    "bindingGitRevision": "b18e267d6e103c2bcb2ebda9f91215fc435861f2",
+    "bindingSourceTreeDirty": false,
+    "buildConfiguration": "Debug",
+    "cellProtocolArtifactSHA256": "b4466a6f123daedca74098f555e7cd93ca72e1c8d2c546870123a6dad5365b65",
+    "cellProtocolGitRevision": "41139185b00e2abb7b6c28c212fc64140e60d083",
+    "cellProtocolSourceTreeDirty": false,
+    "codeSigningEntitlementsSHA256": "992d85b8d7a3c85b56d5f2bce6ebeb4c35fdecb75e1d24291ea47c8afe3fa4c3",
+    "codeSigningIdentityFingerprint": "unsigned",
+    "codeSigningMode": "unsigned",
+    "codeSigningTeamIdentifier": "unsigned",
+    "compilerFlagsSHA256": "0cb972d88aac5f45b763a8c29057122355be81e22445c530c2b1ccade0939714",
+    "compilerInputCount": 103,
+    "compilerInputManifestSHA256": "eb64a4b841ea5d854293374962fc40fda7fbb887c887b800fe16f524623c022a",
+    "coverageDeclaration": "exact-head+dirty-state+xcode-swift-file-list+fs-synchronized-root-inventory+generated-swift+linked-cellprotocol-artifacts+declared-build-settings",
+    "filesystemSynchronizedSourceCount": 102,
+    "generatedAtUTC": "2026-09-30T01:22:08Z",
+    "generatedCompilerInputCount": 1,
+    "ignoredSourceLikeInputCount": 0,
+    "linkInputManifestSHA256": "f19b25760673023207e91e7322e3023801da8268ffc9a44c926248a87752691a",
+    "schema": "binding.build-provenance.v4",
+    "sdkName": "macosx27.0",
+    "toolchainSHA256": "4a8f1cd5be38471b9fa6c73f53046a48dff199d82ef12bc3384faccd8a2affa4"
+  },
+  "productionDependencyPinChanged": false,
+  "integrationWorkspace": "Integration.xcworkspace",
+  "installedOrDeployed": false,
+  "verification": {
+    "rendererTests": 188,
+    "bindingIntegrationTests": 30,
+    "catalogServerTests": 4,
+    "webFinalRegressionTests": 22,
+    "nativeAndWebCaptureScenarios": 70,
+    "testSummary": "integrated-delivery-summary.json",
+    "captureSummary": "capture-evidence-summary.json",
+    "testSources": "Same source bytes as committed candidate; final build refreshed revision provenance only."
+  },
+  "evidenceSHA256": {
+    "integrated-delivery-summary.json": "41d25e3a9239e2a1ce1f1618f6b418621207dfdfe9ef6b20e65469cf9bab53d5",
+    "capture-evidence-summary.json": "dbf507962d5f2fe6bf1e5b64aab4dabcb27f08df1e7e15bc9019d6d71474a793",
+    "parity-matrix.csv": "9b4f0da12544d9380338106acdae980fc5a990a00a27aa884c856a5c9c28ad81",
+    "renderer-skeleton-contract-tests-188.log": "c3e22387b6cb87ef68a6b33051a09aea150eaca24a56acd389b4a4fbd8bc630b",
+    "gallery-smoke.json": "75ae484627839204b11ec7826f8036ed977c9addb7f912ecffb6ec843eb2ef2d",
+    "visual-review.json": "ce5fb82c4dce377a694fb4e14405de0fda94136b925fa0fb93ea34c271631eb9",
+    "learning-evidence.json": "ff558459a29a64f60f992b5a006864df2e90ff700c1322b82d15a15130b9874f",
+    "REPORT.md": "e3414170e84b9dc8de3e6ef78cded09521e9a685dcb908afecab0643af61e5ea"
+  },
+  "note": "Locally committed and built repair candidate. General remote bridge, complete visual identity, production release and unsupported source-aware mounted types remain outside verified scope.",
+  "appCodeSHA256": {
+    "HAVEN": "1c9b5704209c0d1e0134f607cb7cea49c1cde8b8093e4724a356e453f35befa9",
+    "HAVEN.debug.dylib": "6c287cfa3fdba646c9001981f2b6caa5cf1a58b31d2109275f1cbd6d8b48a6a4",
+    "__preview.dylib": "482ba18c75da1cd9f7a2ad4c70bce28c0146ed086688ef996b82cd2c54082fa9"
+  },
+  "appCodeNote": "Xcode Debug uses a small executable launcher and a separate debug dylib; the launcher hash alone is not a source-change hash."
+}

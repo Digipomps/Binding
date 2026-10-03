@@ -1,0 +1,14 @@
+{
+  "Documentation/PersonalCopilotV1_CloudCells.md": "243ad402d925ccf987b8ceaf3459582b45320c197e23e7f30c0784a4b5d44ec6",
+  "Sources/App/Cells/PersonalCopilot/PersonalCopilotCells.swift": "2debf60e5b4e39ef84413f3b3ea7b5ce06e4fe6deca67c6fb12f3a9801604ac1",
+  "Sources/App/Controllers/VaporPersonalCopilot.swift": "1fce94007b4d153377d98b780cc5f02285f0a6af5e6f44c5f6cdb5c1ee8eeb45",
+  "Tests/AppTests/PersonalCopilotV1Tests.swift": "e7273fb281023232b7d3e8ef65f604d0e8806a13ba730ea6b261ba26c907c406",
+  "Public/js/conference-mvp.js": "2491e402078826f5bcfc19269ef39cb3e882549a4d12038d9690b9af771951d4",
+  "scripts/conference-renderer-data.test.js": "8fcdf3a6b8a515bb6e84c4bb22bbf0382f6eb9598b94e5696afb2a09fcc5a320",
+  "package.json": "e0ac21e144e85bc4d143c142998f61302474108b091291b00c2edf6b2332a917",
+  "Public/js/skeleton-runtime.js": "4f957ac8206f6777b7845d3cc41eec10c94bfb7ca8ca572f77c95cff6735b508",
+  "playwright/skeleton-list-static-elements.spec.js": "0748bf849f640cf3de0f5d25c0573c29856406b0a9fd4e17f44aa0d3dbc4a553",
+  "Package.resolved": "422c542703d177dc35b5c1a2672ed884078a580584351fab615a334a649cf183",
+  "Tests/fixtures/SkeletonElementParityMatrix.v1.json": "89af87803bcf8b1995bcd5b9559b828f8106b8f7e506c11d2c899f19427c1f00",
+  "playwright/skeleton-element-catalog.spec.js": "7344a12ccb637d78cb38a16881fee7078aa2d67cbe7fe9f08df4dc2087747583"
+}

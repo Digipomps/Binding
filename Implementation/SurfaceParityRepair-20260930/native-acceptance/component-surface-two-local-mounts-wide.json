@@ -1,0 +1,26 @@
+{
+  "expectedTextCount" : 4,
+  "materialized" : false,
+  "missingExpectedText" : [
+
+  ],
+  "observedStyleTokens" : [
+
+  ],
+  "pixelHeight" : 2000,
+  "pixelWidth" : 2560,
+  "rasterResults" : [
+
+  ],
+  "recognizedText" : "Program\nFra verten\nOppdater\nComponentSurface: source actions require a host adapter (mount metadata).\nSesioner\nFra verten\nOppdater\nComponentSurface: source actions require a host adapter (mount metadata).\nProgram\nFra verten\nOppdater\nComponentSurface: source actions require a host adapter (mount metadata).\nSesjoner\nFra verten\nOppdater\nComponentSurface: source actions require a host adapter (mount metadata).\n\n\n",
+  "rootDataSupplied" : true,
+  "styleNormalizationApplied" : false,
+  "surface" : {
+    "backgroundHex" : "#FFFFFF",
+    "contentMaxWidth" : 1180,
+    "height" : 1000,
+    "isDarkMode" : false,
+    "padding" : 16,
+    "width" : 1280
+  }
+}

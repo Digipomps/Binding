@@ -1,0 +1,182 @@
+[
+  {
+    "dataSource" : "frozen real chat factory\/Cell fixture; no live resolver or identity",
+    "file" : "native-chat-desktop.png",
+    "height" : 900,
+    "outcome" : "captured",
+    "pngBytes" : 188500,
+    "slug" : "chat",
+    "width" : 1200
+  },
+  {
+    "dataSource" : "frozen real chat factory\/Cell fixture; no live resolver or identity",
+    "file" : "native-chat-compact.png",
+    "height" : 844,
+    "outcome" : "captured",
+    "pngBytes" : 139698,
+    "slug" : "chat",
+    "width" : 390
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-text-desktop.png",
+    "height" : 900,
+    "outcome" : "captured",
+    "pngBytes" : 157869,
+    "slug" : "text",
+    "width" : 1200
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-text-compact.png",
+    "height" : 844,
+    "outcome" : "captured",
+    "pngBytes" : 112218,
+    "slug" : "text",
+    "width" : 390
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-list-desktop.png",
+    "height" : 900,
+    "outcome" : "captured",
+    "pngBytes" : 153876,
+    "slug" : "list",
+    "width" : 1200
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-list-compact.png",
+    "height" : 844,
+    "outcome" : "captured",
+    "pngBytes" : 93681,
+    "slug" : "list",
+    "width" : 390
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-grid-desktop.png",
+    "height" : 900,
+    "outcome" : "captured",
+    "pngBytes" : 128482,
+    "slug" : "grid",
+    "width" : 1200
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-grid-compact.png",
+    "height" : 844,
+    "outcome" : "captured",
+    "pngBytes" : 80448,
+    "slug" : "grid",
+    "width" : 390
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-form-desktop.png",
+    "height" : 900,
+    "outcome" : "captured",
+    "pngBytes" : 139883,
+    "slug" : "form",
+    "width" : 1200
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-form-compact.png",
+    "height" : 844,
+    "outcome" : "captured",
+    "pngBytes" : 81901,
+    "slug" : "form",
+    "width" : 390
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-markdown-desktop.png",
+    "height" : 900,
+    "outcome" : "captured",
+    "pngBytes" : 143939,
+    "slug" : "markdown",
+    "width" : 1200
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-markdown-compact.png",
+    "height" : 844,
+    "outcome" : "captured",
+    "pngBytes" : 96450,
+    "slug" : "markdown",
+    "width" : 390
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-relative-keypath-desktop.png",
+    "height" : 900,
+    "outcome" : "captured",
+    "pngBytes" : 125366,
+    "slug" : "relative-keypath",
+    "width" : 1200
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-relative-keypath-compact.png",
+    "height" : 844,
+    "outcome" : "captured",
+    "pngBytes" : 67365,
+    "slug" : "relative-keypath",
+    "width" : 390
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-nested-reference-desktop.png",
+    "height" : 900,
+    "outcome" : "captured",
+    "pngBytes" : 127045,
+    "slug" : "nested-reference",
+    "width" : 1200
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-nested-reference-compact.png",
+    "height" : 844,
+    "outcome" : "captured",
+    "pngBytes" : 70348,
+    "slug" : "nested-reference",
+    "width" : 390
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-remote-bridge-desktop.png",
+    "height" : 900,
+    "outcome" : "captured",
+    "pngBytes" : 154949,
+    "slug" : "remote-bridge",
+    "width" : 1200
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-remote-bridge-compact.png",
+    "height" : 844,
+    "outcome" : "captured",
+    "pngBytes" : 103050,
+    "slug" : "remote-bridge",
+    "width" : 390
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-unavailable-desktop.png",
+    "height" : 900,
+    "outcome" : "captured",
+    "pngBytes" : 114216,
+    "slug" : "unavailable",
+    "width" : 1200
+  },
+  {
+    "dataSource" : "saved public HTTP fixture; no live resolver or identity",
+    "file" : "native-unavailable-compact.png",
+    "height" : 844,
+    "outcome" : "captured",
+    "pngBytes" : 58477,
+    "slug" : "unavailable",
+    "width" : 390
+  }
+]

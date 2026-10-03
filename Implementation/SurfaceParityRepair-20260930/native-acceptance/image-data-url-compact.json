@@ -1,0 +1,73 @@
+{
+  "expectedTextCount" : 0,
+  "materialized" : false,
+  "missingExpectedText" : [
+
+  ],
+  "observedStyleTokens" : [
+
+  ],
+  "pixelHeight" : 2000,
+  "pixelWidth" : 780,
+  "rasterResults" : [
+    {
+      "expected" : {
+        "minimumPixels" : 100,
+        "rgb" : [
+          220,
+          40,
+          40
+        ],
+        "tolerance" : 20
+      },
+      "matchingPixels" : 961
+    },
+    {
+      "expected" : {
+        "minimumPixels" : 100,
+        "rgb" : [
+          20,
+          170,
+          70
+        ],
+        "tolerance" : 20
+      },
+      "matchingPixels" : 961
+    },
+    {
+      "expected" : {
+        "minimumPixels" : 100,
+        "rgb" : [
+          30,
+          90,
+          220
+        ],
+        "tolerance" : 20
+      },
+      "matchingPixels" : 961
+    },
+    {
+      "expected" : {
+        "minimumPixels" : 100,
+        "rgb" : [
+          245,
+          195,
+          20
+        ],
+        "tolerance" : 20
+      },
+      "matchingPixels" : 961
+    }
+  ],
+  "recognizedText" : "",
+  "rootDataSupplied" : true,
+  "styleNormalizationApplied" : false,
+  "surface" : {
+    "backgroundHex" : "#FFFFFF",
+    "contentMaxWidth" : 1180,
+    "height" : 1000,
+    "isDarkMode" : false,
+    "padding" : 16,
+    "width" : 390
+  }
+}

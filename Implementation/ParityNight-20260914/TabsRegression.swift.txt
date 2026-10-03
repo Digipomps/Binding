@@ -1,0 +1,59 @@
+    #if os(macOS)
+    func testDynamicTabsRenderLocalLabelsAndSelectionAndClearRemovedRows() async throws {
+        XCTAssertNil(CellBase.defaultCellResolver, "Rendering must not use real cells")
+        XCTAssertNil(CellBase.defaultIdentityVault, "Rendering must not use real identities")
+        let tabs = SkeletonTabs(tabsKeypath: "tabs", activeTabStateKeypath: "active", panels: [
+            SkeletonTabPanel(id: "one", content: [.Text(SkeletonText(text: "FIRST PANEL"))]),
+            SkeletonTabPanel(id: "two", content: [.Text(SkeletonText(text: "SECOND PANEL"))])
+        ])
+        let model = PortholeViewModel()
+        func content(_ state: ValueType) -> some View {
+            VStack {
+                Text("PARITY HOST")
+                BindingSkeletonView(element: .Tabs(tabs), userInfoValue: state)
+            }.environmentObject(model).font(.system(size: 24)).padding(20)
+        }
+        let host = NSHostingView(rootView: content(.object([:])))
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 620, height: 320),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        window.makeKeyAndOrderFront(nil)
+        defer { window.close() }
+        func visibleText(_ state: ValueType) async throws -> String {
+            host.rootView = content(state)
+            for _ in 0..<8 {
+                host.layoutSubtreeIfNeeded()
+                host.displayIfNeeded()
+                try await Task.sleep(nanoseconds: 50_000_000)
+            }
+            let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+            host.cacheDisplay(in: host.bounds, to: bitmap)
+            let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.usesLanguageCorrection = false
+            try VNImageRequestHandler(data: png).perform([request])
+            return (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
+        }
+        let rows: ValueType = .list([
+            .object(["id": .string("one"), "title": .string("ALPHA TAB")]),
+            .object(["id": .string("two"), "title": .string("BETA TAB")])
+        ])
+        let initial = try await visibleText(.object(["tabs": rows, "active": .string("two")]))
+        XCTAssertTrue(initial.contains("ALPHA TAB"), initial)
+        XCTAssertTrue(initial.contains("BETA TAB"), initial)
+        XCTAssertTrue(initial.contains("SECOND PANEL"), initial)
+        XCTAssertFalse(initial.contains("FIRST PANEL"), initial)
+        for removed in [ValueType.object(["tabs": .list([])]), .object([:])] {
+            let empty = try await visibleText(removed)
+            XCTAssertTrue(empty.contains("PARITY HOST"), empty)
+            XCTAssertFalse(empty.contains("PANEL"), empty)
+            XCTAssertFalse(empty.contains("TAB"), empty)
+        }
+        let refreshed = try await visibleText(.object(["tabs": rows, "active": .string("one")]))
+        XCTAssertTrue(refreshed.contains("FIRST PANEL"), refreshed)
+        XCTAssertFalse(refreshed.contains("SECOND PANEL"), refreshed)
+    }
+    #endif
+

@@ -165,7 +165,7 @@ public enum PersonalButlerWakeOutcome: Equatable, Sendable {
 public actor PersonalButlerScheduleService {
     public static let remoteWakeActionID = "personal.butler.haven.wake"
     public static let remoteWakeTopic = "personal.butler.wake"
-    public static let havenBundleIdentifier = "org.digipomps.havenplayground"
+    public static let havenBundleIdentifier = "org.digipomps.haven"
 
     public typealias Now = @Sendable () -> Date
     public typealias Sleep = @Sendable (UInt64) async throws -> Void

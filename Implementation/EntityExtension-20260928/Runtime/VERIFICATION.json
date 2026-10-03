@@ -1,0 +1,71 @@
+{
+  "date": "2026-09-28",
+  "state": "local runtime candidate; not deployed",
+  "repositories": {
+    "CellProtocol": {
+      "worktree": "/private/tmp/haven-owner-attach-runtime/CellProtocol",
+      "branch": "codex/owner-attach-entity-extension-20260929",
+      "base": "81601a6f835252aba7e99d43786fb5d67227c245",
+      "patch": "CellProtocol.patch",
+      "sha256": "f628bca97ec1166dd07298aa1057b80cdca15406a918ef537cc1b37e83ad9086",
+      "new_files": [
+        "Docs/Owner_Attach_Entity_Presence.md",
+        "Sources/CellBase/Identity/OwnerAttachEncryptedStore.swift",
+        "Sources/CellBase/Identity/OwnerAttachEntityExtension.swift",
+        "Sources/CellBase/Identity/OwnerAttachEntityExtensionClient.swift",
+        "Tests/CellBaseTests/OwnerAttachEntityExtensionTests.swift",
+        "fixtures/owner-attach/v1/README.md",
+        "fixtures/owner-attach/v1/offer-missing-signature.json"
+      ]
+    },
+    "CellScaffold": {
+      "worktree": "/private/tmp/haven-owner-attach-runtime/CellScaffold",
+      "branch": "codex/owner-attach-runtime-20260928",
+      "base": "adf48d4615d1ed143d5bdc190fcf63e266214c8f",
+      "patch": "CellScaffold.patch",
+      "sha256": "9452b602858cc05d286fbe80bc0d5a24ed6b584b43d074676092fa5ce1436493",
+      "new_files": [
+        "Sources/App/Support/OwnerAttachRuntimeSupport.swift"
+      ]
+    },
+    "Binding": {
+      "worktree": "/Users/kjetil/.codex/worktrees/entity-extension-security-20260928/Binding",
+      "branch": "codex/entity-extension-security-20260928",
+      "base": "ff3b20cab63d5ed9bb78f77b5979ebfe53a2a410",
+      "patch": "Binding.patch",
+      "sha256": "a4ff76cec1362005dfe5c35fea84e45de1c5778e91ed3e7ed5810a7155e610c8",
+      "new_files": [
+        "Binding/BindingOwnerAttachExtension.swift",
+        "Binding/OwnerAttachRuntimeFixture.swift",
+        "Documentation/EntityExtension-20260928/RUNTIME_IMPLEMENTATION.md",
+        "OwnerAttachRuntime.xcworkspace/contents.xcworkspacedata"
+      ]
+    }
+  },
+  "verification": {
+    "CellProtocol": {
+      "passed": 101,
+      "log": "core-final-tests.log"
+    },
+    "Binding": {
+      "XCTest": 12,
+      "SwiftTesting": 3,
+      "result": "TEST SUCCEEDED",
+      "xcresult": "/private/tmp/haven-entity-security-20260928/Logs/Test/Test-HAVEN-2026.09.28_19-18-39-+0200.xcresult"
+    },
+    "UIAutomation": "Blocked before runner initialization by macOS System authentication is running",
+    "CellScaffoldBuild": "Blocked before compile: bounded SwiftPM cache lacks ownership marker",
+    "iOS": "not verified",
+    "SproutAgentMenuHelper": "not integrated",
+    "deployment": "none",
+    "nativeGUI": {
+      "result": "passed via computer-use accessibility interactions",
+      "fixture": "--owner-attach-runtime-test",
+      "autoConsent": "presence 1, completions 1",
+      "repeatAttach": "presence 1, completions 2; no repeat prompt",
+      "cancelFreshProcess": "cell remains connected; completions 0",
+      "scope": "ephemeral keys, memory storage, local GeneralCell; no external server"
+    },
+    "finalNativeBuild": "BUILD SUCCEEDED using OwnerAttachRuntime.xcworkspace after fixed policy expiry"
+  }
+}

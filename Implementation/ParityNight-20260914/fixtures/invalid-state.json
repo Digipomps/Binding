@@ -1,0 +1,5 @@
+{
+  "expectedFailure" : "Renderer\/client should treat configuration fetch as a hard, explicit failure.",
+  "headline" : "Intentional invalid fixture",
+  "status" : "Use the route-level 422 configuration response for this fixture."
+}

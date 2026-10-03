@@ -1,0 +1,147 @@
+warning: 'cellprotocol': found 3 file(s) which are unhandled; explicitly declare them as resources or exclude from the target
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell-Design.md
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/Architecture.md
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/ChatLog.md
+Building for debugging...
+[Computing dependencies]
+[Using on-disk description]
+[2 / 6] CellApple
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/Suggestion/SkeletonNativeStyle.swift:264:9: warning: stored property 'edges' of 'Sendable'-conforming struct 'SkeletonBorderShape' contains non-Sendable type 'SkeletonEdge'; this is an error in the Swift 6 language mode
+262 | struct SkeletonBorderShape: Shape {
+263 |     let radius: CGFloat
+264 |     let edges: [SkeletonEdge]?
+    |         `- warning: stored property 'edges' of 'Sendable'-conforming struct 'SkeletonBorderShape' contains non-Sendable type 'SkeletonEdge'; this is an error in the Swift 6 language mode
+265 |     let rtl: Bool
+266 |     func path(in rect: CGRect) -> Path {
+
+CellBase.SkeletonEdge:1:13: note: enum 'SkeletonEdge' does not conform to the 'Sendable' protocol
+1 | public enum SkeletonEdge : String, Codable {
+  |             `- note: enum 'SkeletonEdge' does not conform to the 'Sendable' protocol
+2 |     case top
+3 |     case leading
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/Suggestion/SkeletonNativeStyle.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  3 | 
+  4 | import SwiftUI
+  5 | import CellBase
+    | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  6 | #if os(macOS)
+  7 | import AppKit
+
+[#AddPreconcurrencyImport]: <https://docs.swift.org/compiler/documentation/diagnostics/add-preconcurrency-import>
+[3 / 7] CellApple
+[8 / 9] HeapModule
+[10 / 12] CellApple
+[12 / 13] NIOSOCKS
+[13 / 16] CellBaseTests-product
+[15 / 16] CellBaseTests-product
+[16 / 19] CellBaseTests-product
+[20 / 20] CellBaseTests-product
+[21 / 21] CellApple-product
+Build complete! (9,06 sek)
+Test Suite 'Selected tests' started at 2026-09-30 02:57:44.165.
+Test Suite 'HavenCommonsTests.xctest' started at 2026-09-30 02:57:44.165.
+Test Suite 'HavenCommonsTests.xctest' passed at 2026-09-30 02:57:44.165.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 02:57:44.165.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'Selected tests' started at 2026-09-30 02:57:44.223.
+Test Suite 'CellNearbyTests.xctest' started at 2026-09-30 02:57:44.224.
+Test Suite 'CellNearbyTests.xctest' passed at 2026-09-30 02:57:44.224.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 02:57:44.224.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'Selected tests' started at 2026-09-30 02:57:44.283.
+Test Suite 'CellBaseTests.xctest' started at 2026-09-30 02:57:44.283.
+Test Suite 'SkeletonNativeSurfaceParityRepairTests' started at 2026-09-30 02:57:44.283.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testCanonicalImageDataURLPaintsAllFourSourceColors]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testCanonicalImageDataURLPaintsAllFourSourceColors]' passed (0.268 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testChatPromptRowsKeepSpeakerBodyAndRootBindingsWithNativeBubbleAppearance]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testChatPromptRowsKeepSpeakerBodyAndRootBindingsWithNativeBubbleAppearance]' passed (0.302 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testChatRowDefaultsNeverReplaceExplicitRowModifiers]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testChatRowDefaultsNeverReplaceExplicitRowModifiers]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testExplicitListViewportKeepsItsHeight]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testExplicitListViewportKeepsItsHeight]' passed (0.179 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testFlowConstrainsLongItemAndPreservesSmallItemIntrinsicWidths]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testFlowConstrainsLongItemAndPreservesSmallItemIntrinsicWidths]' passed (0.267 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testMaximumListHeightCapsRatherThanExpandsShortContent]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testMaximumListHeightCapsRatherThanExpandsShortContent]' passed (0.179 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testOriginalChipRolesProduceCompactPillsAndEmptyListTakesNoSpace]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testOriginalChipRolesProduceCompactPillsAndEmptyListTakesNoSpace]' passed (0.382 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPickerDisplaysFirstRequiredOptionAndPreservesExplicitOrEmptySelection]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPickerDisplaysFirstRequiredOptionAndPreservesExplicitOrEmptySelection]' passed (0.642 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeColumnTextHonorsExplicitWidthFillAndAlignment]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeColumnTextHonorsExplicitWidthFillAndAlignment]' passed (0.841 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeHostDefaultsPreservePortableOverridesAndControlOptOuts]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeHostDefaultsPreservePortableOverridesAndControlOptOuts]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeHostRenderedOverridesKeepColorsTypographyPlainAndOpacity]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeHostRenderedOverridesKeepColorsTypographyPlainAndOpacity]' passed (0.380 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeLightHostRendersAndEditsRealControlsWithoutChangingPayload]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeLightHostRendersAndEditsRealControlsWithoutChangingPayload]' passed (0.712 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeListBadgeBoundsAndRowSpacingMatchColumnHost]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeListBadgeBoundsAndRowSpacingMatchColumnHost]' passed (0.479 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeNavigationPaintsPanelInsetsAndActiveItem]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeNavigationPaintsPanelInsetsAndActiveItem]' passed (0.362 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholePanelPortableOverridesRemainAuthoritative]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholePanelPortableOverridesRemainAuthoritative]' passed (0.475 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeTablePaintsRoundedPanelAndCompactHeader]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeTablePaintsRoundedPanelAndCompactHeader]' passed (0.376 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeTextFillsColumnsButHorizontalAndFlowBadgesStayIntrinsic]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testPortholeTextFillsColumnsButHorizontalAndFlowBadgesStayIntrinsic]' passed (1.080 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceOnlyFallsBackToFilteredFlowWhenLocalValueIsAbsent]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceOnlyFallsBackToFilteredFlowWhenLocalValueIsAbsent]' passed (0.759 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceRendersLocalRowsWithItemAndRootContext]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testReferenceRendersLocalRowsWithItemAndRootContext]' passed (0.232 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testRoleDefaultsPreserveExplicitModifiersAndUnrecognizedRoles]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testRoleDefaultsPreserveExplicitModifiersAndUnrecognizedRoles]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testSectionUsesPortholeBaseDecorationAndHonorsExplicitBackground]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testSectionUsesPortholeBaseDecorationAndHonorsExplicitBackground]' passed (0.179 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testStackAlignmentPositionsNarrowContentInsideFullWidth]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testStackAlignmentPositionsNarrowContentInsideFullWidth]' passed (0.351 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testUnboundedListUsesContentHeightAndContextRowsWithoutSwallowingFollowingAction]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testUnboundedListUsesContentHeightAndContextRowsWithoutSwallowingFollowingAction]' passed (0.222 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testVisualizationTableUsesColumnKeysRatherThanDisplayLabels]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testVisualizationTableUsesColumnKeysRatherThanDisplayLabels]' passed (0.629 seconds).
+Test Suite 'SkeletonNativeSurfaceParityRepairTests' passed at 2026-09-30 02:57:53.581.
+	 Executed 24 tests, with 0 failures (0 unexpected) in 9.295 (9.297) seconds
+Test Suite 'CellBaseTests.xctest' passed at 2026-09-30 02:57:53.581.
+	 Executed 24 tests, with 0 failures (0 unexpected) in 9.295 (9.297) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 02:57:53.581.
+	 Executed 24 tests, with 0 failures (0 unexpected) in 9.295 (9.298) seconds
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************

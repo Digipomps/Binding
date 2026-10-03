@@ -783,7 +783,7 @@ struct BindingTests {
             "Publish Public Profile",
             "Public Profile Directory",
             "Matches",
-            "Co-Pilot",
+            "Butler Chat",
             "Agenda Context",
             "Butterpop Studio",
             "Calendar",
@@ -794,6 +794,7 @@ struct BindingTests {
             "Apple Intelligence Purpose Matcher",
             "Entity Scanner",
             "Workflow Studio",
+            "Palazzo Concierge",
             // Relations, contact import and invitation share one surface; the
             // two entity-governance surfaces stand on their own.
             "Relasjoner",
@@ -1032,6 +1033,7 @@ struct BindingTests {
         )
     }
 
+    @MainActor
     @Test func personalCopilotInviteChatStaysChatFirstAndDropsTechnicalInviteFields() throws {
         let configuration = ConfigurationCatalogCell.personalInviteChatMenuConfiguration()
 
@@ -1083,11 +1085,11 @@ struct BindingTests {
                 Issue.record("Co-Pilot Chat Samtale tab should render the prompt log")
             }
             #expect(!skeletonContainsButton(keypath: "chatHub.assistant.analyzeDraft", in: conversationPanel))
-            #expect(skeletonContainsButton(keypath: "chatHub.ui.openSuggestedHelper", label: "↑", in: conversationPanel))
+            #expect(skeletonContainsButton(keypath: "chatHub.prompt.submit", label: "↑", in: conversationPanel))
             func primaryActionButton(in element: SkeletonElement) -> SkeletonButton? {
                 switch element {
                 case .Button(let button):
-                    return button.keypath == "chatHub.ui.openSuggestedHelper" && button.label == "↑" ? button : nil
+                    return button.keypath == "chatHub.prompt.submit" && button.label == "↑" ? button : nil
                 case .VStack(let stack):
                     return stack.elements.lazy.compactMap(primaryActionButton).first
                 case .HStack(let stack):
@@ -1111,7 +1113,7 @@ struct BindingTests {
             #expect(skeletonContainsTextKeypath("chatHub.state.ui.primaryActionHint", in: conversationPanel))
             #expect(skeletonContainsTabs(tabsKeypath: "chatHub.state.ui.activeHelpers", in: conversationElement))
             #expect(!skeletonContainsLiteralText("Trykk pilen", in: conversationPanel))
-            #expect(!skeletonContainsButton(keypath: "chatHub.prompt.submit", in: conversationPanel))
+            #expect(skeletonContainsButton(keypath: "chatHub.ui.openSuggestedHelper", label: "Åpne forslag", in: conversationPanel))
             #expect(!skeletonContainsButton(keypath: "chatHub.clearComposer", in: conversationPanel))
             #expect(!skeletonContainsButton(keypath: "chatHub.assistant.dismissSuggestion", in: conversationPanel))
             #expect(!skeletonContainsButton(keypath: "chatHub.voice.requestPermission", in: conversationPanel))
@@ -1720,7 +1722,7 @@ struct BindingTests {
         #expect(references.contains(where: { $0.endpoint == "cell:///PersonalChatHub" && $0.label == "chatHub" }))
         #expect(skeletonContainsTextArea(targetKeypath: "chatHub.setComposer", in: workingSkeleton))
         #expect(skeletonContainsList(keypath: "chatHub.state.ui.promptMessages", topic: nil, in: workingSkeleton))
-        #expect(skeletonContainsButton(keypath: "chatHub.ui.openSuggestedHelper", label: "↑", in: workingSkeleton))
+        #expect(skeletonContainsButton(keypath: "chatHub.prompt.submit", label: "↑", in: workingSkeleton))
         #expect(!skeletonContainsButton(keypath: "chatHub.sendComposedMessage", in: workingSkeleton))
     }
 
@@ -2113,6 +2115,43 @@ struct BindingTests {
         #expect(!RemoteCatalogSupport.shouldAttemptAdmission(for: "cell:///ConfigurationCatalog"))
         #expect(RemoteCatalogSupport.shouldAttemptAdmission(for: "cell://staging.haven.digipomps.org/ConfigurationCatalog"))
         #expect(RemoteCatalogSupport.shouldAttemptAdmission(for: "wss://staging.haven.digipomps.org/bridgehead/ConfigurationCatalog"))
+    }
+
+    @Test func remoteRoutesNeverDowngradeAPublicHostToCleartext() {
+        // A public host resolves to TLS in every build. This is a rule about the host,
+        // not an allowlist of known hosts, so a newly seen host is safe by default.
+        #expect(RemoteEndpointAccessSupport.route(forHost: "haven.digipomps.org").schemePreference == .wss)
+        #expect(RemoteEndpointAccessSupport.route(forHost: "staging.haven.digipomps.org").schemePreference == .wss)
+        #expect(RemoteEndpointAccessSupport.route(forHost: "agent.binding.test").schemePreference == .wss)
+        #expect(RemoteEndpointAccessSupport.websocketScheme(forHost: "haven.digipomps.org") == "wss")
+
+        // Loopback keeps the runtime decision so local development can still use ws.
+        #expect(RemoteEndpointAccessSupport.route(forHost: "127.0.0.1").schemePreference == .automatic)
+        #expect(RemoteEndpointAccessSupport.route(forHost: "localhost").schemePreference == .automatic)
+        #expect(
+            RemoteEndpointAccessSupport.websocketScheme(forHost: "127.0.0.1")
+                == (CellBase.allowsInsecureWebSockets ? "ws" : "wss")
+        )
+    }
+
+    @Test func explicitCleartextEndpointsAreUpgradedUnlessTheyAreLoopback() {
+        // The regression behind ATS -1022 on ws://haven.digipomps.org/bridgehead/...
+        #expect(
+            RemoteEndpointAccessSupport.canonicalRoute(
+                for: "ws://haven.digipomps.org/bridgehead/ArendalsukaParticipantProgram"
+            )?.schemePreference == .wss
+        )
+        #expect(
+            RemoteEndpointAccessSupport.canonicalRoute(
+                for: "cell://haven.digipomps.org/ArendalsukaParticipantProgram"
+            )?.schemePreference == .wss
+        )
+        // The local agent control bridge is loopback and stays on ws.
+        #expect(
+            RemoteEndpointAccessSupport.canonicalRoute(
+                for: "ws://127.0.0.1:43110/bridgehead/agent-identity"
+            )?.schemePreference == .ws
+        )
     }
 
     @Test func remoteMenuRecoverySkipsStagingEndpointsDuringMenuBuild() {
@@ -4340,13 +4379,20 @@ struct BindingTests {
                 Issue.record("\(decoded.name) mangler lokal EntityScanner-referanse")
                 continue
             }
-            #expect(scannerReference.setKeysAndValues.first(where: { $0.key == "start" })?.value == .bool(true))
+            let startsAutomatically = scannerReference.setKeysAndValues.first(where: { $0.key == "start" })?.value
+            #expect(startsAutomatically == (decoded.name == "Entity Scanner" ? nil : .bool(true)))
 
             guard let skeleton = decoded.skeleton else {
                 Issue.record("\(decoded.name) mangler skeleton")
                 continue
             }
 
+            if decoded.name == "Entity Scanner" {
+                let encodedSkeleton = String(decoding: try JSONEncoder().encode(skeleton), as: UTF8.self)
+                #expect(encodedSkeleton.contains("scanner.radar"))
+                #expect(!encodedSkeleton.contains("nearbyRadar.state.radarLayout"))
+                continue
+            }
             #expect(skeletonContainsTextKeypath("nearbyRadar.state.statusSummary", in: skeleton))
             #expect(skeletonContainsTextKeypath("nearbyRadar.state.spatialTruthSummary", in: skeleton))
             #expect(skeletonContainsTextKeypath("nearbyRadar.state.radarLayout.center.title", in: skeleton))
@@ -4552,7 +4598,12 @@ struct BindingTests {
         let effective = ContentView.effectiveDemoStartConfiguration(storedConfiguration: stale)
 
         #expect(ContentView.shouldRefreshStoredDemoStartConfiguration(stale))
-        #expect(effective.name == "Co-Pilot")
+        // Navnet paa denne flaten er en produktbeslutning som allerede har
+        // endret seg flere ganger. Identiteten testes derfor paa endepunktet,
+        // som er kontrakten - ikke paa strengen brukeren ser.
+        #expect(effective.cellReferences?.contains(where: {
+            $0.label == "chatHub" && $0.endpoint == "cell:///PersonalChatHub"
+        }) == true)
         if let skeleton = effective.skeleton {
             #expect(!skeletonContainsLiteralText("Start her", in: skeleton))
             #expect(skeletonTabPanel(id: "hjelp", in: skeleton) != nil)
@@ -4575,7 +4626,8 @@ struct BindingTests {
         let configuration = ContentView.defaultDemoStartConfiguration()
 
         if BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled {
-            #expect(configuration.name == "Co-Pilot")
+            // Produktmodus verifiseres paa hvilken celle flaten peker paa,
+            // ikke paa visningsnavnet.
             #expect(configuration.cellReferences?.contains(where: {
                 $0.label == "chatHub" && $0.endpoint == "cell:///PersonalChatHub"
             }) == true)
@@ -10807,14 +10859,29 @@ enum CellConfigurationVerifier {
         )
     }
 
+    /// Waits until every reference label has finished attaching.
+    ///
+    /// `ConnectionStatus.active` is only true once the label has a subscribed
+    /// feed, and `CellResolver.connectToLoadedCell` calls `absorbFlow` — the one
+    /// thing that registers a feed — only when `reference.subscribeFeed` is
+    /// true. Waiting on `active` for a reference that does not subscribe is
+    /// therefore waiting on a condition that can never become true, and it
+    /// burned the whole 12 x 120 ms budget on every such surface: measured
+    /// 2026-08-29, 27 of 79 catalog surfaces sat at ~1440 ms while the other 52
+    /// finished in under 11 ms, with nothing in between. `connected` is the
+    /// right readiness signal for a non-subscribing reference.
     private static func waitForAttachedReferenceLabels(
         in references: [CellReference],
         porthole: OrchestratorCell,
         requester: Identity
     ) async throws {
-        let labels = references
-            .map { $0.label.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        var requiresActiveFeed: [String: Bool] = [:]
+        for reference in references {
+            let label = reference.label.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !label.isEmpty else { continue }
+            requiresActiveFeed[label] = (requiresActiveFeed[label] ?? false) || reference.subscribeFeed
+        }
+        let labels = Array(requiresActiveFeed.keys)
 
         guard !labels.isEmpty else { return }
 
@@ -10831,7 +10898,8 @@ enum CellConfigurationVerifier {
                     ) {
                         try await porthole.attachedStatus(for: label, requester: requester)
                     }
-                    if !status.active {
+                    let ready = (requiresActiveFeed[label] ?? false) ? status.active : status.connected
+                    if !ready {
                         pendingLabels.append(label)
                     }
                 } catch {

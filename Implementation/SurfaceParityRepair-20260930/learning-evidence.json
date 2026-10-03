@@ -1,0 +1,252 @@
+[
+  {
+    "capturedAt": "2026-09-30T01:58:28+02:00",
+    "dropped": false,
+    "evidence": "native-before/list-compact.json; renderer-skeleton-contract-tests.log; web-original/summary.json",
+    "id": "L-2026-09-30-visuell-skeleton-paritet-ma-testes-gjennom",
+    "kind": "pitfall",
+    "notes": [],
+    "session": null,
+    "source": "Binding/Implementation/SurfaceParityRepair-20260930",
+    "surface": "unknown",
+    "syncJob": "local",
+    "synced": true,
+    "syncedAt": "2026-09-30T01:59:19+02:00",
+    "tags": [
+      "context",
+      "parity",
+      "renderer",
+      "skeleton"
+    ],
+    "targets": [
+      {
+        "applied": true,
+        "appliedAt": "2026-09-30T01:59:19+02:00",
+        "created": false,
+        "hashAfter": "b3d5801500a3b0fca5aff9359104611b0296123a9a5f1d4f387467d2ce22c42e",
+        "hashBefore": "0b07af9de5db86610abdcc734b45fdb51af50535e5d365eb3d90e8ee480e271a",
+        "path": "CellScaffold/.claude/skills/binding-skeleton-parity-testing/SKILL.md",
+        "ref": "skill:binding-skeleton-parity-testing"
+      }
+    ],
+    "what": "Visuell Skeleton-paritet må testes gjennom faktisk BindingSkeletonView med bevarte List/Grid-itemkontekster, synlig-innholdskrav for hver fixture og eksplisitt webverts-tema.",
+    "why": ""
+  },
+  {
+    "capturedAt": "2026-09-30T02:06:35+02:00",
+    "dropped": false,
+    "evidence": "logs/cellscaffold-catalog-tests-round2.log; Tests/AppTests/PersonalCopilotV1Tests.swift",
+    "id": "L-2026-09-30-offentlig-statisk-katalog-discovery-ma-bruke",
+    "kind": "pitfall",
+    "notes": [],
+    "session": null,
+    "source": "Binding/Implementation/SurfaceParityRepair-20260930/TRANSPORT.md",
+    "surface": "unknown",
+    "syncJob": "local",
+    "synced": true,
+    "syncedAt": "2026-09-30T02:07:13+02:00",
+    "tags": [
+      "catalog",
+      "identity",
+      "public",
+      "resolver"
+    ],
+    "targets": [
+      {
+        "applied": true,
+        "appliedAt": "2026-09-30T02:07:13+02:00",
+        "created": false,
+        "hashAfter": "4d689381a7227863e24907ff70926dfbef143dd28757d5f8cb4028d911e85a72",
+        "hashBefore": "e567be659eeac21b2a8fd9e9fa7ced3f71904f6550f31b3a94c33bff61b16e94",
+        "path": "CellScaffold/.claude/skills/cellprotocol-identity-capability-security/SKILL.md",
+        "ref": "skill:cellprotocol-identity-capability-security"
+      }
+    ],
+    "what": "Offentlig statisk katalog-discovery må bruke eksplisitt Resolver-lesemodell og ephemeral leser, ikke opprette sentral personal-copilot-v1-identitet for anonyme GET-kall.",
+    "why": ""
+  },
+  {
+    "capturedAt": "2026-09-30T02:24:52+02:00",
+    "dropped": false,
+    "evidence": "",
+    "id": "L-2026-09-30-full-elementparitet-krever-gyldige-bildefixtures",
+    "kind": "pitfall",
+    "notes": [],
+    "session": null,
+    "source": "Binding/Implementation/SurfaceParityRepair-20260930",
+    "surface": "unknown",
+    "syncJob": "local",
+    "synced": true,
+    "syncedAt": "2026-09-30T02:25:28+02:00",
+    "tags": [],
+    "targets": [
+      {
+        "applied": true,
+        "appliedAt": "2026-09-30T02:25:23+02:00",
+        "created": false,
+        "hashAfter": "f195d79f0b9d3327f3b2b28eec9326ca59aa2f826d2cfa279279b8338885206c",
+        "hashBefore": "b3d5801500a3b0fca5aff9359104611b0296123a9a5f1d4f387467d2ce22c42e",
+        "path": "CellScaffold/.claude/skills/binding-skeleton-parity-testing/SKILL.md",
+        "ref": "skill:binding-skeleton-parity-testing"
+      }
+    ],
+    "what": "Full elementparitet krever gyldige bildefixtures og målte rasterfarger, verdier i tabellceller og Reference item/root, samt bound-deretter-static List-rader; dekoding eller elementtilstedeværelse alene ga falske grønne tester.",
+    "why": ""
+  },
+  {
+    "capturedAt": "2026-09-30T02:36:22+02:00",
+    "dropped": false,
+    "evidence": "",
+    "id": "L-2026-09-30-native-porthole-tema-ma-teste-faktisk-musetrykk",
+    "kind": "pitfall",
+    "notes": [],
+    "session": null,
+    "source": "Binding/Implementation/SurfaceParityRepair-20260930/RENDERER.md",
+    "surface": "unknown",
+    "syncJob": "local",
+    "synced": true,
+    "syncedAt": "2026-09-30T02:37:09+02:00",
+    "tags": [],
+    "targets": [
+      {
+        "applied": true,
+        "appliedAt": "2026-09-30T02:37:06+02:00",
+        "created": false,
+        "hashAfter": "b81de2bd2fe02df51d53587dc800d4875c790607854c0b441f68bf58ae947c8d",
+        "hashBefore": "f195d79f0b9d3327f3b2b28eec9326ca59aa2f826d2cfa279279b8338885206c",
+        "path": "CellScaffold/.claude/skills/binding-skeleton-parity-testing/SKILL.md",
+        "ref": "skill:binding-skeleton-parity-testing"
+      }
+    ],
+    "what": "Native Porthole-tema må teste faktisk musetrykk på knappens polstring og NSTextField field-editor redigering; ytre padding og simulert stringValue kan se riktige ut uten fungerende hit-target eller SwiftUI-binding.",
+    "why": ""
+  },
+  {
+    "capturedAt": "2026-09-30T03:05:30+02:00",
+    "dropped": false,
+    "evidence": "Binding/Implementation/SurfaceParityRepair-20260930/integrated-visual-summary.json",
+    "id": "L-2026-09-30-componentsurface-handlinger-ma-ha-egen-mount",
+    "kind": "pitfall",
+    "notes": [],
+    "session": null,
+    "source": "Binding/Implementation/SurfaceParityRepair-20260930/TRANSPORT.md",
+    "surface": "unknown",
+    "syncJob": "local",
+    "synced": true,
+    "syncedAt": "2026-09-30T03:06:06+02:00",
+    "tags": [
+      "authorization",
+      "component-surface",
+      "skeleton"
+    ],
+    "targets": [
+      {
+        "applied": true,
+        "appliedAt": "2026-09-30T03:06:06+02:00",
+        "created": false,
+        "hashAfter": "ad72d750818049f1b45d444da96266d58300bab0349cce0ed83cbc5655a3cc31",
+        "hashBefore": "90538609dc76c9575b10813fb8443b64a58f488da376f900252bf343fcd9238d",
+        "path": "CellScaffold/.claude/skills/cellprotocol-transport-bridging/SKILL.md",
+        "ref": "skill:cellprotocol-transport-bridging"
+      }
+    ],
+    "what": "ComponentSurface-handlinger må ha egen mount-scopet vertshandler; metadata er ikke payload eller autoritet, og manglende SET-svar betyr uavklart utfall uten retry.",
+    "why": ""
+  },
+  {
+    "capturedAt": "2026-09-30T03:05:30+02:00",
+    "dropped": false,
+    "evidence": "Binding/Implementation/SurfaceParityRepair-20260930/web-text-overflow-red-unbroken.log",
+    "id": "L-2026-09-30-visuell-skeleton-paritet-ma-kontrollere-faktisk",
+    "kind": "workflow",
+    "notes": [],
+    "session": null,
+    "source": "Binding/Implementation/SurfaceParityRepair-20260930/RENDERER.md",
+    "surface": "unknown",
+    "syncJob": "local",
+    "synced": true,
+    "syncedAt": "2026-09-30T03:06:06+02:00",
+    "tags": [
+      "parity",
+      "skeleton",
+      "visual"
+    ],
+    "targets": [
+      {
+        "applied": true,
+        "appliedAt": "2026-09-30T03:06:06+02:00",
+        "created": false,
+        "hashAfter": "cf0fe9bd1df590bbb7b7b92a57346b87f10292fd7a08ca3a21bc2ac0d9213829",
+        "hashBefore": "b81de2bd2fe02df51d53587dc800d4875c790607854c0b441f68bf58ae947c8d",
+        "path": "CellScaffold/.claude/skills/binding-skeleton-parity-testing/SKILL.md",
+        "ref": "skill:binding-skeleton-parity-testing"
+      }
+    ],
+    "what": "Visuell Skeleton-paritet må kontrollere faktisk valgt verdi, blokkbredde i riktig akse og scrollWidth mot clientWidth; tekst-OCR alene overser tom Picker og horisontalt overløp.",
+    "why": ""
+  },
+  {
+    "capturedAt": "2026-09-30T03:18:30+02:00",
+    "dropped": false,
+    "evidence": "Binding/Implementation/SurfaceParityRepair-20260930/renderer-skeleton-contract-tests-188.log",
+    "id": "L-2026-09-30-en-native-picker-ma-bevare-ulike-verdier-med",
+    "kind": "pitfall",
+    "notes": [],
+    "session": null,
+    "source": "Binding/Implementation/SurfaceParityRepair-20260930/RENDERER.md",
+    "surface": "unknown",
+    "syncJob": "local",
+    "synced": true,
+    "syncedAt": "2026-09-30T03:18:41+02:00",
+    "tags": [
+      "accessibility",
+      "appkit",
+      "picker"
+    ],
+    "targets": [
+      {
+        "applied": true,
+        "appliedAt": "2026-09-30T03:18:41+02:00",
+        "created": false,
+        "hashAfter": "30f2eddfda5d487ef7370ba7a244bb8114fce6dbf0f0b99c47a1111393b7776c",
+        "hashBefore": "cf0fe9bd1df590bbb7b7b92a57346b87f10292fd7a08ca3a21bc2ac0d9213829",
+        "path": "CellScaffold/.claude/skills/binding-skeleton-parity-testing/SKILL.md",
+        "ref": "skill:binding-skeleton-parity-testing"
+      }
+    ],
+    "what": "En native Picker må bevare ulike verdier med identiske etiketter og testes gjennom den faktiske menyen og SwiftUIs tilgjengelighetsproxy.",
+    "why": ""
+  },
+  {
+    "capturedAt": "2026-09-30T03:24:41+02:00",
+    "dropped": false,
+    "evidence": "Binding/Implementation/SurfaceParityRepair-20260930/candidate-manifest.json",
+    "id": "L-2026-09-30-xcode-debug-kan-beholde-samme-launcher-hash",
+    "kind": "pitfall",
+    "notes": [],
+    "session": null,
+    "source": "Binding/Implementation/SurfaceParityRepair-20260930/REPORT.md",
+    "surface": "unknown",
+    "syncJob": "local",
+    "synced": true,
+    "syncedAt": "2026-09-30T03:25:03+02:00",
+    "tags": [
+      "debug",
+      "provenance",
+      "xcode"
+    ],
+    "targets": [
+      {
+        "applied": true,
+        "appliedAt": "2026-09-30T03:25:03+02:00",
+        "created": false,
+        "hashAfter": "d0a10674ad2a2d12fb5b8dbbf2438a8ebc653075b0c18b82c51d16390f2d226f",
+        "hashBefore": "30f2eddfda5d487ef7370ba7a244bb8114fce6dbf0f0b99c47a1111393b7776c",
+        "path": "CellScaffold/.claude/skills/binding-skeleton-parity-testing/SKILL.md",
+        "ref": "skill:binding-skeleton-parity-testing"
+      }
+    ],
+    "what": "Xcode Debug kan beholde samme launcher-hash etter kodeendring; leveranseproveniens må også hashe den faktiske debug-dylib-en.",
+    "why": ""
+  }
+]

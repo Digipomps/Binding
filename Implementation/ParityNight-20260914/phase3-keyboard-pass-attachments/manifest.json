@@ -1,0 +1,35 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "D9D8BD20-7668-487B-9BB3-3A7D5649D573.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "chat-composer-and-send-with-keyboard_0_05708E96-4ED5-4C7B-AFFF-2D035B06902F.png",
+        "timestamp" : 1789443255.835
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "888AA299-DFD7-4229-820C-F11DBBECC453.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "chat-long-final-message-visible_0_DE166E5D-FF96-40B7-801B-3E98482429C2.png",
+        "timestamp" : 1789443254.394
+      },
+      {
+        "configurationName" : "Default",
+        "deviceId" : "1F9CB294-13BC-4D49-B8C7-E969D4BFFA11",
+        "deviceName" : "iPhone 16e",
+        "exportedFileName" : "661E345E-6EA5-41A2-A8C7-D046299B6279.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "chat-long-before-scroll_0_478A43F0-6FD6-4B3B-83FC-280AA1F897A5.png",
+        "timestamp" : 1789443250.58
+      }
+    ],
+    "testIdentifier" : "ParityNightUITests/testLongChatScrollsInsideLogWhileComposerStaysAvailable()",
+    "testIdentifierURL" : "test://com.apple.xcode/Binding/BindingUITests/ParityNightUITests/testLongChatScrollsInsideLogWhileComposerStaysAvailable"
+  }
+]

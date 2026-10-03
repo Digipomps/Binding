@@ -1,0 +1,66 @@
+[
+  {
+    "confidence" : 1,
+    "height" : 0.015684754053751693,
+    "text" : "Remote Bridge Fixture",
+    "width" : 0.11191860198974612,
+    "x" : 0.4447674439421424,
+    "y" : 0.95542635685986654
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015594315528869584,
+    "text" : "Remote bridge contract",
+    "width" : 0.120639533996582,
+    "x" : 0.44040697740577872,
+    "y" : 0.92829457339733434
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.01356589105394157,
+    "text" : "Bruk host-mapping til cell:\/\/<host>\/SkeletonParityTextFixture for direkte remote parity.",
+    "width" : 0.43313954671223959,
+    "x" : 0.28343023097527548,
+    "y" : 0.90310077546140133
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015503875944349432,
+    "text" : "cell:\/\/staging.haven.digipomps.org\/SkeletonParityTextFixture",
+    "width" : 0.30668604532877608,
+    "x" : 0.34593023826099945,
+    "y" : 0.87596899232498293
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015503875944349432,
+    "text" : "wss:\/\/staging.haven.digipomps.org\/bridgehead\/Porthole\/SkeletonParityTextFixture",
+    "width" : 0.41279067993164059,
+    "x" : 0.29360465487429604,
+    "y" : 0.84883720921774775
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015503875944349543,
+    "text" : "https:\/\/staging.haven.digipomps.org\/skeleton-parity\/text\/api\/configuration",
+    "width" : 0.37209302266438804,
+    "x" : 0.3139534933189686,
+    "y" : 0.82170542646580969
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015710594389173771,
+    "text" : "Ingen handlinger kjørt ennå.",
+    "width" : 0.14244185129801434,
+    "x" : 0.42877907613151611,
+    "y" : 0.79651162791929808
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.01390518771277538,
+    "text" : "Ack bridge",
+    "width" : 0.05527886708577473,
+    "x" : 0.47236056553691469,
+    "y" : 0.76921019700364068
+  }
+]

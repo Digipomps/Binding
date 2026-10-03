@@ -1,0 +1,22 @@
+{
+  "materialized" : false,
+  "missingExpectedText" : [
+    "Ack bridge"
+  ],
+  "observedStyleTokens" : [
+
+  ],
+  "pixelHeight" : 2000,
+  "pixelWidth" : 2560,
+  "recognizedText" : "Remote Bridge Fixture\nRemote bridge contract\nBruk host-mapping til cell:\/\/<host>\/SkeletonParityTextFixture for direkte remote parity.\ncell:\/\/staging.haven.digipomps.org\/SkeletonParityTextFixture\nwss:\/\/staging.haven.digipomps.org\/bridgehead\/Porthole\/SkeletonParityTextFixture\nhttps:\/\/staging.haven.digipomps.org\/skeleton-parity\/text\/api\/configuration\nIngen handlinger kjørt ennå.",
+  "rootDataSupplied" : true,
+  "styleNormalizationApplied" : false,
+  "surface" : {
+    "backgroundHex" : "#FFFFFF",
+    "contentMaxWidth" : 1180,
+    "height" : 1000,
+    "isDarkMode" : false,
+    "padding" : 16,
+    "width" : 1280
+  }
+}

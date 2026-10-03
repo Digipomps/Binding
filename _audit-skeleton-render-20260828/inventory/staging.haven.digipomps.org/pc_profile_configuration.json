@@ -1,0 +1,176 @@
+{
+  "cellReferences" : [
+    {
+      "endpoint" : "cell:\/\/\/PersonalProfilePublisher",
+      "label" : "profilePublisher",
+      "setKeysAndValues" : [
+
+      ],
+      "subscribeFeed" : false,
+      "subscriptions" : [
+
+      ]
+    }
+  ],
+  "description" : "Publiser, avpubliser eller slett en offentlig profil bare når brukeren har skrevet eller valgt data for publisering og bekreftet samtykke.",
+  "discovery" : {
+    "interests" : [
+      "ageRatingHint=12+",
+      "appStoreScope=personal-copilot-v1",
+      "consent",
+      "executionScope=cloud",
+      "identity",
+      "nativePermissionRequests=none",
+      "personal",
+      "policyCategory=profile-publish",
+      "presentationClass=form",
+      "profile",
+      "profile-page",
+      "public-presence",
+      "public-profile",
+      "publish",
+      "purpose=publish-unpublish-delete",
+      "purposeRef=personal.public-presence.publish",
+      "requiresLogin=true",
+      "requiresUserGeneratedContentModeration=true",
+      "reviewSummary=Explicit user-controlled public profile publishing with unpublish and delete.",
+      "surfaceFamily=identity",
+      "universalLink=https:\/\/staging.haven.digipomps.org\/app\/personal\/profile\/publish",
+      "visibleAction=deleteProfile",
+      "visibleAction=editPublicPayload",
+      "visibleAction=profileStatus",
+      "visibleAction=publishProfile",
+      "visibleAction=unpublishProfile"
+    ],
+    "menuSlots" : [
+      "upperMid"
+    ],
+    "purpose" : "Publish public profile",
+    "purposeDescription" : "Publiser, avpubliser eller slett en offentlig profil bare når brukeren har skrevet eller valgt data for publisering og bekreftet samtykke.",
+    "sourceCellEndpoint" : "cell:\/\/\/PersonalProfilePublisher",
+    "sourceCellName" : "PersonalProfilePublisherCell"
+  },
+  "name" : "Publish Public Profile",
+  "skeleton" : {
+    "VStack" : {
+      "elements" : [
+        {
+          "Text" : {
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            },
+            "text" : "Publish Public Profile"
+          }
+        },
+        {
+          "Text" : {
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            },
+            "text" : "Skriv bare data som skal kunne publiseres offentlig. Publish krever eksplisitt samtykke."
+          }
+        },
+        {
+          "Text" : {
+            "keypath" : "profilePublisher.state.publishStatus",
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            }
+          }
+        },
+        {
+          "Text" : {
+            "keypath" : "profilePublisher.state.visibility",
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            }
+          }
+        },
+        {
+          "TextField" : {
+            "placeholder" : "Public display name",
+            "sourceKeypath" : "profilePublisher.state.publishDraft.displayName",
+            "targetKeypath" : "profilePublisher.publishDraft.displayName"
+          }
+        },
+        {
+          "TextField" : {
+            "placeholder" : "Public headline",
+            "sourceKeypath" : "profilePublisher.state.publishDraft.headline",
+            "targetKeypath" : "profilePublisher.publishDraft.headline"
+          }
+        },
+        {
+          "TextArea" : {
+            "editorMode" : "plain",
+            "maxLines" : 7,
+            "minLines" : 3,
+            "placeholder" : "Public summary",
+            "sourceKeypath" : "profilePublisher.state.publishDraft.summary",
+            "submitOnEnter" : false,
+            "targetKeypath" : "profilePublisher.publishDraft.summary"
+          }
+        },
+        {
+          "TextField" : {
+            "placeholder" : "Public interests, comma separated",
+            "sourceKeypath" : "profilePublisher.state.publishDraft.interestsText",
+            "targetKeypath" : "profilePublisher.publishDraft.interestsText"
+          }
+        },
+        {
+          "HStack" : {
+            "elements" : [
+              {
+                "Button" : {
+                  "keypath" : "profilePublisher.publishProfile",
+                  "label" : "Publish with consent",
+                  "payload" : {
+                    "explicitPublishIntent" : true
+                  }
+                }
+              },
+              {
+                "Button" : {
+                  "keypath" : "profilePublisher.unpublishProfile",
+                  "label" : "Unpublish",
+                  "payload" : {
+
+                  }
+                }
+              },
+              {
+                "Button" : {
+                  "keypath" : "profilePublisher.deleteProfile",
+                  "label" : "Delete",
+                  "payload" : {
+
+                  }
+                }
+              }
+            ],
+            "spacing" : 8
+          }
+        },
+        {
+          "Text" : {
+            "keypath" : "profilePublisher.state.publicReadModel.displayName",
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            }
+          }
+        },
+        {
+          "Text" : {
+            "keypath" : "profilePublisher.state.publicReadModel.summary",
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            }
+          }
+        }
+      ],
+      "spacing" : 10
+    }
+  },
+  "uuid" : "02AFE926-5DFC-465D-877F-56AE4E88AF66"
+}

@@ -1,0 +1,2207 @@
+Fetching https://github.com/apple/swift-http-types.git
+Fetching https://github.com/apple/swift-nio-http2.git
+Fetching https://github.com/apple/swift-asn1.git
+Fetching https://github.com/swift-server/swift-service-lifecycle.git
+Fetching https://github.com/apple/swift-distributed-tracing.git
+Fetching https://github.com/apple/swift-certificates.git
+Fetching https://github.com/apple/swift-configuration.git
+[1/1939] Fetching swift-http-types
+[2/5752] Fetching swift-http-types, swift-configuration
+[41/7738] Fetching swift-http-types, swift-configuration, swift-asn1
+[448/10587] Fetching swift-http-types, swift-configuration, swift-asn1, swift-service-lifecycle
+[468/18185] Fetching swift-http-types, swift-configuration, swift-asn1, swift-service-lifecycle, swift-certificates
+[622/30440] Fetching swift-http-types, swift-configuration, swift-asn1, swift-service-lifecycle, swift-certificates, swift-nio-http2
+[837/36866] Fetching swift-http-types, swift-configuration, swift-asn1, swift-service-lifecycle, swift-certificates, swift-nio-http2, swift-distributed-tracing
+Fetched https://github.com/apple/swift-http-types.git (1.11s)
+[16956/34927] Fetching swift-configuration, swift-asn1, swift-service-lifecycle, swift-certificates, swift-nio-http2, swift-distributed-tracing
+Fetching https://github.com/apple/swift-log.git
+Fetched https://github.com/apple/swift-nio-http2.git (1.44s)
+[18174/22672] Fetching swift-configuration, swift-asn1, swift-service-lifecycle, swift-certificates, swift-distributed-tracing
+Fetching https://github.com/vapor/websocket-kit.git
+[20553/30837] Fetching swift-configuration, swift-asn1, swift-service-lifecycle, swift-certificates, swift-distributed-tracing, swift-log
+Fetched https://github.com/apple/swift-log.git (1.04s)
+Fetching https://github.com/apple/swift-system.git
+[20567/25353] Fetching swift-configuration, swift-asn1, swift-service-lifecycle, swift-certificates, swift-distributed-tracing, websocket-kit
+Fetched https://github.com/vapor/websocket-kit.git (0.90s)
+[21323/22672] Fetching swift-configuration, swift-asn1, swift-service-lifecycle, swift-certificates, swift-distributed-tracing
+Fetching https://github.com/attaswift/BigInt.git
+Fetched https://github.com/swift-server/swift-service-lifecycle.git (2.63s)
+Fetched https://github.com/apple/swift-configuration.git (2.63s)
+Fetched https://github.com/apple/swift-distributed-tracing.git (2.64s)
+Fetched https://github.com/apple/swift-asn1.git (2.64s)
+Fetched https://github.com/apple/swift-certificates.git (2.64s)
+Fetching https://github.com/apple/swift-nio-transport-services.git
+Fetching https://github.com/vapor/async-kit.git
+Fetching https://github.com/apple/swift-collections.git
+Fetching https://github.com/apple/swift-async-algorithms.git
+Fetching https://github.com/vapor/console-kit.git
+[1/6986] Fetching swift-system
+[211/11925] Fetching swift-system, bigint
+Fetched https://github.com/attaswift/BigInt.git (1.10s)
+Fetching https://github.com/apple/swift-numerics.git
+[1887/6986] Fetching swift-system
+[2097/13829] Fetching swift-system, console-kit
+[2098/16343] Fetching swift-system, console-kit, async-kit
+[2267/23134] Fetching swift-system, console-kit, async-kit, swift-async-algorithms
+[2403/26001] Fetching swift-system, console-kit, async-kit, swift-async-algorithms, swift-nio-transport-services
+[26002/53945] Fetching swift-system, console-kit, async-kit, swift-async-algorithms, swift-nio-transport-services, swift-collections
+Fetched https://github.com/apple/swift-nio-transport-services.git (1.09s)
+Fetching https://github.com/apple/swift-service-context.git
+Fetched https://github.com/apple/swift-system.git (1.58s)
+Fetching https://github.com/apple/swift-nio-extras.git
+[16428/44092] Fetching console-kit, async-kit, swift-async-algorithms, swift-collections
+[22018/50743] Fetching console-kit, async-kit, swift-async-algorithms, swift-collections, swift-numerics
+[28669/52148] Fetching console-kit, async-kit, swift-async-algorithms, swift-collections, swift-numerics, swift-service-context
+[28838/58841] Fetching console-kit, async-kit, swift-async-algorithms, swift-collections, swift-numerics, swift-service-context, swift-nio-extras
+Fetched https://github.com/apple/swift-numerics.git (1.13s)
+[22201/52190] Fetching console-kit, async-kit, swift-async-algorithms, swift-collections, swift-service-context, swift-nio-extras
+Fetching https://github.com/Digipomps/FileUtils-c.git
+Fetched https://github.com/apple/swift-service-context.git (1.20s)
+Fetching https://github.com/apple/swift-metrics.git
+[34691/50785] Fetching console-kit, async-kit, swift-async-algorithms, swift-collections, swift-nio-extras
+Fetched https://github.com/apple/swift-async-algorithms.git (2.82s)
+Fetched https://github.com/apple/swift-collections.git (2.82s)
+Fetched https://github.com/vapor/async-kit.git (2.82s)
+Fetched https://github.com/vapor/console-kit.git (2.82s)
+Fetching https://github.com/apple/swift-http-structured-headers.git
+Fetching https://github.com/krzyzanowskim/CryptoSwift.git
+Fetching https://github.com/vapor/multipart-kit.git
+Fetching https://github.com/OpenCombine/OpenCombine.git
+[1004/6693] Fetching swift-nio-extras
+[1273/6721] Fetching swift-nio-extras, fileutils-c
+Fetched https://github.com/Digipomps/FileUtils-c.git (1.04s)
+[1339/6693] Fetching swift-nio-extras
+Fetching https://github.com/apple/swift-nio
+[1942/10216] Fetching swift-nio-extras, swift-metrics
+Fetched https://github.com/apple/swift-metrics.git (1.04s)
+[2745/6693] Fetching swift-nio-extras
+Fetching https://github.com/vapor/vapor.git
+[3750/7946] Fetching swift-nio-extras, swift-http-structured-headers
+[6542/14224] Fetching swift-nio-extras, swift-http-structured-headers, multipart-kit
+[8898/22530] Fetching swift-nio-extras, swift-http-structured-headers, multipart-kit, opencombine
+[9858/35969] Fetching swift-nio-extras, swift-http-structured-headers, multipart-kit, opencombine, cryptoswift
+Fetched https://github.com/apple/swift-nio-extras.git (2.82s)
+Fetching https://github.com/apple/swift-atomics.git
+[5466/29276] Fetching swift-http-structured-headers, multipart-kit, opencombine, cryptoswift
+[11886/31161] Fetching swift-http-structured-headers, multipart-kit, opencombine, cryptoswift, swift-atomics
+[16947/117367] Fetching swift-http-structured-headers, multipart-kit, opencombine, cryptoswift, swift-atomics, swift-nio
+[18306/200271] Fetching swift-http-structured-headers, multipart-kit, opencombine, cryptoswift, swift-atomics, swift-nio, vapor
+Fetched https://github.com/apple/swift-atomics.git (2.46s)
+[18609/198386] Fetching swift-http-structured-headers, multipart-kit, opencombine, cryptoswift, swift-nio, vapor
+Fetching https://github.com/apple/swift-nio-ssl
+[32715/215249] Fetching swift-http-structured-headers, multipart-kit, opencombine, cryptoswift, swift-nio, vapor, swift-nio-ssl
+Fetched https://github.com/krzyzanowskim/CryptoSwift.git (6.84s)
+Fetched https://github.com/apple/swift-http-structured-headers.git (6.84s)
+Fetched https://github.com/OpenCombine/OpenCombine.git (6.84s)
+Fetched https://github.com/vapor/multipart-kit.git (6.84s)
+Fetching https://github.com/apple/swift-crypto.git
+Fetching https://github.com/swift-server/async-http-client.git
+Fetching https://github.com/apple/swift-algorithms.git
+Fetching https://github.com/GiacomoLeopizzi/random-swift
+[15988/185973] Fetching swift-nio, vapor, swift-nio-ssl
+[22969/186004] Fetching swift-nio, vapor, swift-nio-ssl, random-swift
+[23098/204576] Fetching swift-nio, vapor, swift-nio-ssl, random-swift, swift-crypto
+[23099/210735] Fetching swift-nio, vapor, swift-nio-ssl, random-swift, swift-crypto, swift-algorithms
+Fetched https://github.com/GiacomoLeopizzi/random-swift (0.88s)
+[23897/210704] Fetching swift-nio, vapor, swift-nio-ssl, swift-crypto, swift-algorithms
+Fetching https://github.com/vapor/routing-kit.git
+[27043/227102] Fetching swift-nio, vapor, swift-nio-ssl, swift-crypto, swift-algorithms, async-http-client
+[34851/248657] Fetching swift-nio, vapor, swift-nio-ssl, swift-crypto, swift-algorithms, async-http-client, routing-kit
+Fetched https://github.com/apple/swift-algorithms.git (2.98s)
+[52623/242498] Fetching swift-nio, vapor, swift-nio-ssl, swift-crypto, async-http-client, routing-kit
+Fetched https://github.com/swift-server/async-http-client.git (4.69s)
+[61693/226100] Fetching swift-nio, vapor, swift-nio-ssl, swift-crypto, routing-kit
+Fetched https://github.com/vapor/routing-kit.git (8.67s)
+[130912/204545] Fetching swift-nio, vapor, swift-nio-ssl, swift-crypto
+Fetched https://github.com/apple/swift-nio-ssl (13.49s)
+[120963/187682] Fetching swift-nio, vapor, swift-crypto
+Fetched https://github.com/vapor/vapor.git (19.83s)
+[64907/104778] Fetching swift-nio, swift-crypto
+Fetched https://github.com/apple/swift-crypto.git (16.20s)
+[59115/86206] Fetching swift-nio
+Fetched https://github.com/apple/swift-nio (30.64s)
+Computing version for https://github.com/attaswift/BigInt.git
+warning: 'bigint': /Package.swift:18:19: warning: 'v4' is deprecated: watchOS 9.0 is the oldest supported version [#DeprecatedDeclaration]
+16 |         .iOS(.v12),
+17 |         .tvOS(.v12),
+18 |         .watchOS(.v4),
+   |                   `- warning: 'v4' is deprecated: watchOS 9.0 is the oldest supported version [#DeprecatedDeclaration]
+19 |         .macCatalyst(.v13),
+20 |         .visionOS(.v1),
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+Computed https://github.com/attaswift/BigInt.git at 5.7.0 (36.82s)
+Computing version for https://github.com/apple/swift-collections.git
+Computed https://github.com/apple/swift-collections.git at 1.3.0 (0.49s)
+Computing version for https://github.com/Digipomps/FileUtils-c.git
+Computed https://github.com/Digipomps/FileUtils-c.git at 2026.9.1 (1.97s)
+Computing version for https://github.com/apple/swift-nio-http2.git
+Computed https://github.com/apple/swift-nio-http2.git at 1.46.0 (0.32s)
+Computing version for https://github.com/apple/swift-nio-ssl.git
+Computed https://github.com/apple/swift-nio-ssl.git at 2.37.4 (0.48s)
+Computing version for https://github.com/apple/swift-nio.git
+Computed https://github.com/apple/swift-nio.git at 2.102.0 (0.59s)
+Computing version for https://github.com/vapor/vapor.git
+Computed https://github.com/vapor/vapor.git at 4.121.2 (0.34s)
+Computing version for https://github.com/GiacomoLeopizzi/random-swift
+Computed https://github.com/GiacomoLeopizzi/random-swift at 1.0.0 (0.34s)
+Computing version for https://github.com/apple/swift-crypto.git
+Computed https://github.com/apple/swift-crypto.git at 4.5.2 (1.91s)
+Computing version for https://github.com/OpenCombine/OpenCombine.git
+Computed https://github.com/OpenCombine/OpenCombine.git at 0.14.0 (0.42s)
+Computing version for https://github.com/krzyzanowskim/CryptoSwift.git
+Computed https://github.com/krzyzanowskim/CryptoSwift.git at 1.9.0 (0.48s)
+Computing version for https://github.com/apple/swift-atomics.git
+Computed https://github.com/apple/swift-atomics.git at 1.3.0 (0.34s)
+Computing version for https://github.com/apple/swift-system.git
+Computed https://github.com/apple/swift-system.git at 1.6.4 (0.50s)
+Computing version for https://github.com/apple/swift-asn1.git
+Computed https://github.com/apple/swift-asn1.git at 1.5.1 (0.51s)
+Computing version for https://github.com/apple/swift-certificates.git
+Computed https://github.com/apple/swift-certificates.git at 1.18.0 (0.52s)
+Computing version for https://github.com/vapor/multipart-kit.git
+Computed https://github.com/vapor/multipart-kit.git at 4.7.1 (0.34s)
+Computing version for https://github.com/vapor/websocket-kit.git
+Computed https://github.com/vapor/websocket-kit.git at 2.16.1 (0.34s)
+Computing version for https://github.com/apple/swift-algorithms.git
+Computed https://github.com/apple/swift-algorithms.git at 1.2.1 (0.44s)
+Computing version for https://github.com/apple/swift-service-context.git
+Computed https://github.com/apple/swift-service-context.git at 1.2.1 (0.46s)
+Computing version for https://github.com/apple/swift-distributed-tracing.git
+Computed https://github.com/apple/swift-distributed-tracing.git at 1.3.1 (0.52s)
+Computing version for https://github.com/apple/swift-metrics.git
+Computed https://github.com/apple/swift-metrics.git at 2.7.1 (0.40s)
+Computing version for https://github.com/apple/swift-log.git
+Computed https://github.com/apple/swift-log.git at 1.9.1 (0.42s)
+Computing version for https://github.com/apple/swift-nio-extras.git
+Computed https://github.com/apple/swift-nio-extras.git at 1.32.1 (0.44s)
+Computing version for https://github.com/vapor/routing-kit.git
+Computed https://github.com/vapor/routing-kit.git at 4.9.3 (0.33s)
+Computing version for https://github.com/vapor/console-kit.git
+Computed https://github.com/vapor/console-kit.git at 4.15.2 (0.50s)
+Computing version for https://github.com/vapor/async-kit.git
+Computed https://github.com/vapor/async-kit.git at 1.21.0 (0.40s)
+Computing version for https://github.com/swift-server/async-http-client.git
+Computed https://github.com/swift-server/async-http-client.git at 1.31.0 (0.43s)
+Computing version for https://github.com/apple/swift-nio-transport-services.git
+Computed https://github.com/apple/swift-nio-transport-services.git at 1.26.0 (0.41s)
+Computing version for https://github.com/apple/swift-numerics.git
+Computed https://github.com/apple/swift-numerics.git at 1.1.1 (0.37s)
+Computing version for https://github.com/apple/swift-async-algorithms.git
+Computed https://github.com/apple/swift-async-algorithms.git at 1.1.1 (0.50s)
+Computing version for https://github.com/swift-server/swift-service-lifecycle.git
+Computed https://github.com/swift-server/swift-service-lifecycle.git at 2.9.1 (0.52s)
+Computing version for https://github.com/apple/swift-http-structured-headers.git
+Computed https://github.com/apple/swift-http-structured-headers.git at 1.6.0 (0.30s)
+Computing version for https://github.com/apple/swift-http-types.git
+Computed https://github.com/apple/swift-http-types.git at 1.5.1 (0.41s)
+Computing version for https://github.com/apple/swift-configuration.git
+Computed https://github.com/apple/swift-configuration.git at 1.0.2 (0.55s)
+Creating working copy for https://github.com/apple/swift-log.git
+Working copy of https://github.com/apple/swift-log.git resolved at 1.9.1
+Creating working copy for https://github.com/apple/swift-atomics.git
+Working copy of https://github.com/apple/swift-atomics.git resolved at 1.3.0
+Creating working copy for https://github.com/vapor/websocket-kit.git
+Working copy of https://github.com/vapor/websocket-kit.git resolved at 2.16.1
+Creating working copy for https://github.com/vapor/async-kit.git
+Working copy of https://github.com/vapor/async-kit.git resolved at 1.21.0
+Creating working copy for https://github.com/apple/swift-http-types.git
+Working copy of https://github.com/apple/swift-http-types.git resolved at 1.5.1
+Creating working copy for https://github.com/vapor/vapor.git
+Working copy of https://github.com/vapor/vapor.git resolved at 4.121.2
+Creating working copy for https://github.com/swift-server/async-http-client.git
+Working copy of https://github.com/swift-server/async-http-client.git resolved at 1.31.0
+Creating working copy for https://github.com/GiacomoLeopizzi/random-swift
+Working copy of https://github.com/GiacomoLeopizzi/random-swift resolved at 1.0.0
+Creating working copy for https://github.com/apple/swift-nio
+Working copy of https://github.com/apple/swift-nio resolved at 2.102.0
+Creating working copy for https://github.com/swift-server/swift-service-lifecycle.git
+Working copy of https://github.com/swift-server/swift-service-lifecycle.git resolved at 2.9.1
+Creating working copy for https://github.com/attaswift/BigInt.git
+Working copy of https://github.com/attaswift/BigInt.git resolved at 5.7.0
+Creating working copy for https://github.com/apple/swift-nio-transport-services.git
+Working copy of https://github.com/apple/swift-nio-transport-services.git resolved at 1.26.0
+Creating working copy for https://github.com/apple/swift-nio-ssl
+Working copy of https://github.com/apple/swift-nio-ssl resolved at 2.37.4
+Creating working copy for https://github.com/apple/swift-nio-extras.git
+Working copy of https://github.com/apple/swift-nio-extras.git resolved at 1.32.1
+Creating working copy for https://github.com/apple/swift-async-algorithms.git
+Working copy of https://github.com/apple/swift-async-algorithms.git resolved at 1.1.1
+Creating working copy for https://github.com/apple/swift-distributed-tracing.git
+Working copy of https://github.com/apple/swift-distributed-tracing.git resolved at 1.3.1
+Creating working copy for https://github.com/apple/swift-service-context.git
+Working copy of https://github.com/apple/swift-service-context.git resolved at 1.2.1
+Creating working copy for https://github.com/apple/swift-nio-http2.git
+Working copy of https://github.com/apple/swift-nio-http2.git resolved at 1.46.0
+Creating working copy for https://github.com/apple/swift-http-structured-headers.git
+Working copy of https://github.com/apple/swift-http-structured-headers.git resolved at 1.6.0
+Creating working copy for https://github.com/vapor/multipart-kit.git
+Working copy of https://github.com/vapor/multipart-kit.git resolved at 4.7.1
+Creating working copy for https://github.com/apple/swift-system.git
+Working copy of https://github.com/apple/swift-system.git resolved at 1.6.4
+Creating working copy for https://github.com/Digipomps/FileUtils-c.git
+Working copy of https://github.com/Digipomps/FileUtils-c.git resolved at 2026.9.1
+Creating working copy for https://github.com/apple/swift-numerics.git
+Working copy of https://github.com/apple/swift-numerics.git resolved at 1.1.1
+Creating working copy for https://github.com/apple/swift-certificates.git
+Working copy of https://github.com/apple/swift-certificates.git resolved at 1.18.0
+Creating working copy for https://github.com/OpenCombine/OpenCombine.git
+Working copy of https://github.com/OpenCombine/OpenCombine.git resolved at 0.14.0
+Creating working copy for https://github.com/apple/swift-collections.git
+Working copy of https://github.com/apple/swift-collections.git resolved at 1.3.0
+Creating working copy for https://github.com/apple/swift-configuration.git
+Working copy of https://github.com/apple/swift-configuration.git resolved at 1.0.2
+Creating working copy for https://github.com/apple/swift-crypto.git
+Working copy of https://github.com/apple/swift-crypto.git resolved at 4.5.2
+Creating working copy for https://github.com/vapor/console-kit.git
+Working copy of https://github.com/vapor/console-kit.git resolved at 4.15.2
+Creating working copy for https://github.com/vapor/routing-kit.git
+Working copy of https://github.com/vapor/routing-kit.git resolved at 4.9.3
+Creating working copy for https://github.com/apple/swift-algorithms.git
+Working copy of https://github.com/apple/swift-algorithms.git resolved at 1.2.1
+Creating working copy for https://github.com/krzyzanowskim/CryptoSwift.git
+Working copy of https://github.com/krzyzanowskim/CryptoSwift.git resolved at 1.9.0
+Creating working copy for https://github.com/apple/swift-metrics.git
+Working copy of https://github.com/apple/swift-metrics.git resolved at 2.7.1
+Creating working copy for https://github.com/apple/swift-asn1.git
+Working copy of https://github.com/apple/swift-asn1.git resolved at 1.5.1
+warning: 'bigint': /private/tmp/HAVEN-RendererRepair-20260930-build/checkouts/BigInt/Package.swift:18:19: warning: 'v4' is deprecated: watchOS 9.0 is the oldest supported version [#DeprecatedDeclaration]
+16 |         .iOS(.v12),
+17 |         .tvOS(.v12),
+18 |         .watchOS(.v4),
+   |                   `- warning: 'v4' is deprecated: watchOS 9.0 is the oldest supported version [#DeprecatedDeclaration]
+19 |         .macCatalyst(.v13),
+20 |         .visionOS(.v1),
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+warning: 'cellprotocol': found 3 file(s) which are unhandled; explicitly declare them as resources or exclude from the target
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell-Design.md
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/Architecture.md
+    /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/ChatLog.md
+Building for debugging...
+[Computing dependencies]
+[Constructing description]
+[Pre-planning 1 / 3614]
+[Planning 318 / 3614]
+[Planning 1955 / 3614]
+[Planning 3277 / 3614]
+[Planning deferred tasks]
+[Constructing 380 / 8669]
+[Constructing 4098 / 8669]
+[Starting]
+[63 / 2228] _NumericsShims
+[186 / 2228] OrderedCollections
+[309 / 2228] NIOConcurrencyHelpers
+[452 / 2228] Configuration
+[578 / 2228] CNIODarwin
+[648 / 2228]
+[660 / 2228] swift-crypto_CCryptoBoringSSLShims
+[671 / 2228] swift-nio-ssl_NIOSSL
+[681 / 2228]
+[692 / 2228]
+[702 / 2228]
+[712 / 2228]
+[715 / 2248] _AtomicsShims
+[718 / 2261] SystemPackage
+[718 / 2263] _NIODataStructures
+[720 / 2281] ServiceContextModule
+[722 / 2312] RealModule
+[723 / 2323] NIOConcurrencyHelpers
+[725 / 2364] InternalCollectionsUtilities
+[728 / 2388] CryptoBoringWrapper
+[728 / 2426] CryptoSwift
+[730 / 2455] CoreMetrics
+[731 / 2466] CodableHelpers
+[733 / 2483] BigInt
+[735 / 2495]
+[736 / 2507]
+[738 / 2507]
+[742 / 2518]
+[747 / 2518] _NIOBase64
+[749 / 2518] InternalCollectionsUtilities
+[763 / 2518]
+[765 / 2518]
+[766 / 2518]
+[777 / 2518]
+[781 / 2518]
+[784 / 2518]
+[785 / 2518] ServiceContextModule
+[789 / 2518] ServiceContextModule
+[804 / 2518]
+[808 / 2518]
+[811 / 2518]
+[812 / 2518]
+[813 / 2518]
+[815 / 2518]
+[818 / 2518]
+[820 / 2518]
+[825 / 2518]
+[828 / 2518]
+[829 / 2518]
+[831 / 2518]
+[833 / 2518] OpenCombine
+[835 / 2518] NIOConcurrencyHelpers
+[839 / 2518] _NIODataStructures
+[857 / 2518]
+[859 / 2518]
+[863 / 2518] OpenCombine
+[869 / 2518]
+[872 / 2518] SystemPackage
+[873 / 2518] CoreMetrics
+[890 / 2518] Atomics
+[897 / 2518]
+[899 / 2518]
+[901 / 2518]
+[904 / 2518]
+[907 / 2518]
+[909 / 2518]
+[912 / 2518]
+[913 / 2518]
+[916 / 2518]
+[918 / 2518]
+[919 / 2518]
+[922 / 2518]
+[923 / 2518]
+[925 / 2518] SwiftASN1
+[926 / 2518] CryptoBoringWrapper
+[926 / 2518] CryptoSwift
+[947 / 2518] CryptoBoringWrapper
+[955 / 2518] _NumericsShims
+[955 / 2518] Crypto
+[965 / 2518] CNIOBoringSSL
+[965 / 2518] COpenCombineHelpers
+[969 / 2518]
+[971 / 2518] CNIOBoringSSL
+[975 / 2518]
+[977 / 2518] CNIOBoringSSL
+[978 / 2518]
+[978 / 2518] CNIOBoringSSL
+[980 / 2518] CNIOBoringSSL
+[981 / 2518] HavenCoreSchemas
+[982 / 2518] CodableHelpers
+[983 / 2518] CodableHelpers
+[998 / 2518] CellNearby
+[999 / 2518] CellNearby
+[1000 / 2518] CNIOBoringSSL
+[1012 / 2518] CNIOBoringSSL
+[1015 / 2518] CNIOBoringSSL
+[1017 / 2518] CNIOBoringSSL
+[1018 / 2518] CNIOBoringSSL
+[1021 / 2518] CNIOBoringSSL
+[1022 / 2518] CNIOBoringSSL
+[1024 / 2518] CNIOBoringSSL
+[1027 / 2518] CNIOBoringSSL
+[1029 / 2518] CNIOBoringSSL
+[1031 / 2518] CNIOBoringSSL
+[1033 / 2518] CNIOBoringSSL
+[1041 / 2518] CNIOBoringSSL
+[1043 / 2518] CNIOBoringSSL
+[1045 / 2518] CNIOBoringSSL
+[1047 / 2518] CNIOBoringSSL
+[1049 / 2518] CNIOBoringSSL
+[1052 / 2518] CNIOBoringSSL
+[1054 / 2518] CNIOBoringSSL
+[1056 / 2518] CNIOBoringSSL
+[1057 / 2518] CNIOBoringSSL
+[1058 / 2518] CNIOBoringSSL
+[1059 / 2518] CNIOBoringSSL
+[1060 / 2518] CNIOBoringSSL
+[1062 / 2518] CNIOBoringSSL
+[1063 / 2518] CNIOBoringSSL
+[1066 / 2518] CNIOBoringSSL
+[1068 / 2518] CNIOBoringSSL
+[1071 / 2518] CNIOBoringSSL
+[1073 / 2518] CNIOBoringSSL
+[1075 / 2518] CNIOBoringSSL
+[1076 / 2518] CNIOBoringSSL
+[1079 / 2518] CNIOBoringSSL
+[1081 / 2518] CNIOBoringSSL
+[1083 / 2518] CNIOBoringSSL
+[1085 / 2518] CNIOBoringSSL
+[1086 / 2518] CNIOBoringSSL
+[1089 / 2518] CNIOBoringSSL
+[1091 / 2518] CNIOBoringSSL
+[1092 / 2518] CNIOBoringSSL
+[1094 / 2518] CNIOBoringSSL
+[1095 / 2518] CNIOBoringSSL
+[1096 / 2518] CNIOBoringSSL
+[1097 / 2518] CNIOBoringSSL
+[1098 / 2518] CNIOBoringSSL
+[1100 / 2518] CNIOBoringSSL
+[1103 / 2518] CNIOBoringSSL
+[1105 / 2518] CNIOBoringSSL
+[1107 / 2518] CNIOBoringSSL
+[1109 / 2518] CNIOBoringSSL
+[1110 / 2518] CNIOBoringSSL
+[1112 / 2518] CNIOBoringSSL
+[1114 / 2518] CNIOBoringSSL
+[1116 / 2518] CNIOBoringSSL
+[1118 / 2518] CNIOBoringSSL
+[1124 / 2518] CNIOBoringSSL
+[1127 / 2518] CNIOBoringSSL
+[1131 / 2518] CNIOBoringSSL
+[1136 / 2518] CNIOBoringSSL
+[1138 / 2518] CNIOBoringSSL
+[1144 / 2518] CNIOBoringSSL
+[1145 / 2518] CNIOBoringSSL
+[1146 / 2518] CNIOBoringSSL
+[1149 / 2518] CNIOBoringSSL
+[1150 / 2518] CNIOBoringSSL
+[1152 / 2518] CNIOBoringSSL
+[1153 / 2518] CNIOBoringSSL
+[1158 / 2518] CNIOBoringSSL
+[1160 / 2518] CNIOBoringSSL
+[1162 / 2518] CNIOBoringSSL
+[1166 / 2518] CNIOBoringSSL
+[1167 / 2518] CNIOBoringSSL
+[1169 / 2518] CNIOBoringSSL
+[1170 / 2518] CNIOBoringSSL
+[1171 / 2518] CNIOBoringSSL
+[1173 / 2518] CNIOBoringSSL
+[1174 / 2518] CNIOBoringSSL
+[1176 / 2518] CNIOBoringSSL
+[1178 / 2518] CNIOBoringSSL
+[1180 / 2518] CNIOBoringSSL
+[1181 / 2518] CNIOBoringSSL
+[1183 / 2518] CNIOBoringSSL
+[1184 / 2518] CNIOBoringSSL
+[1186 / 2518] CNIOBoringSSL
+[1189 / 2518] CNIOBoringSSL
+[1190 / 2518] CNIOBoringSSL
+[1193 / 2518] CNIOBoringSSL
+[1194 / 2518] CNIOBoringSSL
+[1196 / 2518] CNIOBoringSSL
+[1197 / 2518] CNIOBoringSSL
+[1202 / 2518] CNIOBoringSSL
+[1205 / 2518] CNIOBoringSSL
+[1209 / 2518] CNIOBoringSSL
+[1211 / 2518] CNIOBoringSSL
+[1212 / 2518] CNIOBoringSSL
+[1213 / 2518] CNIOBoringSSL
+[1218 / 2518] CNIOBoringSSL
+[1221 / 2518] CNIOBoringSSL
+[1223 / 2518] CNIOBoringSSL
+[1225 / 2518] CNIOBoringSSL
+[1226 / 2518] CNIOBoringSSL
+[1228 / 2518] CNIOBoringSSL
+[1229 / 2518] CNIOBoringSSL
+[1230 / 2518] CNIOBoringSSL
+[1231 / 2518] CNIOBoringSSL
+[1234 / 2518] CNIOBoringSSL
+[1239 / 2518] CNIOBoringSSL
+[1247 / 2518] CNIOBoringSSL
+[1249 / 2518] CNIOBoringSSL
+[1251 / 2518] CNIOBoringSSL
+[1257 / 2518] CNIOBoringSSL
+[1259 / 2518] CNIOBoringSSL
+[1260 / 2518] CNIOBoringSSL
+[1261 / 2518] CNIOBoringSSL
+[1263 / 2518] CNIOBoringSSL
+[1264 / 2518] CNIOBoringSSL
+[1266 / 2518] CNIOBoringSSL
+[1268 / 2518] CNIOBoringSSL
+[1269 / 2518] CNIOBoringSSL
+[1272 / 2518] CNIOBoringSSL
+[1273 / 2518] CNIOBoringSSL
+[1274 / 2518] CNIOBoringSSL
+[1275 / 2518] CNIOBoringSSL
+[1276 / 2518] CNIOBoringSSL
+[1277 / 2518] CNIOBoringSSL
+[1278 / 2518] CNIOBoringSSL
+[1280 / 2518] CNIOBoringSSL
+[1281 / 2518] CNIOBoringSSL
+[1283 / 2518] CNIOBoringSSL
+[1284 / 2518] CNIOBoringSSL
+[1285 / 2518] CNIOBoringSSL
+[1286 / 2518] CNIOBoringSSL
+[1288 / 2518] CNIOBoringSSL
+[1291 / 2518] CNIOBoringSSL
+[1293 / 2518] CNIOBoringSSL
+[1295 / 2518] CNIOBoringSSL
+[1296 / 2518] CNIOBoringSSL
+[1297 / 2518] CNIOBoringSSL
+[1298 / 2518] CNIOBoringSSL
+[1300 / 2518] CNIOBoringSSL
+[1301 / 2518] CNIOBoringSSL
+[1302 / 2518] CNIOBoringSSL
+[1303 / 2518] CNIOBoringSSL
+[1304 / 2518] CNIOBoringSSL
+[1306 / 2518] CNIOBoringSSL
+[1309 / 2518] CNIOBoringSSL
+[1310 / 2518] CNIOBoringSSL
+[1312 / 2518] CNIOBoringSSL
+[1315 / 2518] CNIOBoringSSL
+[1318 / 2518] CNIOBoringSSL
+[1322 / 2518] CNIOBoringSSL
+[1324 / 2518] CNIOBoringSSL
+[1327 / 2518] CNIOBoringSSL
+[1328 / 2518] CNIOBoringSSL
+[1331 / 2518] CNIOBoringSSL
+[1333 / 2518] CNIOBoringSSL
+[1339 / 2518] CNIOBoringSSL
+[1341 / 2518] CNIOBoringSSL
+[1343 / 2518] CNIOBoringSSL
+[1346 / 2518] CNIOBoringSSL
+[1348 / 2518] CNIOBoringSSL
+[1350 / 2518] CNIOBoringSSL
+[1354 / 2518] CNIOBoringSSL
+[1360 / 2518] CNIOBoringSSL
+[1363 / 2518] CNIOBoringSSL
+[1369 / 2518] CNIOBoringSSL
+[1376 / 2518] CNIOBoringSSL
+[1378 / 2518] CNIOBoringSSL
+[1380 / 2518] CNIOBoringSSL
+[1382 / 2518] CNIOBoringSSL
+[1384 / 2518] CNIOBoringSSL
+[1385 / 2518] CNIOBoringSSL
+[1386 / 2518] CNIOBoringSSL
+[1388 / 2518] CNIOBoringSSL
+[1391 / 2518] CNIOBoringSSL
+[1392 / 2518] CNIOBoringSSL
+[1394 / 2518] CCryptoBoringSSL
+[1397 / 2518] CCryptoBoringSSL
+[1398 / 2518] CCryptoBoringSSL
+[1399 / 2518] CCryptoBoringSSL
+[1402 / 2518] CCryptoBoringSSL
+[1404 / 2518] CCryptoBoringSSL
+[1406 / 2518] CCryptoBoringSSL
+[1410 / 2518] CCryptoBoringSSL
+[1413 / 2518] CCryptoBoringSSL
+[1415 / 2518] CCryptoBoringSSL
+[1417 / 2518] CCryptoBoringSSL
+[1418 / 2518] CCryptoBoringSSL
+[1419 / 2518] CCryptoBoringSSL
+[1420 / 2518] CCryptoBoringSSL
+[1421 / 2518] CCryptoBoringSSL
+[1423 / 2518] CCryptoBoringSSL
+[1424 / 2518] CCryptoBoringSSL
+[1425 / 2518] CCryptoBoringSSL
+[1426 / 2518] CCryptoBoringSSL
+[1427 / 2518] CCryptoBoringSSL
+[1429 / 2518] CCryptoBoringSSL
+[1430 / 2518] CCryptoBoringSSL
+[1432 / 2518] CCryptoBoringSSL
+[1433 / 2518] CCryptoBoringSSL
+[1439 / 2518] CCryptoBoringSSL
+[1444 / 2518] CCryptoBoringSSL
+[1445 / 2518] CCryptoBoringSSL
+[1448 / 2518] CCryptoBoringSSL
+[1450 / 2518] CCryptoBoringSSL
+[1452 / 2518] CCryptoBoringSSL
+[1454 / 2518] CCryptoBoringSSL
+[1456 / 2518] CCryptoBoringSSL
+[1457 / 2518] CCryptoBoringSSL
+[1459 / 2518] CCryptoBoringSSL
+[1462 / 2518] CCryptoBoringSSL
+[1464 / 2518] CCryptoBoringSSL
+[1466 / 2518] CCryptoBoringSSL
+[1468 / 2518] CCryptoBoringSSL
+[1469 / 2518] CCryptoBoringSSL
+[1470 / 2518] CCryptoBoringSSL
+[1472 / 2518] CCryptoBoringSSL
+[1474 / 2518] CCryptoBoringSSL
+[1477 / 2518] CCryptoBoringSSL
+[1479 / 2518] CCryptoBoringSSL
+[1481 / 2518] CCryptoBoringSSL
+[1483 / 2518] CCryptoBoringSSL
+[1484 / 2518] CCryptoBoringSSL
+[1485 / 2518] CCryptoBoringSSL
+[1487 / 2518] CCryptoBoringSSL
+[1488 / 2518] CCryptoBoringSSL
+[1491 / 2518] CCryptoBoringSSL
+[1493 / 2518] CCryptoBoringSSL
+[1498 / 2518] CCryptoBoringSSL
+[1503 / 2518] CCryptoBoringSSL
+[1507 / 2518] CCryptoBoringSSL
+[1514 / 2518] CCryptoBoringSSL
+[1518 / 2518] CCryptoBoringSSL
+[1523 / 2518] CCryptoBoringSSL
+[1524 / 2518] CCryptoBoringSSL
+[1525 / 2518] CCryptoBoringSSL
+[1527 / 2518] CCryptoBoringSSL
+[1531 / 2518] CCryptoBoringSSL
+[1533 / 2518] CCryptoBoringSSL
+[1536 / 2518] CCryptoBoringSSL
+[1538 / 2518] CCryptoBoringSSL
+[1541 / 2518] CCryptoBoringSSL
+[1542 / 2518] CCryptoBoringSSL
+[1545 / 2518] CCryptoBoringSSL
+[1547 / 2518] CCryptoBoringSSL
+[1549 / 2518] CCryptoBoringSSL
+[1551 / 2518] CCryptoBoringSSL
+[1553 / 2518] CCryptoBoringSSL
+[1554 / 2518] CCryptoBoringSSL
+[1557 / 2518] CCryptoBoringSSL
+[1559 / 2518] CCryptoBoringSSL
+[1560 / 2518] CCryptoBoringSSL
+[1563 / 2518] CCryptoBoringSSL
+[1564 / 2518] CCryptoBoringSSL
+[1567 / 2518] CCryptoBoringSSL
+[1569 / 2518] CCryptoBoringSSL
+[1570 / 2518] CCryptoBoringSSL
+[1571 / 2518] CCryptoBoringSSL
+[1575 / 2518] CCryptoBoringSSL
+[1582 / 2518] CCryptoBoringSSL
+[1584 / 2518] CCryptoBoringSSL
+[1586 / 2518] CCryptoBoringSSL
+[1588 / 2518] CCryptoBoringSSL
+[1592 / 2518] CCryptoBoringSSL
+[1594 / 2518] CCryptoBoringSSL
+[1595 / 2518] CCryptoBoringSSL
+[1597 / 2518] CCryptoBoringSSL
+[1599 / 2518] CCryptoBoringSSL
+[1601 / 2518] CCryptoBoringSSL
+[1605 / 2518] CCryptoBoringSSL
+[1610 / 2518] CCryptoBoringSSL
+[1617 / 2518] CCryptoBoringSSL
+[1619 / 2518] CCryptoBoringSSL
+[1622 / 2518] CCryptoBoringSSL
+[1625 / 2518] CCryptoBoringSSL
+[1631 / 2518] CCryptoBoringSSL
+[1633 / 2518] CCryptoBoringSSL
+[1634 / 2518] CCryptoBoringSSL
+[1637 / 2518] CCryptoBoringSSL
+[1639 / 2518] CCryptoBoringSSL
+[1641 / 2518] CCryptoBoringSSL
+[1642 / 2518] CCryptoBoringSSL
+[1644 / 2518] CCryptoBoringSSL
+[1647 / 2518] CCryptoBoringSSL
+[1649 / 2518] CCryptoBoringSSL
+[1650 / 2518] CCryptoBoringSSL
+[1653 / 2518] CCryptoBoringSSL
+[1655 / 2518] CCryptoBoringSSL
+[1657 / 2518] CCryptoBoringSSL
+[1658 / 2518] CCryptoBoringSSL
+[1661 / 2518] CCryptoBoringSSL
+[1662 / 2518] CCryptoBoringSSL
+[1664 / 2518] CCryptoBoringSSL
+[1666 / 2518] CCryptoBoringSSL
+[1669 / 2518] CCryptoBoringSSL
+[1670 / 2518] CCryptoBoringSSL
+[1673 / 2518] CCryptoBoringSSL
+[1674 / 2518] CCryptoBoringSSL
+[1676 / 2518] CCryptoBoringSSL
+[1677 / 2518] CCryptoBoringSSL
+[1682 / 2518] CCryptoBoringSSL
+[1685 / 2518] CCryptoBoringSSL
+[1686 / 2518] CCryptoBoringSSL
+[1691 / 2518] CCryptoBoringSSL
+[1696 / 2518] CCryptoBoringSSL
+[1698 / 2518] CCryptoBoringSSL
+[1700 / 2518] CCryptoBoringSSL
+[1706 / 2518] CCryptoBoringSSL
+[1708 / 2518] CCryptoBoringSSL
+[1710 / 2518] CCryptoBoringSSL
+[1711 / 2518] CCryptoBoringSSL
+[1713 / 2518] CCryptoBoringSSL
+[1714 / 2518] CCryptoBoringSSL
+[1715 / 2518] CCryptoBoringSSL
+[1716 / 2518] CCryptoBoringSSL
+[1720 / 2518] CCryptoBoringSSL
+[1721 / 2518] CCryptoBoringSSL
+[1724 / 2518] CCryptoBoringSSL
+[1729 / 2518] CCryptoBoringSSL
+[1733 / 2518] CCryptoBoringSSL
+[1737 / 2518] CCryptoBoringSSL
+[1741 / 2518] CCryptoBoringSSL
+[1742 / 2518] CCryptoBoringSSL
+[1745 / 2518] CCryptoBoringSSL
+[1747 / 2518] CCryptoBoringSSL
+[1749 / 2518] CCryptoBoringSSL
+[1751 / 2518] CCryptoBoringSSL
+[1754 / 2518] CCryptoBoringSSL
+[1756 / 2518] CCryptoBoringSSL
+[1758 / 2518] CCryptoBoringSSL
+[1760 / 2518]
+[1767 / 2518] CCryptoBoringSSL
+[1770 / 2518]
+[1772 / 2518]
+[1777 / 2518] _CertificateInternals
+[1780 / 2518] SystemPackage
+[1783 / 2518] SystemPackage
+[1784 / 2518] SystemPackage
+[1785 / 2518] SystemPackage-product
+[1786 / 2518] SystemPackage-product
+[1788 / 2518] SystemPackage
+[1790 / 2518] SwiftASN1
+[1791 / 2518] SwiftASN1
+[1794 / 2518] SwiftASN1-product
+[1796 / 2518] SwiftASN1
+[1797 / 2518] SwiftASN1
+[1799 / 2518] SwiftASN1
+[1800 / 2518] SwiftASN1
+[1800 / 2518] ServiceContextModule
+[1802 / 2518] ServiceContextModule-product
+[1808 / 2518] RealModule
+[1809 / 2518] RealModule
+[1812 / 2518] RealModule-product
+[1817 / 2518] RealModule
+[1819 / 2518] OpenCombine
+[1820 / 2518] OpenCombine
+[1821 / 2518] OpenCombineFoundation
+[1822 / 2518] OpenCombine-product
+[1824 / 2518] OpenCombine
+[1825 / 2518] OpenCombine
+[1827 / 2518] NIOConcurrencyHelpers
+[1830 / 2518] NIOConcurrencyHelpers-product
+[1832 / 2518] NIOConcurrencyHelpers
+[1836 / 2518] RoutingKit
+[1838 / 2518] Logging
+[1842 / 2518] InternalCollectionsUtilities
+[1844 / 2518] _RopeModule
+[1848 / 2518] InternalCollectionsUtilities
+[1848 / 2518] Instrumentation
+[1849 / 2518] HavenCoreSchemas
+[1851 / 2518] HavenCoreSchemas
+[1853 / 2518] HashTreeCollections
+[1855 / 2518] HavenCoreSchemas
+[1857 / 2518] CryptoSwift
+[1858 / 2518] CryptoSwift
+[1859 / 2518] CryptoSwift-product
+[1860 / 2518] CryptoSwift-product
+[1861 / 2518] CryptoSwift-product
+[1863 / 2518] CryptoSwift
+[1864 / 2518] CryptoBoringWrapper
+[1868 / 2518] CryptoBoringWrapper
+[1869 / 2518] CryptoBoringWrapper
+[1871 / 2518] CryptoBoringWrapper
+[1872 / 2518] CryptoBoringWrapper
+[1874 / 2518] Crypto
+[1877 / 2518] Crypto
+[1878 / 2518] Crypto
+[1880 / 2518] Crypto
+[1883 / 2518] Crypto
+[1884 / 2518] CoreMetrics
+[1885 / 2518] Metrics
+[1888 / 2518] CoreMetrics
+[1893 / 2518] CellNearby
+[1899 / 2519]
+[1903 / 2519] CSystem
+[1912 / 2519] CNIOWASI
+[1923 / 2529]
+[1933 / 2529]
+[1946 / 2539] CNIOPosix
+[1954 / 2539]
+[1957 / 2539]
+[1964 / 2552]
+[1970 / 2552] CNIOLLHTTP
+[1977 / 2556]
+[1978 / 2557]
+[1982 / 2557]
+[1987 / 2557] CNIOAtomics
+[1988 / 2560]
+[1991 / 2560]
+[1992 / 2561]
+[1996 / 2561] BitCollections
+[1997 / 2562] BigInt
+[2000 / 2562] CNIOAtomics
+[2004 / 2562] BigInt-product
+[2005 / 2562] BigInt-product
+[2007 / 2562] BigInt
+[2010 / 2562] BigInt
+[2011 / 2562] Atomics
+[2012 / 2562] BigInt
+[2014 / 2562] Atomics
+[2017 / 2562] Atomics-product
+[2021 / 2562] Atomics
+[2026 / 2562] ServiceContextModule
+[2031 / 2562] Crypto
+[2038 / 2562] Atomics
+[2041 / 2564] _RopeModule
+[2043 / 2575] _RopeModule
+[2043 / 2578] _RopeModule
+[2045 / 2578] _RopeModule
+[2058 / 2578] _RopeModule
+[2060 / 2578] _RopeModule
+[2061 / 2578] _RopeModule
+[2062 / 2578] _RopeModule
+[2063 / 2578] _RopeModule
+[2065 / 2578] _RopeModule
+[2066 / 2578] TaxonomyResolver
+[2067 / 2578] TaxonomyResolver
+[2072 / 2586] OpenCombineFoundation
+[2073 / 2597] OrderedCollections
+[2073 / 2603] OpenCombineFoundation
+[2075 / 2614] OpenCombineFoundation
+[2089 / 2614] Metrics
+[2090 / 2616] OpenCombineDispatch
+[2104 / 2616] HeapModule
+[2107 / 2631] HeapModule
+[2108 / 2631] HeapModule
+[2128 / 2631] SwiftASN1-product
+[2131 / 2633] RoutingKit
+[2135 / 2633] HavenPerspectiveSchemas
+[2141 / 2633] OrderedCollections
+[2144 / 2633] OrderedCollections
+[2146 / 2633] OrderedCollections
+[2148 / 2633] OrderedCollections
+[2150 / 2633] OrderedCollections
+[2151 / 2633] OpenCombineFoundation
+[2152 / 2633] OpenCombineFoundation
+[2156 / 2633] OpenCombineFoundation
+[2157 / 2633] OpenCombineFoundation
+[2158 / 2633] OpenCombineFoundation
+[2161 / 2633] OpenCombineFoundation
+[2163 / 2633] Metrics
+[2169 / 2633] Instrumentation
+[2173 / 2633] HeapModule
+[2178 / 2633] HeapModule
+[2179 / 2633] HavenPerspectiveSchemas
+[2181 / 2634] RealModule
+[2186 / 2646] DequeModule
+[2190 / 2668] Tracing
+[2195 / 2680] DequeModule
+[2196 / 2680] ConsoleKitTerminal
+[2212 / 2692] CryptoExtras
+[2213 / 2692] ConsoleKitTerminal
+[2214 / 2692] Tracing
+[2214 / 2692] CryptoExtras
+[2218 / 2692] Tracing
+[2230 / 2692] Tracing-product
+[2234 / 2692] Tracing
+[2237 / 2692] HashTreeCollections
+[2239 / 2692] HashTreeCollections
+[2241 / 2692] HashTreeCollections
+[2242 / 2692] HashTreeCollections
+[2246 / 2692] DequeModule-product
+[2247 / 2692] DequeModule
+[2250 / 2692] DequeModule
+[2252 / 2692] DequeModule
+[2253 / 2692] DequeModule
+[2255 / 2692] CryptoExtras
+[2258 / 2692] CryptoExtras
+[2259 / 2692] _CryptoExtras
+[2262 / 2692] CryptoExtras
+[2263 / 2692] CryptoExtras
+[2265 / 2692] ConsoleKitTerminal
+[2266 / 2692] ConsoleKitTerminal
+[2267 / 2692] ConsoleKitTerminal
+[2269 / 2692] ConsoleKitTerminal
+[2271 / 2692] ConsoleKitTerminal
+[2273 / 2692] ConsoleKitTerminal
+[2274 / 2692] ConsoleKitTerminal
+[2275 / 2692] ConsoleKitCommands
+[2277 / 2694] BitCollections
+[2279 / 2705] Logging
+[2281 / 2712] KeyPathResolver
+[2295 / 2712] KeyPathResolver
+[2298 / 2712] RoutingKit
+[2300 / 2712] HavenCommonsTests-product
+[2301 / 2712] HavenCommonsTests-product
+[2303 / 2712] KeyPathResolver
+[2305 / 2712] BitCollections
+[2307 / 2712] BitCollections
+[2309 / 2712] BitCollections
+[2310 / 2712] BitCollections
+[2310 / 2712] Atomics
+[2318 / 2726] HeapModule
+[2324 / 2740] BitCollections
+[2331 / 2740] Algorithms
+[2334 / 2740] NIOCore
+[2341 / 2740] NIOCore
+[2342 / 2740] NIOCore
+[2344 / 2740] NIOCore
+[2350 / 2740] NIOCore
+[2351 / 2740] NIOPosix
+[2352 / 2740] NIOPosix
+[2353 / 2740] NIOCore-product
+[2354 / 2740] NIOCore
+[2355 / 2740] Instrumentation
+[2358 / 2740] Algorithms
+[2359 / 2740] Algorithms
+[2361 / 2740] Algorithms-product
+[2363 / 2740] Algorithms-product
+[2366 / 2740] Algorithms
+[2367 / 2740] Algorithms
+[2368 / 2741] CombineHelpers
+[2370 / 2745] CombineHelpers
+[2376 / 2745] HavenCoreSchemas-product
+[2384 / 2745] CombineHelpers
+[2389 / 2747] CombineHelpers
+[2391 / 2769] ConsoleKitCommands
+[2394 / 2769] ConsoleKitCommands
+[2401 / 2769] ConsoleKitCommands
+[2409 / 2769] ConsoleKitCommands
+[2411 / 2769] ConsoleKitCommands
+[2413 / 2769] ConsoleKit
+[2414 / 2769] ConsoleKit
+[2417 / 2769] Configuration
+[2419 / 2769] Configuration-product
+[2420 / 2769] Configuration-product
+[2421 / 2769] Configuration
+[2424 / 2769] Configuration
+[2431 / 2770] X509
+[2431 / 2770] CCryptoBoringSSLShims
+[2434 / 2774] NIOFoundationEssentialsCompat
+[2435 / 2785] X509
+[2435 / 2801] NIOFoundationEssentialsCompat
+[2436 / 2804] NIOEmbedded
+[2438 / 2808] NIOEmbedded
+[2439 / 2808] NIOFoundationEssentialsCompat
+[2452 / 2808]
+[2454 / 2842]
+[2464 / 2842]
+[2467 / 2842]
+[2469 / 2842]
+[2472 / 2842]
+[2474 / 2842]
+[2478 / 2842]
+[2481 / 2842]
+[2484 / 2842]
+[2485 / 2842]
+[2487 / 2842]
+[2489 / 2842] NIOPosix
+[2490 / 2842]
+[2499 / 2842] X509
+[2500 / 2842]
+[2502 / 2842] X509
+[2503 / 2842] X509
+[2504 / 2842] X509-product
+[2505 / 2842] X509
+[2507 / 2842] X509
+[2513 / 2842] X509
+[2514 / 2842] X509
+[2515 / 2842] X509
+[2517 / 2842] NIOPosix
+[2518 / 2842] NIOPosix
+[2520 / 2842] X509
+[2520 / 2842] NIOPosix
+[2522 / 2842] NIOPosix
+[2523 / 2842] NIOPosix-product
+[2525 / 2842] NIOPosix
+[2526 / 2842] NIOPosix
+[2527 / 2842] NIOPosix
+[2528 / 2842] NIOFoundationEssentialsCompat
+[2529 / 2842] NIOPosix
+[2530 / 2842] NIOFoundationEssentialsCompat
+[2532 / 2842] NIOEmbedded
+[2534 / 2842] NIOEmbedded-product
+[2537 / 2842] CellNearbyTests-product
+[2539 / 2843] Instrumentation
+[2546 / 2845] Collections
+[2551 / 2847] ConsoleKit
+[2552 / 2858] _NIOFileSystem
+[2554 / 2860] ConsoleKit
+[2568 / 2860] ConsoleKit
+[2568 / 2860] _NIOFileSystem
+[2570 / 2860] _NIOFileSystemFoundationCompat
+[2572 / 2860] _NIOFileSystem
+[2573 / 2860] _NIOFileSystem
+[2575 / 2860] _NIOFileSystem
+[2575 / 2860] Tracing
+[2580 / 2861] NIO
+[2582 / 2863] NIO
+[2585 / 2863] NIO
+[2595 / 2863]
+[2596 / 2864]
+[2598 / 2865] TaxonomyResolver-product
+[2602 / 2874] NIOTLS
+[2604 / 2874] NIOTLS
+[2618 / 2874] _NIOFileSystemFoundationCompat-product
+[2619 / 2874] NIOTLS-product
+[2622 / 2874] NIOCore
+[2625 / 2876] OpenCombineFoundation-product
+[2631 / 2894]
+[2640 / 2894] _NIOFileSystem-product
+[2642 / 2894] Collections
+[2645 / 2894] CryptoBoringWrapper
+[2646 / 2894] AsyncKit
+[2649 / 2894] AsyncKit
+[2651 / 2894] AsyncKit
+[2658 / 2894] AsyncKit
+[2660 / 2894] AsyncKit-product
+[2662 / 2897] NIOHTTP1
+[2663 / 2908] NIOSOCKS
+[2664 / 2920] NIOFoundationCompat
+[2673 / 2924] NIOFoundationCompat
+[2674 / 2924] NIOHTTP1
+[2676 / 2924] NIOSOCKS
+[2687 / 2924] NIOSOCKS
+[2688 / 2924] NIOSOCKS-product
+[2689 / 2924] NIOSOCKS-product
+[2690 / 2924] NIOSOCKS-product
+[2692 / 2924] NIOSOCKS
+[2693 / 2924] NIOSOCKS
+[2694 / 2924] NIOSOCKS
+[2695 / 2924] NIOSOCKS
+[2697 / 2924] NIOWebSocket
+[2699 / 2924] NIOWebSocket
+[2701 / 2924] NIOHTTPCompression
+[2703 / 2924] NIOHTTP1
+[2705 / 2924] NIOHTTP1
+[2706 / 2924] NIOHTTP1
+[2706 / 2924] NIOHPACK
+[2707 / 2924] NIOHPACK
+[2709 / 2924] NIOFoundationCompat
+[2713 / 2926] NIOWebSocket
+[2717 / 2939] NIOWebSocket
+[2717 / 2952] NIOWebSocket
+[2719 / 2965] NIOWebSocket
+[2727 / 2965]
+[2730 / 2965] NIOTransportServices
+[2732 / 2965] NIOWebSocket
+[2742 / 2965] NIOSSL
+[2748 / 2965] NIOWebSocket-product
+[2751 / 2965] NIOWebSocket
+[2753 / 2965] NIOTransportServices
+[2754 / 2965] NIOWebSocket
+[2755 / 2965] NIOTransportServices-product
+[2756 / 2965] NIOTransportServices
+[2757 / 2965] NIOTransportServices
+[2759 / 2965] NIOTransportServices
+[2760 / 2965] NIOTransportServices
+[2762 / 2965] NIOTransportServices
+[2764 / 2965] NIOSSL
+[2767 / 2965] NIOSSL
+[2768 / 2965] NIOSSL-product
+[2769 / 2965] NIOSSL-product
+[2770 / 2965] NIOSSL
+[2773 / 2965] NIOSSL
+[2773 / 2965] NIOCore
+[2779 / 2969] NIOHPACK
+[2780 / 2978] NIOExtras
+[2782 / 2997] NIOHPACK
+[2784 / 3008]
+[2790 / 3008] NIOHPACK
+[2793 / 3008] NIOExtras
+[2813 / 3008] Random-product
+[2817 / 3008] Random
+[2819 / 3008] NIOHTTPCompression
+[2822 / 3008] NIOHTTPCompression
+[2824 / 3008] NIOHTTPCompression-product
+[2826 / 3008] NIOHPACK
+[2829 / 3008] NIOHTTP2
+[2832 / 3008] NIOHPACK
+[2834 / 3008] NIOHPACK
+[2836 / 3008] NIOExtras
+[2838 / 3008] NIOExtras
+[2841 / 3008] NIOExtras-product
+[2842 / 3008] NIOExtras
+[2845 / 3008] NIOExtras
+[2846 / 3008] KeyPathResolver-product
+[2853 / 3010] NIOPosix
+[2856 / 3031]
+[2859 / 3031] WebSocketKit
+[2873 / 3031] WebSocketKit
+[2875 / 3031] WebSocketKit-product
+[2877 / 3031] NIOFoundationEssentialsCompat
+[2882 / 3031] MultipartKit
+[2883 / 3031] MultipartKit-product
+[2885 / 3031] MultipartKit-product
+[2887 / 3031] MultipartKit
+[2889 / 3031] MultipartKit
+[2889 / 3031]
+[2892 / 3033] NIOHTTP2
+[2895 / 3044] NIOHTTP2
+[2896 / 3049] HavenCommonsTests-product
+[2899 / 3049] NIOHTTP2
+[2905 / 3049] NIOHTTP2
+[2910 / 3049] NIOHTTP2-product
+[2911 / 3049] NIOHTTP2-product
+[2913 / 3049] NIOHTTP2
+[2915 / 3049] NIOHTTP2
+[2916 / 3049] NIOHTTP2
+[2918 / 3049] HavenCommonsTests-product
+[2920 / 3049] HavenCommonsTests-product
+[2922 / 3049] CryptoExtras
+[2926 / 3049] CryptoExtras
+[2932 / 3050] NIOFileSystem
+[2934 / 3050] _NIOFileSystemFoundationCompat
+[2936 / 3050] NIOHTTP1
+[2936 / 3050] NIOTLS
+[2937 / 3050] NIO-product
+[2940 / 3050]
+[2944 / 3050] NIOHTTPCompression
+[2948 / 3050]
+[2953 / 3066] AsyncHTTPClient
+[2954 / 3066] NIOHTTP2
+[2955 / 3066] MultipartKit
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PersistingCells/EntityRelationRecordV1.swift:321:16: warning: stored property 'entityRepresentation' of 'Sendable'-conforming struct 'EntityRelationRecord' contains non-Sendable type 'EntityRepresentation'; this is an error in the Swift 6 language mode
+ 319 |     /// Canonical owner-held knowledge when present. The legacy subject/tags/
+ 320 |     /// purposeRefs remain readable for existing clients and import adapters.
+ 321 |     public var entityRepresentation: EntityRepresentation?
+     |                `- warning: stored property 'entityRepresentation' of 'Sendable'-conforming struct 'EntityRelationRecord' contains non-Sendable type 'EntityRepresentation'; this is an error in the Swift 6 language mode
+ 322 | 
+ 323 |     public init(
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/EntityRepresentation.swift:61:14: note: class 'EntityRepresentation' does not conform to the 'Sendable' protocol
+ 59 | 
+ 60 | 
+ 61 | public class EntityRepresentation:  PerspectiveNodeImpl {
+    |              `- note: class 'EntityRepresentation' does not conform to the 'Sendable' protocol
+ 62 | 
+ 63 |     var fulfilled: Fullfilled = Fullfilled() // Until Interests and Purposes are moved
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/ClaimComposition.swift:36:16: warning: stored property 'composition' of 'Sendable'-conforming struct 'ClaimCounter' has non-Sendable type 'ClaimComposition'; this is an error in the Swift 6 language mode
+ 34 | public struct ClaimCounter: Codable, Equatable, Sendable {
+ 35 |     public var role: ClaimCounterRole
+ 36 |     public var composition: ClaimComposition
+    |                `- warning: stored property 'composition' of 'Sendable'-conforming struct 'ClaimCounter' has non-Sendable type 'ClaimComposition'; this is an error in the Swift 6 language mode
+ 37 | 
+ 38 |     public init(role: ClaimCounterRole, composition: ClaimComposition) {
+    :
+187 | }
+188 | 
+189 | public indirect enum ClaimComposition: Codable, Equatable {
+    |                      `- note: consider making enum 'ClaimComposition' conform to the 'Sendable' protocol
+190 |     case claim(ClaimCompositionLeaf)
+191 |     // allOf: linked premises, weakest link decides the score.
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/ClaimDefinition.swift:91:16: warning: stored property 'composition' of 'Sendable'-conforming struct 'ClaimDefinition' contains non-Sendable type 'ClaimComposition'; this is an error in the Swift 6 language mode
+ 89 |     public var goalID: String?
+ 90 |     public var supports: [ClaimSupportNode]
+ 91 |     public var composition: ClaimComposition?
+    |                `- warning: stored property 'composition' of 'Sendable'-conforming struct 'ClaimDefinition' contains non-Sendable type 'ClaimComposition'; this is an error in the Swift 6 language mode
+ 92 |     public var tags: [String]
+ 93 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/ClaimComposition.swift:189:22: note: consider making enum 'ClaimComposition' conform to the 'Sendable' protocol
+187 | }
+188 | 
+189 | public indirect enum ClaimComposition: Codable, Equatable {
+    |                      `- note: consider making enum 'ClaimComposition' conform to the 'Sendable' protocol
+190 |     case claim(ClaimCompositionLeaf)
+191 |     // allOf: linked premises, weakest link decides the score.
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/PerspectiveEntityProjection.swift:30:16: warning: stored property 'entities' of 'Sendable'-conforming struct 'PerspectiveEntityProjection' contains non-Sendable type 'Weight<EntityRepresentation>'; this is an error in the Swift 6 language mode
+ 28 |     /// delayed write cannot resurrect entities a newer one removed.
+ 29 |     public let epoch: Int
+ 30 |     public let entities: [Weight<EntityRepresentation>]
+    |                `- warning: stored property 'entities' of 'Sendable'-conforming struct 'PerspectiveEntityProjection' contains non-Sendable type 'Weight<EntityRepresentation>'; this is an error in the Swift 6 language mode
+ 31 | 
+ 32 |     public init(source: String, epoch: Int, entities: [Weight<EntityRepresentation>]) {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Weight.swift:13:15: note: consider making generic struct 'Weight' conform to the 'Sendable' protocol
+ 11 | import Foundation
+ 12 | 
+ 13 | public struct Weight<T: PerspectiveNode & Codable> :  Weighted, Codable {
+    |               `- note: consider making generic struct 'Weight' conform to the 'Sendable' protocol
+ 14 |     
+ 15 |     
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/RelationalLearningModels.swift:95:16: warning: stored property 'payload' of 'Sendable'-conforming struct 'RelationalLearningEventEnvelope' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+ 93 |     public var schemaVersion: String
+ 94 |     public var emittedAt: TimeInterval
+ 95 |     public var payload: Object
+    |                `- warning: stored property 'payload' of 'Sendable'-conforming struct 'RelationalLearningEventEnvelope' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+ 96 | 
+ 97 |     public init(eventType: RelationalLearningEventType,
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: consider making enum 'ValueType' conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: consider making enum 'ValueType' conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+[2957 / 3081] CellBase
+[2962 / 3081] CellBase
+[2967 / 3081]
+[2968 / 3081] AsyncHTTPClient
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/Cells/GeneralCell/GeneralCell.swift:1771:13: warning: variable 'wrapper' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1769 |         }
+1770 | 
+1771 |         var wrapper: Object = ["root": value]
+     |             `- warning: variable 'wrapper' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1772 |         let normalizedPath: String
+1773 |         if trimmedChildKeypath.hasPrefix("[") || trimmedChildKeypath.hasPrefix(".") {
+
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+[2969 / 3081] CellBase
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/Cells/Vault/VaultCell.swift:395:17: warning: variable 'errors' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 393 |             let now = currentEpochMs()
+ 394 |             var normalized = normalize(note: parsedNote, now: now)
+ 395 |             var errors = validateRequiredFields(for: normalized)
+     |                 `- warning: variable 'errors' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 396 | 
+ 397 |             guard let existing = notesByID[normalized.id] else {
+
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+[2971 / 3081] CellBase
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/Agreement/ConnectContext.swift:28:13: warning: will never be executed
+ 26 |             }
+ 27 |             
+ 28 |             throw ConnectContextError.otherError
+    |             `- warning: will never be executed
+ 29 |         }
+ 30 |     }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/Agreement/ConnectContext.swift:53:13: warning: will never be executed
+ 51 |             }
+ 52 |             
+ 53 |             throw ConnectContextError.otherError
+    |             `- warning: will never be executed
+ 54 |         }
+ 55 |             
+[2979 / 3081] CellBase
+[2980 / 3081] CellBase
+[2981 / 3081] CellBase
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PersistingCells/EntityRelationRecordV1.swift:321:16: warning: stored property 'entityRepresentation' of 'Sendable'-conforming struct 'EntityRelationRecord' contains non-Sendable type 'EntityRepresentation'; this is an error in the Swift 6 language mode
+ 319 |     /// Canonical owner-held knowledge when present. The legacy subject/tags/
+ 320 |     /// purposeRefs remain readable for existing clients and import adapters.
+ 321 |     public var entityRepresentation: EntityRepresentation?
+     |                `- warning: stored property 'entityRepresentation' of 'Sendable'-conforming struct 'EntityRelationRecord' contains non-Sendable type 'EntityRepresentation'; this is an error in the Swift 6 language mode
+ 322 | 
+ 323 |     public init(
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/EntityRepresentation.swift:61:14: note: class 'EntityRepresentation' does not conform to the 'Sendable' protocol
+ 59 | 
+ 60 | 
+ 61 | public class EntityRepresentation:  PerspectiveNodeImpl {
+    |              `- note: class 'EntityRepresentation' does not conform to the 'Sendable' protocol
+ 62 | 
+ 63 |     var fulfilled: Fullfilled = Fullfilled() // Until Interests and Purposes are moved
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/ClaimComposition.swift:36:16: warning: stored property 'composition' of 'Sendable'-conforming struct 'ClaimCounter' has non-Sendable type 'ClaimComposition'; this is an error in the Swift 6 language mode
+ 34 | public struct ClaimCounter: Codable, Equatable, Sendable {
+ 35 |     public var role: ClaimCounterRole
+ 36 |     public var composition: ClaimComposition
+    |                `- warning: stored property 'composition' of 'Sendable'-conforming struct 'ClaimCounter' has non-Sendable type 'ClaimComposition'; this is an error in the Swift 6 language mode
+ 37 | 
+ 38 |     public init(role: ClaimCounterRole, composition: ClaimComposition) {
+    :
+187 | }
+188 | 
+189 | public indirect enum ClaimComposition: Codable, Equatable {
+    |                      `- note: consider making enum 'ClaimComposition' conform to the 'Sendable' protocol
+190 |     case claim(ClaimCompositionLeaf)
+191 |     // allOf: linked premises, weakest link decides the score.
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/ClaimDefinition.swift:91:16: warning: stored property 'composition' of 'Sendable'-conforming struct 'ClaimDefinition' contains non-Sendable type 'ClaimComposition'; this is an error in the Swift 6 language mode
+ 89 |     public var goalID: String?
+ 90 |     public var supports: [ClaimSupportNode]
+ 91 |     public var composition: ClaimComposition?
+    |                `- warning: stored property 'composition' of 'Sendable'-conforming struct 'ClaimDefinition' contains non-Sendable type 'ClaimComposition'; this is an error in the Swift 6 language mode
+ 92 |     public var tags: [String]
+ 93 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/ClaimComposition.swift:189:22: note: consider making enum 'ClaimComposition' conform to the 'Sendable' protocol
+187 | }
+188 | 
+189 | public indirect enum ClaimComposition: Codable, Equatable {
+    |                      `- note: consider making enum 'ClaimComposition' conform to the 'Sendable' protocol
+190 |     case claim(ClaimCompositionLeaf)
+191 |     // allOf: linked premises, weakest link decides the score.
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/FeedItem/FlowElement.swift:88:71: warning: conditional downcast from 'Int?' to 'Int' does nothing
+ 86 |         origin = try? values.decodeIfPresent(String.self, forKey: .origin)
+ 87 |         // Persisterte elementer fra for denne endringen har ingen hops-nokkel.
+ 88 |         hops = (try? values.decodeIfPresent(Int.self, forKey: .hops)) as? Int ?? 0
+    |                                                                       `- warning: conditional downcast from 'Int?' to 'Int' does nothing
+ 89 |         do {
+ 90 |         switch properties?.contentType {
+[2982 / 3081] CellBase
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/Cells/Bridging/BridgeBase.swift:692:53: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+ 678 |         self.connectPublisher = connectPublisher
+ 679 |         
+ 680 |         Task {
+     |              |- note: 'self' implicitly strongly captured here
+     |              `- note: add 'self' as a capture list item to silence
+ 681 |             if let identity = context.identity,
+ 682 |                let connectPublisher = self.connectPublisher
+     :
+ 690 |                         connectPublisher.send(completion: .failure(ConnectError.cancelled ))
+ 691 |                     })
+ 692 |                     .sink(receiveCompletion: {[weak self] completion in
+     |                                                     |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+     |                                                     `- note: explicitly assign the capture list item to silence
+ 693 |                         bridgeLog("Connect callback publisher completed: \(completion)")
+ 694 |                         connectPublisher.send(completion: .finished)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/Cells/Bridging/LightweightBridgeTransport.swift:494:34: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+ 487 | 
+ 488 |     private func receiveNextMessage() {
+ 489 |         Task {
+     |              |- note: 'self' implicitly strongly captured here
+     |              `- note: add 'self' as a capture list item to silence
+ 490 |             guard let task = await state.activeTask() else {
+ 491 |                 return
+ 492 |             }
+ 493 | 
+ 494 |             task.receive { [weak self] result in
+     |                                  |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+     |                                  `- note: explicitly assign the capture list item to silence
+ 495 |                 guard let self else {
+ 496 |                     return
+
+[#ImplicitStrongCapture]: <https://docs.swift.org/compiler/documentation/diagnostics/implicit-strong-capture>
+[2983 / 3081] CellBase
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Perspective.swift:641:49: warning: type 'Facilitator<Interest>' does not conform to the 'Sendable' protocol
+ 639 |             //        facilitator.context2 = self
+ 640 |             if let userInfoKey = CodingUserInfoKey(rawValue: "interestFacilitator") {
+ 641 |                 decoder.userInfo[userInfoKey] = interestsFacilitator
+     |                                                 `- warning: type 'Facilitator<Interest>' does not conform to the 'Sendable' protocol
+ 642 |             }
+ 643 |             if let userInfoKey = CodingUserInfoKey(rawValue: "purposeFacilitator") {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Facilitator.swift:13:14: note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+11 | import Foundation
+12 | 
+13 | public class Facilitator<T> where T: Referenceable {
+   |              `- note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+14 |     var referenceablesDict = [String : T]()
+15 |     var interestNameReferences = [String : [String]]() // Name of interests pointing to references
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Perspective.swift:644:49: warning: type 'Facilitator<Purpose>' does not conform to the 'Sendable' protocol
+ 642 |             }
+ 643 |             if let userInfoKey = CodingUserInfoKey(rawValue: "purposeFacilitator") {
+ 644 |                 decoder.userInfo[userInfoKey] = purposesFacilitator
+     |                                                 `- warning: type 'Facilitator<Purpose>' does not conform to the 'Sendable' protocol
+ 645 |             }
+ 646 |             if let userInfoKey = CodingUserInfoKey(rawValue: "entityRepresentationsFacilitator") {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Facilitator.swift:13:14: note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+11 | import Foundation
+12 | 
+13 | public class Facilitator<T> where T: Referenceable {
+   |              `- note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+14 |     var referenceablesDict = [String : T]()
+15 |     var interestNameReferences = [String : [String]]() // Name of interests pointing to references
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Perspective.swift:647:49: warning: type 'Facilitator<EntityRepresentation>' does not conform to the 'Sendable' protocol
+ 645 |             }
+ 646 |             if let userInfoKey = CodingUserInfoKey(rawValue: "entityRepresentationsFacilitator") {
+ 647 |                 decoder.userInfo[userInfoKey] = entityRepresentationFacilitator
+     |                                                 `- warning: type 'Facilitator<EntityRepresentation>' does not conform to the 'Sendable' protocol
+ 648 |             }
+ 649 |             if let userInfoKey = CodingUserInfoKey(rawValue: "entityFacilitator") {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Facilitator.swift:13:14: note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+11 | import Foundation
+12 | 
+13 | public class Facilitator<T> where T: Referenceable {
+   |              `- note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+14 |     var referenceablesDict = [String : T]()
+15 |     var interestNameReferences = [String : [String]]() // Name of interests pointing to references
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Perspective.swift:650:49: warning: type 'Facilitator<EntityRepresentation>' does not conform to the 'Sendable' protocol
+ 648 |             }
+ 649 |             if let userInfoKey = CodingUserInfoKey(rawValue: "entityFacilitator") {
+ 650 |                 decoder.userInfo[userInfoKey] = entityRepresentationFacilitator
+     |                                                 `- warning: type 'Facilitator<EntityRepresentation>' does not conform to the 'Sendable' protocol
+ 651 |             }
+ 652 |             if let userInfoKey = CodingUserInfoKey(rawValue: "context") {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Facilitator.swift:13:14: note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+11 | import Foundation
+12 | 
+13 | public class Facilitator<T> where T: Referenceable {
+   |              `- note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+14 |     var referenceablesDict = [String : T]()
+15 |     var interestNameReferences = [String : [String]]() // Name of interests pointing to references
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Perspective.swift:905:45: warning: type 'Facilitator<Interest>' does not conform to the 'Sendable' protocol
+ 903 |         let interestFacilitator = Facilitator<Interest>()
+ 904 |         if let userInfoKey = CodingUserInfoKey(rawValue: "interestFacilitator") {
+ 905 |             encoder.userInfo[userInfoKey] = interestFacilitator
+     |                                             `- warning: type 'Facilitator<Interest>' does not conform to the 'Sendable' protocol
+ 906 |         }
+ 907 |         
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Facilitator.swift:13:14: note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+11 | import Foundation
+12 | 
+13 | public class Facilitator<T> where T: Referenceable {
+   |              `- note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+14 |     var referenceablesDict = [String : T]()
+15 |     var interestNameReferences = [String : [String]]() // Name of interests pointing to references
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Perspective.swift:910:45: warning: type 'Facilitator<Purpose>' does not conform to the 'Sendable' protocol
+ 908 |         let purposeFacilitator = Facilitator<Purpose>()
+ 909 |         if let userInfoKey = CodingUserInfoKey(rawValue: "purposeFacilitator") {
+ 910 |             encoder.userInfo[userInfoKey] = purposeFacilitator
+     |                                             `- warning: type 'Facilitator<Purpose>' does not conform to the 'Sendable' protocol
+ 911 |         }
+ 912 |         let entityRepresentationFacilitator = Facilitator<EntityRepresentation>()
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Facilitator.swift:13:14: note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+11 | import Foundation
+12 | 
+13 | public class Facilitator<T> where T: Referenceable {
+   |              `- note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+14 |     var referenceablesDict = [String : T]()
+15 |     var interestNameReferences = [String : [String]]() // Name of interests pointing to references
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Perspective.swift:914:45: warning: type 'Facilitator<EntityRepresentation>' does not conform to the 'Sendable' protocol
+ 912 |         let entityRepresentationFacilitator = Facilitator<EntityRepresentation>()
+ 913 |         if let userInfoKey = CodingUserInfoKey(rawValue: "entityRepresentationsFacilitator") {
+ 914 |             encoder.userInfo[userInfoKey] = entityRepresentationFacilitator
+     |                                             `- warning: type 'Facilitator<EntityRepresentation>' does not conform to the 'Sendable' protocol
+ 915 |         }
+ 916 |         if let userInfoKey = CodingUserInfoKey(rawValue: "entityFacilitator") {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Facilitator.swift:13:14: note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+11 | import Foundation
+12 | 
+13 | public class Facilitator<T> where T: Referenceable {
+   |              `- note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+14 |     var referenceablesDict = [String : T]()
+15 |     var interestNameReferences = [String : [String]]() // Name of interests pointing to references
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Perspective.swift:917:45: warning: type 'Facilitator<EntityRepresentation>' does not conform to the 'Sendable' protocol
+ 915 |         }
+ 916 |         if let userInfoKey = CodingUserInfoKey(rawValue: "entityFacilitator") {
+ 917 |             encoder.userInfo[userInfoKey] = entityRepresentationFacilitator
+     |                                             `- warning: type 'Facilitator<EntityRepresentation>' does not conform to the 'Sendable' protocol
+ 918 |         }
+ 919 |         
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Facilitator.swift:13:14: note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+11 | import Foundation
+12 | 
+13 | public class Facilitator<T> where T: Referenceable {
+   |              `- note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+14 |     var referenceablesDict = [String : T]()
+15 |     var interestNameReferences = [String : [String]]() // Name of interests pointing to references
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Perspective.swift:930:45: warning: type 'Facilitator<Interest>' does not conform to the 'Sendable' protocol
+ 928 |         let interestFacilitator = Facilitator<Interest>()
+ 929 |         if let userInfoKey = CodingUserInfoKey(rawValue: "interestFacilitator") {
+ 930 |             decoder.userInfo[userInfoKey] = interestFacilitator
+     |                                             `- warning: type 'Facilitator<Interest>' does not conform to the 'Sendable' protocol
+ 931 |         }
+ 932 |         
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Facilitator.swift:13:14: note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+11 | import Foundation
+12 | 
+13 | public class Facilitator<T> where T: Referenceable {
+   |              `- note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+14 |     var referenceablesDict = [String : T]()
+15 |     var interestNameReferences = [String : [String]]() // Name of interests pointing to references
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Perspective.swift:935:45: warning: type 'Facilitator<Purpose>' does not conform to the 'Sendable' protocol
+ 933 |         let purposeFacilitator = Facilitator<Purpose>()
+ 934 |         if let userInfoKey = CodingUserInfoKey(rawValue: "purposeFacilitator") {
+ 935 |             decoder.userInfo[userInfoKey] = purposeFacilitator
+     |                                             `- warning: type 'Facilitator<Purpose>' does not conform to the 'Sendable' protocol
+ 936 |         }
+ 937 |         
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Facilitator.swift:13:14: note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+11 | import Foundation
+12 | 
+13 | public class Facilitator<T> where T: Referenceable {
+   |              `- note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+14 |     var referenceablesDict = [String : T]()
+15 |     var interestNameReferences = [String : [String]]() // Name of interests pointing to references
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Perspective.swift:940:45: warning: type 'Facilitator<EntityRepresentation>' does not conform to the 'Sendable' protocol
+ 938 |         let entityRepresentationFacilitator = Facilitator<EntityRepresentation>()
+ 939 |         if let userInfoKey = CodingUserInfoKey(rawValue: "entityRepresentationsFacilitator") {
+ 940 |             decoder.userInfo[userInfoKey] = entityRepresentationFacilitator
+     |                                             `- warning: type 'Facilitator<EntityRepresentation>' does not conform to the 'Sendable' protocol
+ 941 |         }
+ 942 |         if let userInfoKey = CodingUserInfoKey(rawValue: "entityFacilitator") {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Facilitator.swift:13:14: note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+11 | import Foundation
+12 | 
+13 | public class Facilitator<T> where T: Referenceable {
+   |              `- note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+14 |     var referenceablesDict = [String : T]()
+15 |     var interestNameReferences = [String : [String]]() // Name of interests pointing to references
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Perspective.swift:943:45: warning: type 'Facilitator<EntityRepresentation>' does not conform to the 'Sendable' protocol
+ 941 |         }
+ 942 |         if let userInfoKey = CodingUserInfoKey(rawValue: "entityFacilitator") {
+ 943 |             decoder.userInfo[userInfoKey] = entityRepresentationFacilitator
+     |                                             `- warning: type 'Facilitator<EntityRepresentation>' does not conform to the 'Sendable' protocol
+ 944 |         }
+ 945 |         
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Facilitator.swift:13:14: note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+11 | import Foundation
+12 | 
+13 | public class Facilitator<T> where T: Referenceable {
+   |              `- note: generic class 'Facilitator' does not conform to the 'Sendable' protocol
+14 |     var referenceablesDict = [String : T]()
+15 |     var interestNameReferences = [String : [String]]() // Name of interests pointing to references
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/PerspectiveEntityProjection.swift:30:16: warning: stored property 'entities' of 'Sendable'-conforming struct 'PerspectiveEntityProjection' contains non-Sendable type 'Weight<EntityRepresentation>'; this is an error in the Swift 6 language mode
+ 28 |     /// delayed write cannot resurrect entities a newer one removed.
+ 29 |     public let epoch: Int
+ 30 |     public let entities: [Weight<EntityRepresentation>]
+    |                `- warning: stored property 'entities' of 'Sendable'-conforming struct 'PerspectiveEntityProjection' contains non-Sendable type 'Weight<EntityRepresentation>'; this is an error in the Swift 6 language mode
+ 31 | 
+ 32 |     public init(source: String, epoch: Int, entities: [Weight<EntityRepresentation>]) {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Weight.swift:13:15: note: consider making generic struct 'Weight' conform to the 'Sendable' protocol
+ 11 | import Foundation
+ 12 | 
+ 13 | public struct Weight<T: PerspectiveNode & Codable> :  Weighted, Codable {
+    |               `- note: consider making generic struct 'Weight' conform to the 'Sendable' protocol
+ 14 |     
+ 15 |     
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/Purpose.swift:186:27: warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+184 |     public static func generatePurposes() async throws {
+185 |         let context = Perspective() // Should we use a singleton?
+186 |         try await context.loadContext()
+    |                           `- warning: 'loadContext()' is deprecated [#DeprecatedDeclaration]
+187 |         var purposes = [Purpose]()
+188 |         purposes.append(
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/PurposeAndInterest/RelationalLearningModels.swift:95:16: warning: stored property 'payload' of 'Sendable'-conforming struct 'RelationalLearningEventEnvelope' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+ 93 |     public var schemaVersion: String
+ 94 |     public var emittedAt: TimeInterval
+ 95 |     public var payload: Object
+    |                `- warning: stored property 'payload' of 'Sendable'-conforming struct 'RelationalLearningEventEnvelope' contains non-Sendable type 'ValueType'; this is an error in the Swift 6 language mode
+ 96 | 
+ 97 |     public init(eventType: RelationalLearningEventType,
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellBase/ValueTypes/ValueType.swift:11:22: note: consider making enum 'ValueType' conform to the 'Sendable' protocol
+  9 | #endif
+ 10 | 
+ 11 | public indirect enum ValueType: Codable {
+    |                      `- note: consider making enum 'ValueType' conform to the 'Sendable' protocol
+ 12 |     case flowElement(FlowElement)
+ 13 |     case bool(Bool)
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[2985 / 3081] CellBase
+[2986 / 3081] AsyncHTTPClient
+[2988 / 3081] AsyncHTTPClient
+[2988 / 3081] CellBase
+[2989 / 3081] AsyncHTTPClient
+[2992 / 3081] AsyncHTTPClient
+[2993 / 3081] AsyncHTTPClient-product
+[2994 / 3081] AsyncHTTPClient-product
+[2996 / 3081] Vapor
+[2997 / 3081] CellBase
+[3001 / 3083] ReferenceLoadBenchmark-product
+[3005 / 3098]
+[3008 / 3098] Vapor
+[3009 / 3098] Vapor
+[3010 / 3098] Vapor
+[3012 / 3098] Vapor
+[3018 / 3098] Vapor
+[3019 / 3098] Vapor-product
+[3020 / 3098] Vapor-product
+[3021 / 3098] Vapor
+[3023 / 3098] Vapor
+[3023 / 3098] ReferenceLoadBenchmark-product
+[3024 / 3098] ReferenceLoadBenchmark-product
+[3026 / 3099] PurposeInterestBenchmarkSupport
+[3028 / 3103] PurposeInterestBenchmarkSupport
+[3037 / 3103] PurposeInterestBenchmarkSupport
+[3038 / 3103] PurposeInterestBenchmarkSupport
+[3043 / 3105] PurposeInterestBenchmarkSupport
+[3045 / 3107] haven-commons-product
+[3045 / 3107] CellApple
+[3049 / 3132]
+[3051 / 3132]
+[3052 / 3132]
+[3057 / 3148]
+[3061 / 3148]
+[3065 / 3148]
+[3068 / 3148] haven-commons-product
+[3069 / 3148] haven-commons-product
+[3071 / 3148] CellVapor
+[3077 / 3148] CellVapor
+[3078 / 3148] CellVapor
+[3079 / 3148] CellVapor-product
+[3081 / 3148] CellVapor
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/Suggestion/SkeletonNativeStyle.swift:255:9: warning: stored property 'edges' of 'Sendable'-conforming struct 'SkeletonBorderShape' contains non-Sendable type 'SkeletonEdge'; this is an error in the Swift 6 language mode
+253 | struct SkeletonBorderShape: Shape {
+254 |     let radius: CGFloat
+255 |     let edges: [SkeletonEdge]?
+    |         `- warning: stored property 'edges' of 'Sendable'-conforming struct 'SkeletonBorderShape' contains non-Sendable type 'SkeletonEdge'; this is an error in the Swift 6 language mode
+256 |     let rtl: Bool
+257 |     func path(in rect: CGRect) -> Path {
+
+CellBase.SkeletonEdge:1:13: note: enum 'SkeletonEdge' does not conform to the 'Sendable' protocol
+1 | public enum SkeletonEdge : String, Codable {
+  |             `- note: enum 'SkeletonEdge' does not conform to the 'Sendable' protocol
+2 |     case top
+3 |     case leading
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/Suggestion/SkeletonNativeStyle.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  3 | 
+  4 | import SwiftUI
+  5 | import CellBase
+    | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  6 | #if os(macOS)
+  7 | import AppKit
+
+[#AddPreconcurrencyImport]: <https://docs.swift.org/compiler/documentation/diagnostics/add-preconcurrency-import>
+[3082 / 3148] CellVapor
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellVapor/Cells/EntityAnchorCell.swift:244:17: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 242 |         if await self.validateAccess("-w--", at: "person", for: requester) {
+ 243 |             CellBase.diagnosticLog("Entity data set keypath=\(keypath)", domain: .identity)
+ 244 |             try await self.storage.set(keypath: keypath, setValue: value)
+     |                 `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 245 |             try await self.saveKeypathStorage(entity: self.storage)
+ 246 |             // Send flowElement notification
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellVapor/Cells/EntityAnchorCell.swift:265:21: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 263 |             do {
+ 264 |                 CellBase.diagnosticLog("Entity data set keypath=\(keypath)", domain: .identity)
+ 265 |                 try await self.storage.set(keypath: keypath, setValue: value)
+     |                     `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 266 |                 try await self.saveKeypathStorage(entity: self.storage)
+ 267 |                 // Send flowElement notification
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellVapor/Cells/EntityAnchorCell.swift:297:33: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 295 |                         do {
+ 296 |                             _ = try self.storage.get(keypath: keypath)
+ 297 |                             try await self.storage.set(keypath: keypath, setValue: value)
+     |                                 `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 298 |                         } catch {
+ 299 |                             if case KeyPathError.notFound = error {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellVapor/Cells/EntityAnchorCell.swift:302:37: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 300 |                                 let identityUuid = String(keypathArray[keypathArray.count - 1])
+ 301 |                                 let entityUuid = UUID().uuidString
+ 302 |                                 try await self.storage.set(keypath: keypath, setValue: .string(entityUuid))
+     |                                     `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 303 |                                 let entityKeypath = "relations.entities.\(entityUuid).identities.\(identityUuid)"
+ 304 |                                 try await self.storage.set(keypath: entityKeypath, setValue: value)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellVapor/Cells/EntityAnchorCell.swift:304:37: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 302 |                                 try await self.storage.set(keypath: keypath, setValue: .string(entityUuid))
+ 303 |                                 let entityKeypath = "relations.entities.\(entityUuid).identities.\(identityUuid)"
+ 304 |                                 try await self.storage.set(keypath: entityKeypath, setValue: value)
+     |                                     `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 305 |                             } else {
+ 306 |                                 throw error
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellVapor/Cells/EntityAnchorCell.swift:310:29: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 308 |                         }
+ 309 |                     default:
+ 310 |                         try await self.storage.set(keypath: keypath, setValue: value)
+     |                             `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 311 |                     }
+ 312 |                 } else {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellVapor/Cells/EntityAnchorCell.swift:313:25: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 311 |                     }
+ 312 |                 } else {
+ 313 |                     try await self.storage.set(keypath: keypath, setValue: value)
+     |                         `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 314 |                 }
+ 315 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellVapor/Cells/EntityAnchorCell.swift:852:13: warning: initialization of immutable value 'flowElement' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 850 |         
+ 851 |         let setDataObject: Object = ["keypath" : .string(keypath), "value" : value, "timestamp" : .float(Date.now.timeIntervalSince1970)]
+ 852 |         let flowElement = FlowElement(title: "Set data", content: .object(setDataObject), properties: FlowElement.Properties(type: .event, contentType: .object))
+     |             `- warning: initialization of immutable value 'flowElement' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 853 |     }
+ 854 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellVapor/Cells/EntityAnchorCell.swift:879:28: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 877 |             try EntityValidatedContactRecordV1.validatePersistenceEnvelope(envelope)
+ 878 |             let relationPolicy = EntityRelationRecordV1.interactionPolicy(
+ 879 |                 from: try? await storage.get(keypath: EntityRelationRecordV1.interactionPolicyKeypath)
+     |                            `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 880 |             )
+ 881 |             try EntityRelationRecordV1.validatePersistenceEnvelope(envelope, interactionPolicy: relationPolicy)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellVapor/Cells/EntityAnchorCell.swift:888:35: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 886 |                     stored = pending
+ 887 |                 } else {
+ 888 |                     stored = try? await storage.get(keypath: mutation.keypath)
+     |                                   `- warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+ 889 |                 }
+ 890 |                 try EntityRelationRecordV1.validateExistingEvent(stored, proposed: mutation.value)
+
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+[3084 / 3148] CellVapor
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellVapor/Cells/OrchestratorCell.swift:119:44: warning: immutable value 'contentObject' was never used; consider replacing with '_' or removing it [#NoUsage]
+117 | //                let widgetData = try await self.wrapChatJsonInHtmlFragment(jsonObject: contentObject)
+118 |                 if flowElement.title == "Message" {
+119 |                     guard case let .object(contentObject) = flowElement.content else {
+    |                                            `- warning: immutable value 'contentObject' was never used; consider replacing with '_' or removing it [#NoUsage]
+120 |                         print("flow element content not object")
+121 |                         return nil
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellVapor/Cells/OrchestratorCell.swift:246:17: warning: variable 'resultString' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+244 |             [weak self] keypath, requester  in
+245 |             guard let self = self else { return .string("failure")}
+246 |             var resultString = "denied"
+    |                 `- warning: variable 'resultString' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+247 |             if await self.validateAccess("r---", at: "outwardMenu", for: requester) {
+248 |                 do {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellVapor/Cells/OrchestratorCell.swift:261:17: warning: variable 'resultString' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+259 |             [weak self] keypath, requester  in
+260 |             guard let self = self else { return .string("failure")}
+261 |             var resultString = "denied"
+    |                 `- warning: variable 'resultString' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+262 |             if await self.validateAccess("r---", at: "historyMenu", for: requester) {
+263 |                 do {
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellVapor/Cells/OrchestratorCell.swift:131:15: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+129 |                 }
+130 |                 
+131 |             } catch {
+    |               `- warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+132 |                 print("Embedding data in widget failed with error: \(error)")
+133 |             }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellVapor/Cells/OrchestratorCell.swift:507:13: warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+505 |         var menuItems = Object()
+506 |         
+507 |         var cellReference1 = CellReference(endpoint: "cell:///TimesWrapper", label: "times")
+    |             `- warning: variable 'cellReference1' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+508 | //        cellReference1.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+509 |         let cellConfiguration1 = CellConfiguration(name: "Times", cellReferences: [cellReference1])
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellVapor/Cells/OrchestratorCell.swift:512:13: warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+510 |         
+511 |         
+512 |         var cellReference2 = CellReference(endpoint: "cell:///EntitiesWrapper", label: "entities")
+    |             `- warning: variable 'cellReference2' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+513 | //        cellReference2.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+514 |         let cellConfiguration2 = CellConfiguration(name: "Entities", cellReferences: [cellReference2])
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellVapor/Cells/OrchestratorCell.swift:516:13: warning: variable 'cellReference3' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+514 |         let cellConfiguration2 = CellConfiguration(name: "Entities", cellReferences: [cellReference2])
+515 |         
+516 |         var cellReference3 = CellReference(endpoint: "cell:///LocationsWrapper", label: "locations")
+    |             `- warning: variable 'cellReference3' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+517 | //        cellReference3.setKeysAndValues = [KeyValue(key: "start", value: nil)]
+518 |         let cellConfiguration3 = CellConfiguration(name: "Locations", cellReferences: [cellReference3])
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellVapor/Cells/OrchestratorCell.swift:563:19: warning: value 'documentRootPath' was defined but never used; consider replacing with boolean test [#NoUsage]
+561 |         let namedEmitters = try decoder.decode([String : String].self, from: namedEmittersData)
+562 |         
+563 |         guard let documentRootPath = CellBase.documentRootPath else {
+    |                   `- warning: value 'documentRootPath' was defined but never used; consider replacing with boolean test [#NoUsage]
+564 |            throw  CellBaseError.noTargetMeddleCell // Change to noDocumentRoot - when its in the lib
+565 |         }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellVapor/Cells/OrchestratorCell.swift:134:13: warning: will never be executed
+132 |                 print("Embedding data in widget failed with error: \(error)")
+133 |             }
+134 |             return nil
+    |             `- warning: will never be executed
+135 |         })
+136 | 
+
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+[3091 / 3148] CellRuntimeBenchmarks-product
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/WebSocketConnection.swift:183:64: warning: 'weak' ownership of capture 'webSocketTask' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+174 |             throw WebSocketConnectionError.NoTask
+175 |         }
+176 |       webSocketTask.sendPing { [weak self] error in
+    |                              |- note: 'webSocketTask' implicitly strongly captured here
+    |                              `- note: add 'webSocketTask' as a capture list item to silence
+177 |           guard let self = self else { return }
+178 |           guard self.webSocketTask === webSocketTask else { return }
+    :
+181 |         } else {
+182 | //            print("Web Socket connection is alive")
+183 |             let workItem = DispatchWorkItem { [weak self, weak webSocketTask] in
+    |                                                                |- warning: 'weak' ownership of capture 'webSocketTask' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                                                `- note: explicitly assign the capture list item to silence
+184 |                 guard let self = self else { return }
+185 |                 guard let webSocketTask, self.webSocketTask === webSocketTask else { return }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/WebSocketConnection.swift:329:64: warning: 'weak' ownership of capture 'webSocketTask' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+320 |             throw WebSocketConnectionError.NoTask
+321 |         }
+322 |       webSocketTask.sendPing { [weak self] error in
+    |                              |- note: 'webSocketTask' implicitly strongly captured here
+    |                              `- note: add 'webSocketTask' as a capture list item to silence
+323 |           guard let self = self else { return }
+324 |           guard self.webSocketTask === webSocketTask else { return }
+    :
+327 |         } else {
+328 | //            print("Web Socket connection is alive")
+329 |             let workItem = DispatchWorkItem { [weak self, weak webSocketTask] in
+    |                                                                |- warning: 'weak' ownership of capture 'webSocketTask' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                                                `- note: explicitly assign the capture list item to silence
+330 |                 guard let self = self else { return }
+331 |                 guard let webSocketTask, self.webSocketTask === webSocketTask else { return }
+
+[#ImplicitStrongCapture]: <https://docs.swift.org/compiler/documentation/diagnostics/implicit-strong-capture>
+[3092 / 3148] CellApple
+[3094 / 3148] CellApple
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/EntityRadar/NearbyAdvertisementProofSession.swift:21:13: warning: immutable property will not be decoded because it is declared with an initial value which cannot be overwritten
+ 19 | 
+ 20 |     private struct SigningPayload: Codable {
+ 21 |         let purpose = "haven-nearby-advertisement-proof-v2"
+    |             |- warning: immutable property will not be decoded because it is declared with an initial value which cannot be overwritten
+    |             |- note: set the initial value via the initializer or explicitly define a CodingKeys enum including a 'purpose' case to silence this warning
+    |             `- note: make the property mutable instead
+ 22 |         var challenge: NearbyAccessChallenge
+ 23 |         var readerDID: String
+[3096 / 3148] CellApple
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/Suggestion/SkeletonNativeStyle.swift:255:9: warning: stored property 'edges' of 'Sendable'-conforming struct 'SkeletonBorderShape' contains non-Sendable type 'SkeletonEdge'; this is an error in the Swift 6 language mode
+253 | struct SkeletonBorderShape: Shape {
+254 |     let radius: CGFloat
+255 |     let edges: [SkeletonEdge]?
+    |         `- warning: stored property 'edges' of 'Sendable'-conforming struct 'SkeletonBorderShape' contains non-Sendable type 'SkeletonEdge'; this is an error in the Swift 6 language mode
+256 |     let rtl: Bool
+257 |     func path(in rect: CGRect) -> Path {
+
+CellBase.SkeletonEdge:1:13: note: enum 'SkeletonEdge' does not conform to the 'Sendable' protocol
+1 | public enum SkeletonEdge : String, Codable {
+  |             `- note: enum 'SkeletonEdge' does not conform to the 'Sendable' protocol
+2 |     case top
+3 |     case leading
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/Suggestion/SkeletonNativeStyle.swift:5:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  3 | 
+  4 | import SwiftUI
+  5 | import CellBase
+    | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'CellBase' [#AddPreconcurrencyImport]
+  6 | #if os(macOS)
+  7 | import AppKit
+
+[#AddPreconcurrencyImport]: <https://docs.swift.org/compiler/documentation/diagnostics/add-preconcurrency-import>
+[3097 / 3148] CellApple
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/AppleIntelligenceCell.swift:716:26: warning: 'init(sampling:temperature:maximumResponseTokens:)' is deprecated: replaced by 'init(samplingMode:temperature:maximumResponseTokens:)' [#DeprecatedDeclaration]
+ 714 |                 generating: PurposeWrapper.self,
+ 715 |                 includeSchemaInPrompt: false,
+ 716 |                 options: GenerationOptions(sampling: .greedy)
+     |                          |- warning: 'init(sampling:temperature:maximumResponseTokens:)' is deprecated: replaced by 'init(samplingMode:temperature:maximumResponseTokens:)' [#DeprecatedDeclaration]
+     |                          `- note: use 'init(samplingMode:temperature:maximumResponseTokens:)' instead
+ 717 |             ) {
+ 718 |                 "Generate 5 suggestions of Purposes"
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[3098 / 3148] CellBaseTests-product
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Intelligence/Tools/ItineraryPlanner.swift:59:22: warning: 'init(sampling:temperature:maximumResponseTokens:)' is deprecated: replaced by 'init(samplingMode:temperature:maximumResponseTokens:)' [#DeprecatedDeclaration]
+ 57 |             generating: Itinerary.self,
+ 58 |             includeSchemaInPrompt: false,
+ 59 |             options: GenerationOptions(sampling: .greedy)
+    |                      |- warning: 'init(sampling:temperature:maximumResponseTokens:)' is deprecated: replaced by 'init(samplingMode:temperature:maximumResponseTokens:)' [#DeprecatedDeclaration]
+    |                      `- note: use 'init(samplingMode:temperature:maximumResponseTokens:)' instead
+ 60 |         ) {
+ 61 |             "Generate a \(dayCount)-day itinerary to \(landmark.name)."
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[3099 / 3148] CellApple
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/AppInitializer.swift:341:56: warning: '20.0' is not a valid version number for watchOS
+339 |         try await registerEntityScannerResolve(on: resolver)
+340 | 
+341 |         if #available(macOS 26.0, iOS 27.0, tvOS 27.0, watchOS 20.0, *) {
+    |                                                        `- warning: '20.0' is not a valid version number for watchOS
+342 |             try await registerResolve(
+343 |                 on: resolver,
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/AppInitializer.swift:385:36: warning: conformance of 'CellType' to protocol 'Emit' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+383 |         do {
+384 |             if let persistency {
+385 |                 try await resolver.addCellResolve(
+    |                                    `- warning: conformance of 'CellType' to protocol 'Emit' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+386 |                     name: name,
+387 |                     cellScope: cellScope,
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/AppInitializer.swift:385:36: warning: conformance of 'CellType' to protocol 'OwnerInstantiable' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+383 |         do {
+384 |             if let persistency {
+385 |                 try await resolver.addCellResolve(
+    |                                    `- warning: conformance of 'CellType' to protocol 'OwnerInstantiable' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+386 |                     name: name,
+387 |                     cellScope: cellScope,
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/AppInitializer.swift:393:36: warning: conformance of 'CellType' to protocol 'Emit' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+391 |                 )
+392 |             } else {
+393 |                 try await resolver.addCellResolve(
+    |                                    `- warning: conformance of 'CellType' to protocol 'Emit' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+394 |                     name: name,
+395 |                     cellScope: cellScope,
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/Skeleton/AppInitializer.swift:393:36: warning: conformance of 'CellType' to protocol 'OwnerInstantiable' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+391 |                 )
+392 |             } else {
+393 |                 try await resolver.addCellResolve(
+    |                                    `- warning: conformance of 'CellType' to protocol 'OwnerInstantiable' may be isolated and cannot be passed to @concurrent context [#IsolatedConformances]
+394 |                     name: name,
+395 |                     cellScope: cellScope,
+
+[#IsolatedConformances]: <https://docs.swift.org/compiler/documentation/diagnostics/isolated-conformances>
+[3101 / 3148] CellApple
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/IdentityVault.swift:1037:42: warning: type 'Facilitator' does not conform to the 'Sendable' protocol
+1035 |         let (decryptedData, needsMigration) = try await decryptVaultData(encryptedData, scope: tag)
+1036 |         let decoder = JSONDecoder()
+1037 |         decoder.userInfo[.facilitator] = Facilitator(version: nil)
+     |                                          `- warning: type 'Facilitator' does not conform to the 'Sendable' protocol
+1038 |         let identities = try decoder.decode([VaultIdentity].self, from: decryptedData)
+1039 |         let (migratedIdentities, keyMigrationNeeded) = await migrateLoadedVaultIdentities(identities)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Facilitator.swift:6:14: note: class 'Facilitator' does not conform to the 'Sendable' protocol
+ 4 | import Foundation
+ 5 | 
+ 6 | public class Facilitator {
+   |              `- note: class 'Facilitator' does not conform to the 'Sendable' protocol
+ 7 |     public var version: Int?
+ 8 |     public var uuids = [String : String]()
+[3101 / 3148]
+[3108 / 3148] PurposeInterestBenchmarkSupport
+[3109 / 3148] CellBase-product
+[3110 / 3149]
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/CellViewModel.swift:71:36: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+48 |     func setCellConfiguration(_ cellConfig: CellConfiguration) {
+49 |         print("******** Setting cell configuration in view **********")
+50 |         Task {
+   |              |- note: 'self' implicitly strongly captured here
+   |              `- note: add 'self' as a capture list item to silence
+51 |             if rootCell == nil {
+52 |                 rootCell = await GeneralCell()
+   :
+69 |                             print("Porthole flow got completion: \(completion)")
+70 |                             self.flowCancellable = nil
+71 |                         }) { [weak self] flowElement in
+   |                                    |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+   |                                    `- note: explicitly assign the capture list item to silence
+72 |                             
+73 |                             self?.appendFlowELement(flowElement)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Sources/CellApple/Cells/Porthole/Utility Views/PortholeViewModel.swift:136:36: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+ 69 |     public init() {
+ 70 |         print("*************** Init Porthole view model! **********************")
+ 71 |         initializationTask = Task {
+    |                                   |- note: 'self' implicitly strongly captured here
+    |                                   `- note: add 'self' as a capture list item to silence
+ 72 | //            await AppInitializer.shared.setupCellResolvers()
+ 73 |             
+    :
+134 |                             print("Porthole flow got completion: \(completion)")
+135 |                             self.flowCancellable = nil
+136 |                         }) { [weak self] flowElement in
+    |                                    |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                    `- note: explicitly assign the capture list item to silence
+137 |                             guard let self = self else { return }
+138 | //                            print("Porthole got flowElement: \(flowElement)")
+
+[#ImplicitStrongCapture]: <https://docs.swift.org/compiler/documentation/diagnostics/implicit-strong-capture>
+[3113 / 3151] CellApple
+[3114 / 3151] PurposeInterestBenchmarkSupport
+[3116 / 3151]
+[3118 / 3151]
+[3119 / 3151] haven-commons-product
+[3124 / 3151] CellVapor
+[3127 / 3151] CellBaseTests-product
+[3128 / 3152] CellRuntimeBenchmarks-product
+[3140 / 3152] CellApple-product
+[3141 / 3152] CellBaseTests-product
+[3144 / 3172]
+[3145 / 3172]
+[3146 / 3172]
+[3147 / 3172]
+[3149 / 3172]
+[3150 / 3172]
+[3153 / 3172] CellBaseTests-product
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/GeneralCellInterfaceTests.swift:127:51: warning: 'restoreStoredOwnerIdentity(using:)' is deprecated: renamed to 'bindStoredOwnerToRuntimeIdentity(_:)' [#DeprecatedDeclaration]
+ 125 |         let publicSnapshotOwnsCell = await restored.requesterProvesOwnership(publicOwner)
+ 126 |         let foreignOwnsCell = await restored.requesterProvesOwnership(foreign)
+ 127 |         let foreignRestoredOwner = await restored.restoreStoredOwnerIdentity(using: foreign)
+     |                                                   |- warning: 'restoreStoredOwnerIdentity(using:)' is deprecated: renamed to 'bindStoredOwnerToRuntimeIdentity(_:)' [#DeprecatedDeclaration]
+     |                                                   `- note: use 'bindStoredOwnerToRuntimeIdentity(_:)' instead
+ 128 | 
+ 129 |         let ownerRestoredOwner = await restored.restoreStoredOwnerIdentity(using: owner)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/GeneralCellInterfaceTests.swift:129:49: warning: 'restoreStoredOwnerIdentity(using:)' is deprecated: renamed to 'bindStoredOwnerToRuntimeIdentity(_:)' [#DeprecatedDeclaration]
+ 127 |         let foreignRestoredOwner = await restored.restoreStoredOwnerIdentity(using: foreign)
+ 128 | 
+ 129 |         let ownerRestoredOwner = await restored.restoreStoredOwnerIdentity(using: owner)
+     |                                                 |- warning: 'restoreStoredOwnerIdentity(using:)' is deprecated: renamed to 'bindStoredOwnerToRuntimeIdentity(_:)' [#DeprecatedDeclaration]
+     |                                                 `- note: use 'bindStoredOwnerToRuntimeIdentity(_:)' instead
+ 130 |         let ownerOwnsCell = await restored.requesterProvesOwnership(owner)
+ 131 | 
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/GeneralCellInterfaceTests.swift:1425:20: warning: 'setInterceptValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+1423 |         var rootWasMutated = false
+1424 | 
+1425 |         await cell.setInterceptValueForKey(requester: owner, key: "profile") { _ in
+     |                    `- warning: 'setInterceptValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+1426 |             .object(["name": .string("Private"), "secret": .string("must-not-leak")])
+1427 |         }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/GeneralCellInterfaceTests.swift:1428:20: warning: 'setInterceptSetValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+1426 |             .object(["name": .string("Private"), "secret": .string("must-not-leak")])
+1427 |         }
+1428 |         await cell.setInterceptSetValueForKey(requester: owner, key: "profile") { _, _ in
+     |                    `- warning: 'setInterceptSetValueForKey(requester:key:setValueForKeyIntercept:)' is deprecated [#DeprecatedDeclaration]
+1429 |             rootWasMutated = true
+1430 |         }
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[3155 / 3172] CellBaseTests-product
+[3162 / 3172] CellBaseTests-product
+[3163 / 3172] CellBaseTests-product
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonLocalizationTests.swift:158:62: warning: 'accessibilityAttributeValue' was deprecated in macOS 10.10: Use the NSAccessibility protocol methods instead (see NSAccessibilityProtocols.h) [#DeprecatedDeclaration]
+156 |         // standalone XCTest host (the setting is scoped to this process).
+157 |         let accessibilityMode = NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface")
+158 |         let previousAccessibilityMode = NSApplication.shared.accessibilityAttributeValue(accessibilityMode)
+    |                                                              `- warning: 'accessibilityAttributeValue' was deprecated in macOS 10.10: Use the NSAccessibility protocol methods instead (see NSAccessibilityProtocols.h) [#DeprecatedDeclaration]
+159 |         NSApplication.shared.accessibilitySetValue(true, forAttribute: accessibilityMode)
+160 |         defer { NSApplication.shared.accessibilitySetValue(previousAccessibilityMode, forAttribute: accessibilityMode) }
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonLocalizationTests.swift:159:30: warning: 'accessibilitySetValue(_:forAttribute:)' was deprecated in macOS 10.10: Use the NSAccessibility protocol methods instead (see NSAccessibilityProtocols.h) [#DeprecatedDeclaration]
+157 |         let accessibilityMode = NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface")
+158 |         let previousAccessibilityMode = NSApplication.shared.accessibilityAttributeValue(accessibilityMode)
+159 |         NSApplication.shared.accessibilitySetValue(true, forAttribute: accessibilityMode)
+    |                              `- warning: 'accessibilitySetValue(_:forAttribute:)' was deprecated in macOS 10.10: Use the NSAccessibility protocol methods instead (see NSAccessibilityProtocols.h) [#DeprecatedDeclaration]
+160 |         defer { NSApplication.shared.accessibilitySetValue(previousAccessibilityMode, forAttribute: accessibilityMode) }
+161 |         let host = NSHostingView(rootView: SkeletonView(element: element).environmentObject(model))
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonLocalizationTests.swift:160:38: warning: 'accessibilitySetValue(_:forAttribute:)' was deprecated in macOS 10.10: Use the NSAccessibility protocol methods instead (see NSAccessibilityProtocols.h) [#DeprecatedDeclaration]
+158 |         let previousAccessibilityMode = NSApplication.shared.accessibilityAttributeValue(accessibilityMode)
+159 |         NSApplication.shared.accessibilitySetValue(true, forAttribute: accessibilityMode)
+160 |         defer { NSApplication.shared.accessibilitySetValue(previousAccessibilityMode, forAttribute: accessibilityMode) }
+    |                                      `- warning: 'accessibilitySetValue(_:forAttribute:)' was deprecated in macOS 10.10: Use the NSAccessibility protocol methods instead (see NSAccessibilityProtocols.h) [#DeprecatedDeclaration]
+161 |         let host = NSHostingView(rootView: SkeletonView(element: element).environmentObject(model))
+162 |         host.frame = NSRect(x: 0, y: 0, width: 600, height: 420)
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[3164 / 3172] CellBaseTests-product
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/TrustedIssuerCellTests.swift:1448:13: warning: variable 'missingProof' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1446 |         XCTAssertEqual(decision(unsignedTimeResult), "untrusted")
+1447 | 
+1448 |         var missingProof = try await makeClaim()
+     |             `- warning: variable 'missingProof' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+1449 |         missingProof.proof.signatureData = Data()
+1450 |         let missingProofResult = try await evaluate(
+
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+[3165 / 3172] CellBaseTests-product
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/BridgeIdentityBoundaryTests.swift:371:75: warning: string interpolation produces a debug description for an optional value; did you mean to make this explicit?
+369 |             XCTAssertEqual(admission, .signed)
+370 |             let localDecision = await cell.authorizationDecision(requestedAccess: "r---", at: "feed", for: identity)
+371 |             XCTAssertTrue(localDecision.allowed, "Fresh local contract: \(localDecision.reasonCode)")
+    |                                                                           |             |- note: provide a default value to avoid this warning
+    |                                                                           |             `- note: use 'String(describing:)' to silence this warning
+    |                                                                           `- warning: string interpolation produces a debug description for an optional value; did you mean to make this explicit?
+372 |             let outgoing = PairedTransport()
+373 |             let incoming = PairedTransport()
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/IntegrationTests.swift:1071:18: warning: weak variable 'releasedCell' was never mutated; consider changing to 'let' constant [#VariableNeverMutated::WeakMutability]
+1069 |         let emitter = await CancellationObservingEmitter(owner: owner)
+1070 |         var cell: GeneralCell? = await GeneralCell(owner: owner)
+1071 |         weak var releasedCell = cell
+     |                  `- warning: weak variable 'releasedCell' was never mutated; consider changing to 'let' constant [#VariableNeverMutated::WeakMutability]
+1072 | 
+1073 |         let state = try await cell?.attach(emitter: emitter, label: "source", requester: owner)
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/IntegrationTests.swift:1096:18: warning: weak variable 'releasedCell' was never mutated; consider changing to 'let' constant [#VariableNeverMutated::WeakMutability]
+1094 |         let emitter = await CancellationObservingEmitter(owner: owner)
+1095 |         var cell: GeneralCell? = await GeneralCell(owner: owner)
+1096 |         weak var releasedCell = cell
+     |                  `- warning: weak variable 'releasedCell' was never mutated; consider changing to 'let' constant [#VariableNeverMutated::WeakMutability]
+1097 | 
+1098 |         let downstreamEntered = expectation(description: "Downstream subscriber entered")
+
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/IntegrationTests.swift:1145:18: warning: weak variable 'releasedCell' was never mutated; consider changing to 'let' constant [#VariableNeverMutated::WeakMutability]
+1143 |         let interceptGate = SuspendedFlowGate()
+1144 |         var cell: GeneralCell? = await GeneralCell(owner: owner)
+1145 |         weak var releasedCell = cell
+     |                  `- warning: weak variable 'releasedCell' was never mutated; consider changing to 'let' constant [#VariableNeverMutated::WeakMutability]
+1146 | 
+1147 |         await cell?.addIntercept(requester: owner) { element, _ in
+
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+[#WeakMutability]: <https://docs.swift.org/compiler/documentation/diagnostics/weak-mutability>
+[3166 / 3172] CellBaseTests-product
+[3168 / 3172] CellBaseTests-product
+[3169 / 3172] CellBaseTests-product
+[3170 / 3172] CellBaseTests-product
+Build complete! (316,31 sek)
+Test Suite 'Selected tests' started at 2026-09-30 01:44:59.195.
+Test Suite 'HavenCommonsTests.xctest' started at 2026-09-30 01:44:59.197.
+Test Suite 'HavenCommonsTests.xctest' passed at 2026-09-30 01:44:59.197.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 01:44:59.197.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.002) seconds
+Test Suite 'Selected tests' started at 2026-09-30 01:44:59.313.
+Test Suite 'CellNearbyTests.xctest' started at 2026-09-30 01:44:59.313.
+Test Suite 'CellNearbyTests.xctest' passed at 2026-09-30 01:44:59.313.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 01:44:59.313.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'Selected tests' started at 2026-09-30 01:44:59.398.
+Test Suite 'CellBaseTests.xctest' started at 2026-09-30 01:44:59.399.
+Test Suite 'SkeletonNativeLayoutRoundBTests' started at 2026-09-30 01:44:59.399.
+Test Case '-[CellBaseTests.SkeletonNativeLayoutRoundBTests testLayoutVariantWidthAndHiddenApplyNatively]' started.
+Test Case '-[CellBaseTests.SkeletonNativeLayoutRoundBTests testLayoutVariantWidthAndHiddenApplyNatively]' passed (0.002 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeLayoutRoundBTests testLongTextWrapsInsideTheRowInsteadOfOverflowing]' started.
+Test Case '-[CellBaseTests.SkeletonNativeLayoutRoundBTests testLongTextWrapsInsideTheRowInsteadOfOverflowing]' passed (0.212 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeLayoutRoundBTests testSpacerPushesTheTrailingElementToTheEdge]' started.
+Test Case '-[CellBaseTests.SkeletonNativeLayoutRoundBTests testSpacerPushesTheTrailingElementToTheEdge]' passed (0.072 seconds).
+Test Suite 'SkeletonNativeLayoutRoundBTests' passed at 2026-09-30 01:44:59.686.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.287 (0.287) seconds
+Test Suite 'SkeletonNativeRendererTests' started at 2026-09-30 01:44:59.687.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testBaselineLayoutIncludesAscentAndDescentOfDifferentChildren]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testBaselineLayoutIncludesAscentAndDescentOfDifferentChildren]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testComponentAndFieldIdentitySurvivesSiblingReorderAndDraftsAreIsolated]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testComponentAndFieldIdentitySurvivesSiblingReorderAndDraftsAreIsolated]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testComponentRevisionReplacesDefinitionButKeepsInstanceAndStableFieldKeys]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testComponentRevisionReplacesDefinitionButKeepsInstanceAndStableFieldKeys]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testCornerRadiusDoesNotClipUntilContentClipIsTrue]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testCornerRadiusDoesNotClipUntilContentClipIsTrue]' passed (0.008 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testDeclared236PointGridTrackDoesNotInherit1200PointSurface]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testDeclared236PointGridTrackDoesNotInherit1200PointSurface]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testFlexGrowthDistributesRemainingSpaceByWeight]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testFlexGrowthDistributesRemainingSpaceByWeight]' passed (0.011 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testGenericTransferUsesRowPayloadForComponentsAndOtherElements]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testGenericTransferUsesRowPayloadForComponentsAndOtherElements]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testHostDragMarksAllAcceptingSurfacesAndClearsOnCancel]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testHostDragMarksAllAcceptingSurfacesAndClearsOnCancel]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testInsetsExplicitZeroAndFontWeightsMatchWebTable]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testInsetsExplicitZeroAndFontWeightsMatchWebTable]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testMarkerAndZeroBlurSpreadPaintOutsideWithoutChangingLayoutSize]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testMarkerAndZeroBlurSpreadPaintOutsideWithoutChangingLayoutSize]' passed (0.003 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testMountedActionWithoutAdapterFailsExplicitly]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testMountedActionWithoutAdapterFailsExplicitly]' passed (0.004 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testNativePaddingStaysInsideDeclaredOuterBox]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testNativePaddingStaysInsideDeclaredOuterBox]' passed (0.001 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testNativeParagraphUses15PointLineBoxAtFontSize11AndProportionalFeature]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testNativeParagraphUses15PointLineBoxAtFontSize11AndProportionalFeature]' passed (0.007 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testRowAndMountLookupUsesWholePathItemFirstThenRootIncludingNull]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testRowAndMountLookupUsesWholePathItemFirstThenRootIncludingNull]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testSharedTwoInstanceOracleAndSourceUpdate]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testSharedTwoInstanceOracleAndSourceUpdate]' passed (0.005 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testSourceActionDispatchMatchesOracleWithoutPayloadMutation]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testSourceActionDispatchMatchesOracleWithoutPayloadMutation]' passed (0.006 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testTreeFocusReturnsToSurvivingAncestorOnConfirmedCollapseAndReorder]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testTreeFocusReturnsToSurvivingAncestorOnConfirmedCollapseAndReorder]' passed (0.002 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testTreeKeyboardUsesConfirmedOrderAndSeparateActions]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testTreeKeyboardUsesConfirmedOrderAndSeparateActions]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testTreeRightEntersFirstConfirmedChildAndRejectsDuplicateIDs]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testTreeRightEntersFirstConfirmedChildAndRejectsDuplicateIDs]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testTypographyInheritsUntilExplicitChildOverride]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testTypographyInheritsUntilExplicitChildOverride]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testVariantsUseInclusiveFirstMatchUnknownDimensionsAndItemScope]' started.
+Test Case '-[CellBaseTests.SkeletonNativeRendererTests testVariantsUseInclusiveFirstMatchUnknownDimensionsAndItemScope]' passed (0.000 seconds).
+Test Suite 'SkeletonNativeRendererTests' passed at 2026-09-30 01:44:59.741.
+	 Executed 21 tests, with 0 failures (0 unexpected) in 0.052 (0.054) seconds
+Test Suite 'SkeletonNativeSurfaceParityRepairTests' started at 2026-09-30 01:44:59.741.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testExplicitListViewportKeepsItsHeight]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testExplicitListViewportKeepsItsHeight]' passed (0.865 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testFlowConstrainsLongItemAndPreservesSmallItemIntrinsicWidths]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testFlowConstrainsLongItemAndPreservesSmallItemIntrinsicWidths]' passed (0.373 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testOriginalChipRolesProduceCompactPillsAndEmptyListTakesNoSpace]' started.
+/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol/Tests/CellBaseTests/SkeletonNativeSurfaceParityRepairTests.swift:152: error: -[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testOriginalChipRolesProduceCompactPillsAndEmptyListTakesNoSpace] : XCTAssertGreaterThan failed: ("0") is not greater than ("200") - The original role paints actual pills
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testOriginalChipRolesProduceCompactPillsAndEmptyListTakesNoSpace]' failed (3.838 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testRoleDefaultsPreserveExplicitModifiersAndUnrecognizedRoles]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testRoleDefaultsPreserveExplicitModifiersAndUnrecognizedRoles]' passed (0.000 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testSectionUsesPortholeBaseDecorationAndHonorsExplicitBackground]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testSectionUsesPortholeBaseDecorationAndHonorsExplicitBackground]' passed (0.309 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testStackAlignmentPositionsNarrowContentInsideFullWidth]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testStackAlignmentPositionsNarrowContentInsideFullWidth]' passed (0.480 seconds).
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testUnboundedListUsesContentHeightAndContextRowsWithoutSwallowingFollowingAction]' started.
+Test Case '-[CellBaseTests.SkeletonNativeSurfaceParityRepairTests testUnboundedListUsesContentHeightAndContextRowsWithoutSwallowingFollowingAction]' passed (34.107 seconds).
+Test Suite 'SkeletonNativeSurfaceParityRepairTests' failed at 2026-09-30 01:45:39.713.
+	 Executed 7 tests, with 1 failure (0 unexpected) in 39.971 (39.972) seconds
+Test Suite 'CellBaseTests.xctest' failed at 2026-09-30 01:45:39.713.
+	 Executed 31 tests, with 1 failure (0 unexpected) in 40.310 (40.314) seconds
+Test Suite 'Selected tests' failed at 2026-09-30 01:45:39.713.
+	 Executed 31 tests, with 1 failure (0 unexpected) in 40.310 (40.315) seconds
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+*************** Init Porthole view model! **********************
+Note: Some test targets reported failures:
+  - CellBaseTests (XCTest)

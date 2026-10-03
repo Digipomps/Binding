@@ -1,0 +1,13 @@
+BUILD_EXIT=0
+== ekte kompileringsfeil ==
+count=0
+== VaporCellBridge kompilert? ==
+199:[4/4] Compiling App VaporCellBridge.swift
+== sluttlinjer ==
+   |         `- warning: stored property '_id' of 'Sendable'-conforming class 'WebAuthnCredential' is mutable; this is an error in the Swift 6 language mode
+13 | 
+14 |     @Field(key: "public_key")
+[4/4] Compiling App VaporCellBridge.swift
+[5/5] Compiling App routes.swift
+Build of target: 'App' complete! (21.63s)
+DONE 21:38:16Z

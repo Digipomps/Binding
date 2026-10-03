@@ -1,0 +1,22 @@
+{
+  "materialized" : false,
+  "missingExpectedText" : [
+
+  ],
+  "observedStyleTokens" : [
+
+  ],
+  "pixelHeight" : 2000,
+  "pixelWidth" : 2560,
+  "recognizedText" : "Text Fixture\nBasic structure\npublic-safe\nDenne fixture-en holder text, badge, section og divider stabile på tvers av web og Binding.\ndeterministic\nSection with divider\nBruk denne til å verifisere spacing, heading-hierarki og synlig seksjonsdeling.\nIngen handlinger kjørt ennå.\nAcknowledge\nDette er en bevisst lang tekstlinje som skal wrappe tydelig og likt nok til at vi ser renderer-avvik tidlig, uten å gjøre payloaden produktspesifikk eller vanskelig å feilsøke.",
+  "rootDataSupplied" : true,
+  "styleNormalizationApplied" : false,
+  "surface" : {
+    "backgroundHex" : "#FFFFFF",
+    "contentMaxWidth" : 1180,
+    "height" : 1000,
+    "isDarkMode" : false,
+    "padding" : 16,
+    "width" : 1280
+  }
+}

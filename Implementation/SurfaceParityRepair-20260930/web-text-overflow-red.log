@@ -1,0 +1,202 @@
+
+Running 4 tests using 1 worker
+
+(node:61202) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:61202) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside VStack at 390px (15.5s)
+(node:61332) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:61332) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside HStack at 390px (15.1s)
+(node:61414) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:61414) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  3 playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside VStack at 1180px (15.1s)
+(node:61501) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:61501) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  4 playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside HStack at 1180px (15.4s)
+
+
+  1) playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside VStack at 390px 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoHaveText[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator: locator('.skeleton-text').first()
+    Expected string: [32m"cell://remote.example/unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-"[39m
+    Received string: [31m""[39m
+    Timeout: 15000ms
+
+    Call log:
+    [2m  - Expect "toHaveText" with timeout 15000ms[22m
+    [2m  - waiting for locator('.skeleton-text').first()[22m
+    [2m    19 × locator resolved to <div class="skeleton-text" data-skeleton-path="root.0.0" data-skeleton-key="root.VStack.0.Text.0"></div>[22m
+    [2m       - unexpected value ""[22m
+
+
+      34 |       }, { axis, longAddress });
+      35 |       const texts = page.locator(".skeleton-text");
+    > 36 |       await expect(texts.first()).toHaveText(longAddress);
+         |                                   ^
+      37 |       await expect(texts.nth(1)).toHaveText("After");
+      38 |       const geometry = await page.locator("#root").evaluate((root) => {
+      39 |         const texts = [...root.querySelectorAll(".skeleton-text")];
+        at /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/playwright/skeleton-text-overflow.spec.js:36:35
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../web-text-overflow-red/skeleton-text-overflow-lon-8a057-tays-inside-VStack-at-390px/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../web-text-overflow-red/skeleton-text-overflow-lon-8a057-tays-inside-VStack-at-390px/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../web-text-overflow-red/skeleton-text-overflow-lon-8a057-tays-inside-VStack-at-390px/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../web-text-overflow-red/skeleton-text-overflow-lon-8a057-tays-inside-VStack-at-390px/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../web-text-overflow-red/skeleton-text-overflow-lon-8a057-tays-inside-VStack-at-390px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside HStack at 390px 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoHaveText[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator: locator('.skeleton-text').first()
+    Expected string: [32m"cell://remote.example/unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-"[39m
+    Received string: [31m""[39m
+    Timeout: 15000ms
+
+    Call log:
+    [2m  - Expect "toHaveText" with timeout 15000ms[22m
+    [2m  - waiting for locator('.skeleton-text').first()[22m
+    [2m    19 × locator resolved to <div class="skeleton-text" data-skeleton-path="root.0.0" data-skeleton-key="root.HStack.0.Text.0"></div>[22m
+    [2m       - unexpected value ""[22m
+
+
+      34 |       }, { axis, longAddress });
+      35 |       const texts = page.locator(".skeleton-text");
+    > 36 |       await expect(texts.first()).toHaveText(longAddress);
+         |                                   ^
+      37 |       await expect(texts.nth(1)).toHaveText("After");
+      38 |       const geometry = await page.locator("#root").evaluate((root) => {
+      39 |         const texts = [...root.querySelectorAll(".skeleton-text")];
+        at /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/playwright/skeleton-text-overflow.spec.js:36:35
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../web-text-overflow-red/skeleton-text-overflow-lon-a708e-tays-inside-HStack-at-390px/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../web-text-overflow-red/skeleton-text-overflow-lon-a708e-tays-inside-HStack-at-390px/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../web-text-overflow-red/skeleton-text-overflow-lon-a708e-tays-inside-HStack-at-390px/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../web-text-overflow-red/skeleton-text-overflow-lon-a708e-tays-inside-HStack-at-390px/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../web-text-overflow-red/skeleton-text-overflow-lon-a708e-tays-inside-HStack-at-390px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside VStack at 1180px 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoHaveText[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator: locator('.skeleton-text').first()
+    Expected string: [32m"cell://remote.example/unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-"[39m
+    Received string: [31m""[39m
+    Timeout: 15000ms
+
+    Call log:
+    [2m  - Expect "toHaveText" with timeout 15000ms[22m
+    [2m  - waiting for locator('.skeleton-text').first()[22m
+    [2m    19 × locator resolved to <div class="skeleton-text" data-skeleton-path="root.0.0" data-skeleton-key="root.VStack.0.Text.0"></div>[22m
+    [2m       - unexpected value ""[22m
+
+
+      34 |       }, { axis, longAddress });
+      35 |       const texts = page.locator(".skeleton-text");
+    > 36 |       await expect(texts.first()).toHaveText(longAddress);
+         |                                   ^
+      37 |       await expect(texts.nth(1)).toHaveText("After");
+      38 |       const geometry = await page.locator("#root").evaluate((root) => {
+      39 |         const texts = [...root.querySelectorAll(".skeleton-text")];
+        at /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/playwright/skeleton-text-overflow.spec.js:36:35
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../web-text-overflow-red/skeleton-text-overflow-lon-d86cb-ays-inside-VStack-at-1180px/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../web-text-overflow-red/skeleton-text-overflow-lon-d86cb-ays-inside-VStack-at-1180px/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../web-text-overflow-red/skeleton-text-overflow-lon-d86cb-ays-inside-VStack-at-1180px/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../web-text-overflow-red/skeleton-text-overflow-lon-d86cb-ays-inside-VStack-at-1180px/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../web-text-overflow-red/skeleton-text-overflow-lon-d86cb-ays-inside-VStack-at-1180px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside HStack at 1180px 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoHaveText[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator: locator('.skeleton-text').first()
+    Expected string: [32m"cell://remote.example/unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-unbroken-source-name-"[39m
+    Received string: [31m""[39m
+    Timeout: 15000ms
+
+    Call log:
+    [2m  - Expect "toHaveText" with timeout 15000ms[22m
+    [2m  - waiting for locator('.skeleton-text').first()[22m
+    [2m    19 × locator resolved to <div class="skeleton-text" data-skeleton-path="root.0.0" data-skeleton-key="root.HStack.0.Text.0"></div>[22m
+    [2m       - unexpected value ""[22m
+
+
+      34 |       }, { axis, longAddress });
+      35 |       const texts = page.locator(".skeleton-text");
+    > 36 |       await expect(texts.first()).toHaveText(longAddress);
+         |                                   ^
+      37 |       await expect(texts.nth(1)).toHaveText("After");
+      38 |       const geometry = await page.locator("#root").evaluate((root) => {
+      39 |         const texts = [...root.querySelectorAll(".skeleton-text")];
+        at /Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold/playwright/skeleton-text-overflow.spec.js:36:35
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../web-text-overflow-red/skeleton-text-overflow-lon-3fb09-ays-inside-HStack-at-1180px/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../web-text-overflow-red/skeleton-text-overflow-lon-3fb09-ays-inside-HStack-at-1180px/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../web-text-overflow-red/skeleton-text-overflow-lon-3fb09-ays-inside-HStack-at-1180px/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../web-text-overflow-red/skeleton-text-overflow-lon-3fb09-ays-inside-HStack-at-1180px/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../web-text-overflow-red/skeleton-text-overflow-lon-3fb09-ays-inside-HStack-at-1180px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4 failed
+    playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside VStack at 390px ─
+    playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside HStack at 390px ─
+    playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside VStack at 1180px 
+    playwright/skeleton-text-overflow.spec.js:11:5 › long source text stays inside HStack at 1180px 

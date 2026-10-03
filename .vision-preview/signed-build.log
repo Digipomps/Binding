@@ -1,0 +1,225 @@
++ xcodebuild build -project Binding.xcodeproj -scheme HAVEN -configuration Debug -destination id=60A4509A-5AD0-42B9-A1D0-7CEBA044F514 -derivedDataPath /tmp/HavenIOS18Signed
++ tail -200
+    Target 'NIO' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOEmbedded' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics' in project 'swift-atomics'
+    Target 'NIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'swift-nio_NIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics' in project 'swift-atomics'
+    Target 'swift-nio_NIOPosix' in project 'swift-nio' (no dependencies)
+    Target 'CNIOPosix' in project 'swift-nio' (no dependencies)
+    Target 'NIOEmbedded' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics' in project 'swift-atomics'
+    Target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics' in project 'swift-atomics'
+    Target 'Atomics' in project 'swift-atomics'
+        ➜ Explicit dependency on target 'Atomics' in project 'swift-atomics'
+        ➜ Explicit dependency on target '_AtomicsShims' in project 'swift-atomics'
+    Target 'Atomics' in project 'swift-atomics'
+        ➜ Explicit dependency on target '_AtomicsShims' in project 'swift-atomics'
+    Target '_AtomicsShims' in project 'swift-atomics' (no dependencies)
+    Target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+        ➜ Explicit dependency on target 'ContainersPreview' in project 'swift-collections'
+    Target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+        ➜ Explicit dependency on target 'ContainersPreview' in project 'swift-collections'
+    Target 'ContainersPreview' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+    Target 'InternalCollectionsUtilities' in project 'swift-collections' (no dependencies)
+    Target '_NIODataStructures' in project 'swift-nio' (no dependencies)
+    Target 'CNIOWASI' in project 'swift-nio' (no dependencies)
+    Target 'CNIOWindows' in project 'swift-nio' (no dependencies)
+    Target 'CNIOLinux' in project 'swift-nio' (no dependencies)
+    Target 'CNIODarwin' in project 'swift-nio' (no dependencies)
+    Target 'CNIOOpenBSD' in project 'swift-nio' (no dependencies)
+    Target '_NIOBase64' in project 'swift-nio' (no dependencies)
+    Target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+    Target 'CNIOAtomics' in project 'swift-nio' (no dependencies)
+    Target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'swift-crypto_Crypto' in project 'swift-crypto'
+    Target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'swift-crypto_Crypto' in project 'swift-crypto'
+    Target 'swift-crypto_Crypto' in project 'swift-crypto' (no dependencies)
+    Target 'KeyPathResolver' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'HavenCoreSchemas' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'TaxonomyResolver' in project 'CellProtocol'
+    Target 'TaxonomyResolver' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'HavenCoreSchemas' in project 'CellProtocol'
+    Target 'CodableHelpers' in project 'CellProtocol' (no dependencies)
+    Target 'CombineHelpers' in project 'CellProtocol'
+        ➜ Explicit dependency on target 'OpenCombine' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombineFoundation' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombineDispatch' in project 'OpenCombine'
+    Target 'OpenCombineDispatch' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombineDispatch' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'COpenCombineHelpers' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombine' in project 'OpenCombine'
+    Target 'OpenCombineDispatch' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'COpenCombineHelpers' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombine' in project 'OpenCombine'
+    Target 'OpenCombineFoundation' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombineFoundation' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'COpenCombineHelpers' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombine' in project 'OpenCombine'
+    Target 'OpenCombineFoundation' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'COpenCombineHelpers' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombine' in project 'OpenCombine'
+    Target 'OpenCombine' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'OpenCombine' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'COpenCombineHelpers' in project 'OpenCombine'
+    Target 'OpenCombine' in project 'OpenCombine'
+        ➜ Explicit dependency on target 'COpenCombineHelpers' in project 'OpenCombine'
+    Target 'COpenCombineHelpers' in project 'OpenCombine' (no dependencies)
+    Target 'HavenCoreSchemas' in project 'CellProtocol' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc --version
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -x c++ -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --print-asset-tag-combinations --output-format xml1 /Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/Assets.xcassets
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --version --output-format xml1
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -x assembler-with-cpp -c /dev/null
+
+ReadFileContents /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/share/docc/features.json
+
+Build description signature: 99b253fbd8e215e27e41f3ce96f4c898
+Build description path: /tmp/HavenIOS18Signed/Build/Intermediates.noindex/XCBuildData/99b253fbd8e215e27e41f3ce96f4c898.xcbuilddata
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk /tmp/HavenIOS18Signed/SDKStatCaches.noindex/iphonesimulator26.2-23C57-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding.xcodeproj
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -o /tmp/HavenIOS18Signed/SDKStatCaches.noindex/iphonesimulator26.2-23C57-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache
+
+ProcessInfoPlistFile /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/swift-crypto_Crypto.bundle/Info.plist /tmp/HavenIOS18Signed/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/swift-crypto_Crypto.build/empty-swift-crypto_Crypto.plist (in target 'swift-crypto_Crypto' from project 'swift-crypto')
+    cd /tmp/HavenIOS18Signed/SourcePackages/checkouts/swift-crypto
+    builtin-infoPlistUtility /tmp/HavenIOS18Signed/Build/Intermediates.noindex/swift-crypto.build/Debug-iphonesimulator/swift-crypto_Crypto.build/empty-swift-crypto_Crypto.plist -producttype com.apple.product-type.bundle -expandbuildsettings -format binary -platform iphonesimulator -o /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/swift-crypto_Crypto.bundle/Info.plist
+
+ProcessInfoPlistFile /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/swift-nio_NIOPosix.bundle/Info.plist /tmp/HavenIOS18Signed/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/swift-nio_NIOPosix.build/empty-swift-nio_NIOPosix.plist (in target 'swift-nio_NIOPosix' from project 'swift-nio')
+    cd /tmp/HavenIOS18Signed/SourcePackages/checkouts/swift-nio
+    builtin-infoPlistUtility /tmp/HavenIOS18Signed/Build/Intermediates.noindex/swift-nio.build/Debug-iphonesimulator/swift-nio_NIOPosix.build/empty-swift-nio_NIOPosix.plist -producttype com.apple.product-type.bundle -expandbuildsettings -format binary -platform iphonesimulator -o /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/swift-nio_NIOPosix.bundle/Info.plist
+
+ProcessInfoPlistFile /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/swift-nio-ssl_NIOSSL.bundle/Info.plist /tmp/HavenIOS18Signed/Build/Intermediates.noindex/swift-nio-ssl.build/Debug-iphonesimulator/swift-nio-ssl_NIOSSL.build/empty-swift-nio-ssl_NIOSSL.plist (in target 'swift-nio-ssl_NIOSSL' from project 'swift-nio-ssl')
+    cd /tmp/HavenIOS18Signed/SourcePackages/checkouts/swift-nio-ssl
+    builtin-infoPlistUtility /tmp/HavenIOS18Signed/Build/Intermediates.noindex/swift-nio-ssl.build/Debug-iphonesimulator/swift-nio-ssl_NIOSSL.build/empty-swift-nio-ssl_NIOSSL.plist -producttype com.apple.product-type.bundle -expandbuildsettings -format binary -platform iphonesimulator -o /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/swift-nio-ssl_NIOSSL.bundle/Info.plist
+
+ProcessInfoPlistFile /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/CryptoSwift_CryptoSwift.bundle/Info.plist /tmp/HavenIOS18Signed/Build/Intermediates.noindex/CryptoSwift.build/Debug-iphonesimulator/CryptoSwift_CryptoSwift.build/empty-CryptoSwift_CryptoSwift.plist (in target 'CryptoSwift_CryptoSwift' from project 'CryptoSwift')
+    cd /tmp/HavenIOS18Signed/SourcePackages/checkouts/CryptoSwift
+    builtin-infoPlistUtility /tmp/HavenIOS18Signed/Build/Intermediates.noindex/CryptoSwift.build/Debug-iphonesimulator/CryptoSwift_CryptoSwift.build/empty-CryptoSwift_CryptoSwift.plist -producttype com.apple.product-type.bundle -expandbuildsettings -format binary -platform iphonesimulator -o /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/CryptoSwift_CryptoSwift.bundle/Info.plist
+
+Copy /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/swift-nio-ssl_NIOSSL.bundle /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/swift-nio-ssl_NIOSSL.bundle (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/swift-nio-ssl_NIOSSL.bundle /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app
+
+Copy /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/swift-nio_NIOPosix.bundle /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/swift-nio_NIOPosix.bundle (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/swift-nio_NIOPosix.bundle /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app
+
+Copy /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/swift-crypto_Crypto.bundle /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/swift-crypto_Crypto.bundle (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/swift-crypto_Crypto.bundle /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app
+
+Copy /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/CryptoSwift_CryptoSwift.bundle /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/CryptoSwift_CryptoSwift.bundle (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/CryptoSwift_CryptoSwift.bundle /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app
+
+ProcessInfoPlistFile /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/Info.plist /Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/Info.plist (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
+    builtin-infoPlistUtility /Users/kjetil/Build/Digipomps/HAVEN/Binding/Binding/Info.plist -producttype com.apple.product-type.application -genpkginfo /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/PkgInfo -expandbuildsettings -format binary -platform iphonesimulator -additionalcontentfile /tmp/HavenIOS18Signed/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/assetcatalog_generated_info.plist -scanforprivacyfile /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/CryptoSwift_CryptoSwift.bundle -scanforprivacyfile /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/swift-crypto_Crypto.bundle -scanforprivacyfile /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/swift-nio-ssl_NIOSSL.bundle -scanforprivacyfile /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/swift-nio_NIOPosix.bundle -o /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/Info.plist
+
+CopySwiftLibs /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app (in target 'HAVEN' from project 'Binding')
+    cd /Users/kjetil/Build/Digipomps/HAVEN/Binding
+    builtin-swiftStdLibTool --copy --verbose --sign - --scan-executable /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/HAVEN.debug.dylib --scan-folder /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/Frameworks --scan-folder /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/PlugIns --scan-folder /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/SystemExtensions --scan-folder /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/Extensions --scan-folder /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/NearbyInteraction.framework --scan-folder /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/MultipeerConnectivity.framework --platform iphonesimulator --toolchain /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/Frameworks --strip-bitcode --strip-bitcode-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /tmp/HavenIOS18Signed/Build/Intermediates.noindex/Binding.build/Debug-iphonesimulator/HAVEN.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os --back-deploy-swift-span
+libswiftCompatibilitySpan.dylib is up to date at /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/Frameworks/libswiftCompatibilitySpan.dylib
+Probing signature of /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/Frameworks/libswiftCompatibilitySpan.dylib
+/usr/bin/codesign -r- --display /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/Frameworks/libswiftCompatibilitySpan.dylib
+Codesigning /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/Frameworks/libswiftCompatibilitySpan.dylib
+/usr/bin/codesign --force --sign - --verbose /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/Frameworks/libswiftCompatibilitySpan.dylib
+Probing signature of /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/Frameworks/libswiftCompatibilitySpan.dylib
+/usr/bin/codesign -r- --display /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/Frameworks/libswiftCompatibilitySpan.dylib
+Code signature of /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/Frameworks/libswiftCompatibilitySpan.dylib is unchanged; keeping original
+
+** BUILD SUCCEEDED **
+
++ RC=0
++ echo BUILD_RC=0
+BUILD_RC=0
++ '[' 0 -ne 0 ']'
++ APP=/tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app
++ echo '===== ENTITLEMENTS I BINÆREN ====='
+===== ENTITLEMENTS I BINÆREN =====
++ codesign -d --entitlements :- /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app
++ head -40
+Executable=/private/tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app/HAVEN
+warning: Specifying ':' in the path is deprecated and will not work in a future release
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict></dict></plist>
++ xcrun simctl terminate 60A4509A-5AD0-42B9-A1D0-7CEBA044F514 org.digipomps.haven
++ xcrun simctl uninstall 60A4509A-5AD0-42B9-A1D0-7CEBA044F514 org.digipomps.haven
++ xcrun simctl install 60A4509A-5AD0-42B9-A1D0-7CEBA044F514 /tmp/HavenIOS18Signed/Build/Products/Debug-iphonesimulator/HAVEN.app
++ LP=76863
++ sleep 40
++ xcrun simctl launch --console-pty 60A4509A-5AD0-42B9-A1D0-7CEBA044F514 org.digipomps.haven
++ kill 76863
++ xcrun simctl io 60A4509A-5AD0-42B9-A1D0-7CEBA044F514 screenshot /Users/kjetil/Build/Digipomps/HAVEN/Binding/.vision-preview/haven-signed-01.png
+Detected file type 'PNG' from extension
+Wrote screenshot to: /Users/kjetil/Build/Digipomps/HAVEN/Binding/.vision-preview/haven-signed-01.png
++ sleep 25

@@ -1,0 +1,266 @@
+Workspace:      Binding.xcodeproj
+Scheme:         HAVEN
+Configuration:  Debug
+Destination:    platform=macOS,arch=arm64
+Mode:           build
+DerivedData:    /private/tmp/haven-xcode-derived/Binding-Parity
+Log:            ../build-logs/xcode-build-latest.log
+
+Build capacity: 143.9 GiB free (15%); reserving 10 GiB leaves 133.9 GiB (14%).
++ xcodebuild -jobs 2 -derivedDataPath /private/tmp/haven-xcode-derived/Binding-Parity -project Binding.xcodeproj -scheme HAVEN -configuration Debug -destination platform=macOS,arch=arm64 -disableAutomaticPackageResolution -onlyUsePackageVersionsFromResolvedFile CONFIGURATION_BUILD_DIR=/private/tmp/haven-parity-products PRODUCT_BUNDLE_IDENTIFIER=org.digipomps.haven.parity-night-test CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= CODE_SIGN_ENTITLEMENTS= TOOLCHAIN_DIR=$(DT_TOOLCHAIN_DIR) build
+2026-09-15 01:09:23.715 xcodebuild[12623:108518305]  DVTFilePathFSEvents: Failed to start fs event stream.
+2026-09-15 01:09:23.942 xcodebuild[12623:108518299] [MT] DVTDeveloperPaths: Failed to get length of DARWIN_USER_CACHE_DIR from confstr(3), error = Error Domain=NSPOSIXErrorDomain Code=5 "Input/output error". Using NSCachesDirectory instead.
+2026-09-15 01:09:24.276 xcodebuild[12623:108518312] CoreSimulatorService connection became invalid.  Simulator services will no longer be available.
+2026-09-15 01:09:24.276 xcodebuild[12623:108518312] Logging connecton invalid: <OS_xpc_error: <dictionary: 0x1f92d1560> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x1f92d16a0> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}>
+2026-09-15 01:09:24.276 xcodebuild[12623:108518312] Error opening log file (/Users/kjetil/Library/Logs/CoreSimulator/CoreSimulator.com.apple.dt.xcodebuild.log): Operation not permitted
+[-[SimServiceContext sendRequest:]:1743] ERROR : Unable to deliver request ({
+    "developer_dir" = "/Applications/Xcode.app/Contents/Developer";
+    request = "set_developer_dir";
+}) because we are not connected to CoreSimulatorService.
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -jobs 2 -derivedDataPath /private/tmp/haven-xcode-derived/Binding-Parity -project Binding.xcodeproj -scheme HAVEN -configuration Debug -destination platform=macOS,arch=arm64 -disableAutomaticPackageResolution -onlyUsePackageVersionsFromResolvedFile CONFIGURATION_BUILD_DIR=/private/tmp/haven-parity-products PRODUCT_BUNDLE_IDENTIFIER=org.digipomps.haven.parity-night-test CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= CODE_SIGN_ENTITLEMENTS= "TOOLCHAIN_DIR=$(DT_TOOLCHAIN_DIR)" build
+
+Build settings from command line:
+    CODE_SIGN_ENTITLEMENTS = 
+    CODE_SIGN_IDENTITY = -
+    CODE_SIGN_STYLE = Manual
+    CONFIGURATION_BUILD_DIR = /private/tmp/haven-parity-products
+    DEVELOPMENT_TEAM = 
+    PRODUCT_BUNDLE_IDENTIFIER = org.digipomps.haven.parity-night-test
+    TOOLCHAIN_DIR = $(DT_TOOLCHAIN_DIR)
+
+2026-09-15 01:09:24.318 xcodebuild[12623:108518299] [MT] DVTAssertions: Warning in DVTFrameworks/DVTFoundation/FileTypes/DVTFileDataTypeDetection.m:79
+Details:  detectedTypeIdentifier (com.apple.binary-property-list) does not conform to matchedTypeIdentifier in MagicFileDataTypeDetector extenson com.apple.property-list. When both are specified, this conformance is required unless overridden by setting allowNonInheritance. extension.identifier:Xcode.MagicFileDataTypeDetector.BinaryPlist
+Object:   <DVTFileDataTypeDetectionMagicCache: 0x7765857a0>
+Method:   -initWithExtension:
+Thread:   <_NSMainThread: 0x1053be340>{number = 1, name = main}
+Please file a bug at https://feedbackassistant.apple.com with this warning message and any useful information you can provide.
+2026-09-15 01:09:24.319 xcodebuild[12623:108518299] [MT] DVTAssertions: Warning in DVTFrameworks/DVTFoundation/FileTypes/DVTFileDataTypeDetection.m:79
+Details:  detectedTypeIdentifier (com.apple.xml-property-list) does not conform to matchedTypeIdentifier in MagicFileDataTypeDetector extenson com.apple.property-list. When both are specified, this conformance is required unless overridden by setting allowNonInheritance. extension.identifier:Xcode.MagicFileDataTypeDetector.XMLPlist
+Object:   <DVTFileDataTypeDetectionMagicCache: 0x776587420>
+Method:   -initWithExtension:
+Thread:   <_NSMainThread: 0x1053be340>{number = 1, name = main}
+Please file a bug at https://feedbackassistant.apple.com with this warning message and any useful information you can provide.
+[-[SimServiceContext initWithDeveloperDir:connectionType:error:]:450] WARN  : Unable to discover any Simulator runtimes. Developer Directory is /Applications/Xcode.app/Contents/Developer.
+[-[SimDiskImageManager init]:175] ERROR : Could not kickstart simdiskimaged; SimDiskImageManager services will not be available: Error Domain=NSPOSIXErrorDomain Code=53 "Software caused connection abort" UserInfo={NSLocalizedDescription=Error returned in reply from CoreSimulatorService: Connection invalid}
+[-[SimDiskImageManager _onQueue_checkConnection:]:239] ERROR : simdiskimaged returned error (invalid), marking disconnected.
+[-[SimDiskImageManager _onQueue_checkConnection:]:239] ERROR : simdiskimaged returned error (invalid), marking disconnected.
+[-[SimServiceContext initWithDeveloperDir:connectionType:error:]_block_invoke:486] ERROR : Could not get list of trusted mount directories: Error Domain=com.apple.CoreSimulator.SimError Code=410 "The service used to manage runtime disk images (simdiskimaged) crashed or is not responding" UserInfo={NSLocalizedDescription=The service used to manage runtime disk images (simdiskimaged) crashed or is not responding}
+[-[SimServiceContext sendRequest:reply:error:]:1763] ERROR : Unable to deliver request ({
+    request = "notification_subscription";
+    "set_path" = "/Users/kjetil/Library/Developer/CoreSimulator/Devices";
+}) because we are not connected to CoreSimulatorService.
+2026-09-15 01:09:24.397 xcodebuild[12623:108518306] Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedDescription=CoreSimulatorService connection became invalid.  Simulator services will no longer be available.}
+[-[SimServiceContext sendRequest:reply:error:]:1763] ERROR : Unable to deliver request ({
+    request = "notification_subscription";
+    "set_path" = "/Users/kjetil/Library/Developer/CoreSimulator/Devices";
+}) because we are not connected to CoreSimulatorService.
+2026-09-15 01:09:24.399 xcodebuild[12623:108518312] Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedDescription=CoreSimulatorService connection became invalid.  Simulator services will no longer be available.}
+2026-09-15 01:09:24.399 xcodebuild[12623:108518306]  IDESimulatorAvailability: startObservingSimulatorUpdates() FAILED to register SimDeviceSet observer
+2026-09-15 01:09:24.399 xcodebuild[12623:108518312]  iOSSimulator: [SimServiceContext defaultDeviceSetWithError:] returned nil (Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedFailureReason=Failed to subscribe to notifications from CoreSimulatorService., NSLocalizedDescription=Failed to initialize simulator device set., NSUnderlyingError=0x77600cf30 {Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedDescription=CoreSimulatorService connection became invalid.  Simulator services will no longer be available.}}}). Simulator device support disabled.
+2026-09-15 01:09:24.426 xcodebuild[12623:108518350]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/Developer/Xcode/UserData/Provisioning Profiles/cdf62aa8-3bda-4965-850b-534b8b627f8e.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.426 xcodebuild[12623:108518351]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/Developer/Xcode/UserData/Provisioning Profiles/c84754fb-55fd-44e6-abe4-6a634f477936.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.426 xcodebuild[12623:108518352]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/Developer/Xcode/UserData/Provisioning Profiles/ec2c2bbd-01d6-4199-b380-8220b724de6f.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.426 xcodebuild[12623:108518342]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/Developer/Xcode/UserData/Provisioning Profiles/90329df8-ee06-48b3-8bf2-53c4de46c49e.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.429 xcodebuild[12623:108518350]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/bbe69b07-4b1a-4b70-9576-e1f2f9265860.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.429 xcodebuild[12623:108518352]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/245a0a8a-c059-4d67-99cb-7d68085acab8.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.429 xcodebuild[12623:108518345]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/da6a54e3-e002-41d6-a08f-f137128a5661.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.429 xcodebuild[12623:108518354]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/8120be74-8f49-48b9-9dd9-04aea435dd9a.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.429 xcodebuild[12623:108518351]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/77568900-0af2-4bc2-b244-78c110783953.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.429 xcodebuild[12623:108518342]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/fea317d8-e98c-4f6a-9d2b-577cb195ed01.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.430 xcodebuild[12623:108518306]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/689f6984-2dfd-4348-b175-7219d2e46743.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.429 xcodebuild[12623:108518305]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/bdcd693b-95b5-4d01-85c3-8d9e8d27e83d.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.430 xcodebuild[12623:108518346]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/ea03b379-4933-4f35-bad0-926261118789.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.430 xcodebuild[12623:108518312]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/371631f9-212d-4e3c-8bde-e19e4168d2f0.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.431 xcodebuild[12623:108518350]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/c3167c34-5d77-4bf4-a3fa-ff5a50f75612.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.432 xcodebuild[12623:108518352]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/7b778a58-b502-477d-8a19-e0613d139258.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.432 xcodebuild[12623:108518345]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/f83918d1-393c-45e7-a757-ea95dcd58fae.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.432 xcodebuild[12623:108518354]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/96bde61b-c276-4c41-b93b-40906a7ee6ae.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.433 xcodebuild[12623:108518305]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/4dfc7b3a-58b7-433a-9c89-b4033dd8ca77.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.433 xcodebuild[12623:108518312]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/24c009b4-c983-403d-b488-27c5a7924624.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.433 xcodebuild[12623:108518306]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/10caf7d9-88c0-4c6c-afb6-6ae53ef3f67c.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.433 xcodebuild[12623:108518351]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/99216d9f-2587-4317-8da3-f8cc74992510.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.433 xcodebuild[12623:108518346]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/a050832f-c8e2-4fd3-be8c-7d1bfd6e7424.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.433 xcodebuild[12623:108518342]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/4a949f78-dd2c-463e-9521-d6e5b8bf0597.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.433 xcodebuild[12623:108518350]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/3b56352c-6be0-40e1-9f7d-fcc16db3a1dc.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.434 xcodebuild[12623:108518345]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/bfa771e7-8fbd-41cc-a48c-8d02bbc96322.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.434 xcodebuild[12623:108518352]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/60dd6543-e67e-40db-9fa9-0ab51f2ea1fa.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-09-15 01:09:24.434 xcodebuild[12623:108518354]  DVTProvisioningProfileManager: Failed to load profile "/Users/kjetil/Library/MobileDevice/Provisioning Profiles/ba6991e1-8de0-4a2d-bd6c-182632aac6cf.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+Resolve Package Graph
+Failed to determine if database is empty or not: Unable to open database at path(<AbsolutePath:"/Users/kjetil/Library/Caches/org.swift.swiftpm/package-collection.db">): unable to open database fileFailed to determine if database is empty or not: Unable to open database at path(<AbsolutePath:"/Users/kjetil/Library/Caches/org.swift.swiftpm/package-collection.db">): unable to open database file
+Fetching from https://github.com/apple/swift-numerics.git
+
+Fetching from https://github.com/vapor/console-kit.git
+
+Fetching from https://github.com/vapor/vapor.git
+
+Fetching from https://github.com/Digipomps/FileUtils-c.git
+
+Fetching from https://github.com/swift-server/async-http-client.git
+
+Fetching from https://github.com/apple/swift-nio-transport-services.git
+
+Fetching from https://github.com/apple/swift-distributed-tracing.git
+
+Fetching from https://github.com/apple/swift-asn1.git
+
+Fetching from https://github.com/vapor/async-kit.git
+
+Fetching from https://github.com/apple/swift-log.git
+
+Fetching from https://github.com/apple/swift-nio-ssl
+
+Fetching from https://github.com/GiacomoLeopizzi/random-swift
+
+Fetching from https://github.com/apple/swift-service-context.git
+
+Fetching from https://github.com/apple/swift-collections.git
+
+Fetching from https://github.com/apple/swift-async-algorithms.git
+
+Fetching from https://github.com/attaswift/BigInt.git
+
+Fetching from https://github.com/vapor/multipart-kit.git
+
+Fetching from https://github.com/apple/swift-algorithms.git
+
+Fetching from https://github.com/vapor/routing-kit.git
+
+Fetching from https://github.com/apple/swift-crypto.git
+
+Fetching from https://github.com/apple/swift-http-types.git
+
+Fetching from https://github.com/apple/swift-configuration.git
+
+Fetching from https://github.com/OpenCombine/OpenCombine.git
+
+Fetching from https://github.com/apple/swift-nio
+
+Fetching from https://github.com/swift-server/swift-service-lifecycle.git
+
+Fetching from https://github.com/apple/swift-system.git
+
+Fetching from https://github.com/apple/swift-atomics.git
+
+Fetching from https://github.com/krzyzanowskim/CryptoSwift.git
+
+Fetching from https://github.com/apple/swift-nio-http2.git
+
+Fetching from https://github.com/vapor/websocket-kit.git
+
+Fetching from https://github.com/apple/swift-nio-extras.git
+
+Fetching from https://github.com/apple/swift-http-structured-headers.git
+
+Fetching from https://github.com/apple/swift-certificates.git
+
+Fetching from https://github.com/apple/swift-metrics.git
+
+fatalError2026-09-15 01:09:25.083 xcodebuild[12623:108518299] Writing error result bundle to /var/folders/7s/xyjsdm211_xggqqzw1nmx8xc0000gn/T/ResultBundle_2026-15-09_01-09-0025.xcresult
+xcodebuild: error: Could not resolve package dependencies:
+  Failed to clone repository https://github.com/apple/swift-nio-transport-services.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-nio-transport-services-195621bb'...
+    fatal: unable to access 'https://github.com/apple/swift-nio-transport-services.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-numerics.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-numerics-d936ec6c'...
+    fatal: unable to access 'https://github.com/apple/swift-numerics.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/vapor/vapor.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/vapor-ad7b9039'...
+    fatal: unable to access 'https://github.com/vapor/vapor.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/swift-server/async-http-client.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/async-http-client-afefb790'...
+    fatal: unable to access 'https://github.com/swift-server/async-http-client.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-asn1.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-asn1-7065ad2c'...
+    fatal: unable to access 'https://github.com/apple/swift-asn1.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/GiacomoLeopizzi/random-swift:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/random-swift-618ce008'...
+    fatal: unable to access 'https://github.com/GiacomoLeopizzi/random-swift/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/attaswift/BigInt.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/BigInt-7b87d7d1'...
+    fatal: unable to access 'https://github.com/attaswift/BigInt.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/vapor/routing-kit.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/routing-kit-a4c5b9fa'...
+    fatal: unable to access 'https://github.com/vapor/routing-kit.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-http-types.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-http-types-ddff8b60'...
+    fatal: unable to access 'https://github.com/apple/swift-http-types.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-collections.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-collections-9a58d5cf'...
+    fatal: unable to access 'https://github.com/apple/swift-collections.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/Digipomps/FileUtils-c.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/FileUtils-c-dcf9c8b3'...
+    fatal: unable to access 'https://github.com/Digipomps/FileUtils-c.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/vapor/async-kit.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/async-kit-e3a5c885'...
+    fatal: unable to access 'https://github.com/vapor/async-kit.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/vapor/multipart-kit.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/multipart-kit-703055f4'...
+    fatal: unable to access 'https://github.com/vapor/multipart-kit.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-distributed-tracing.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-distributed-tracing-85e5637e'...
+    fatal: unable to access 'https://github.com/apple/swift-distributed-tracing.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-crypto.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-crypto-7e0614ea'...
+    fatal: unable to access 'https://github.com/apple/swift-crypto.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/swift-server/swift-service-lifecycle.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-service-lifecycle-0ea726b6'...
+    fatal: unable to access 'https://github.com/swift-server/swift-service-lifecycle.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/OpenCombine/OpenCombine.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/OpenCombine-c37dd7b1'...
+    fatal: unable to access 'https://github.com/OpenCombine/OpenCombine.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/krzyzanowskim/CryptoSwift.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/CryptoSwift-02302490'...
+    fatal: unable to access 'https://github.com/krzyzanowskim/CryptoSwift.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-system.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-system-5815d4b7'...
+    fatal: unable to access 'https://github.com/apple/swift-system.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-nio-ssl:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-nio-ssl-3eddd832'...
+    fatal: unable to access 'https://github.com/apple/swift-nio-ssl/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-service-context.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-service-context-29630b35'...
+    fatal: unable to access 'https://github.com/apple/swift-service-context.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-algorithms.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-algorithms-bf5a01cd'...
+    fatal: unable to access 'https://github.com/apple/swift-algorithms.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/vapor/websocket-kit.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/websocket-kit-59894eb7'...
+    fatal: unable to access 'https://github.com/vapor/websocket-kit.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/vapor/console-kit.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/console-kit-31cf120d'...
+    fatal: unable to access 'https://github.com/vapor/console-kit.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-certificates.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-certificates-b091bbdc'...
+    fatal: unable to access 'https://github.com/apple/swift-certificates.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-log.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-log-ba8887eb'...
+    fatal: unable to access 'https://github.com/apple/swift-log.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-nio:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-nio-a9bb6d62'...
+    fatal: unable to access 'https://github.com/apple/swift-nio/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-atomics.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-atomics-7429e549'...
+    fatal: unable to access 'https://github.com/apple/swift-atomics.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-nio-extras.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-nio-extras-ee9c8e34'...
+    fatal: unable to access 'https://github.com/apple/swift-nio-extras.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-configuration.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-configuration-80a4e428'...
+    fatal: unable to access 'https://github.com/apple/swift-configuration.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-nio-http2.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-nio-http2-440d95c6'...
+    fatal: unable to access 'https://github.com/apple/swift-nio-http2.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-http-structured-headers.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-http-structured-headers-efdd7ab3'...
+    fatal: unable to access 'https://github.com/apple/swift-http-structured-headers.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-async-algorithms.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-async-algorithms-c3a8d752'...
+    fatal: unable to access 'https://github.com/apple/swift-async-algorithms.git/': Could not resolve host: github.com
+  Failed to clone repository https://github.com/apple/swift-metrics.git:
+    Cloning into bare repository '/tmp/haven-xcode-derived/Binding-Parity/SourcePackages/repositories/swift-metrics-cea9cd4a'...
+    fatal: unable to access 'https://github.com/apple/swift-metrics.git/': Could not resolve host: github.com
+  fatalError
+

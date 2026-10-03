@@ -1,0 +1,209 @@
+{
+  "cellReferences" : [
+    {
+      "endpoint" : "cell:\/\/\/PublicProfileDirectory",
+      "label" : "directory",
+      "setKeysAndValues" : [
+
+      ],
+      "subscribeFeed" : false,
+      "subscriptions" : [
+
+      ]
+    }
+  ],
+  "description" : "Søk i publiserte profiler og la brukeren rapportere, skjule eller blokkere profiler fra samme flate.",
+  "discovery" : {
+    "interests" : [
+      "ageRatingHint=12+",
+      "appStoreScope=personal-copilot-v1",
+      "block",
+      "directory",
+      "executionScope=cloud",
+      "moderation",
+      "nativePermissionRequests=none",
+      "personal",
+      "policyCategory=public-directory",
+      "presentationClass=list",
+      "profile",
+      "public-presence",
+      "public-profile",
+      "purpose=search-report-hide-block",
+      "purposeRef=personal.public-directory.search",
+      "requiresLogin=true",
+      "requiresUserGeneratedContentModeration=true",
+      "reviewSummary=Searchable public profile read model with report, hide and block.",
+      "search",
+      "surfaceFamily=relationship",
+      "universalLink=https:\/\/staging.haven.digipomps.org\/app\/personal\/directory",
+      "visibleAction=blockProfile",
+      "visibleAction=hideProfile",
+      "visibleAction=profileDetail",
+      "visibleAction=reportProfile",
+      "visibleAction=searchProfiles"
+    ],
+    "menuSlots" : [
+      "upperLeft"
+    ],
+    "purpose" : "Search public profiles safely",
+    "purposeDescription" : "Søk i publiserte profiler og la brukeren rapportere, skjule eller blokkere profiler fra samme flate.",
+    "sourceCellEndpoint" : "cell:\/\/\/PublicProfileDirectory",
+    "sourceCellName" : "PublicProfileDirectoryCell"
+  },
+  "name" : "Public Profile Directory",
+  "skeleton" : {
+    "VStack" : {
+      "elements" : [
+        {
+          "Text" : {
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            },
+            "text" : "Public Profile Directory"
+          }
+        },
+        {
+          "Text" : {
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            },
+            "text" : "Søk i profiler brukere har publisert. Report, hide og block virker på valgt eller første synlige resultat."
+          }
+        },
+        {
+          "Text" : {
+            "keypath" : "directory.state.moderationStatus",
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            }
+          }
+        },
+        {
+          "TextField" : {
+            "placeholder" : "Search public profiles",
+            "sourceKeypath" : "directory.state.query",
+            "targetKeypath" : "directory.query"
+          }
+        },
+        {
+          "HStack" : {
+            "elements" : [
+              {
+                "Button" : {
+                  "keypath" : "directory.searchProfiles",
+                  "label" : "Search",
+                  "payload" : {
+
+                  }
+                }
+              },
+              {
+                "Button" : {
+                  "keypath" : "directory.reportProfile",
+                  "label" : "Report result",
+                  "payload" : {
+                    "reason" : "user_reported_from_directory"
+                  }
+                }
+              },
+              {
+                "Button" : {
+                  "keypath" : "directory.hideProfile",
+                  "label" : "Hide result",
+                  "payload" : {
+
+                  }
+                }
+              },
+              {
+                "Button" : {
+                  "keypath" : "directory.blockProfile",
+                  "label" : "Block result",
+                  "payload" : {
+
+                  }
+                }
+              }
+            ],
+            "spacing" : 8
+          }
+        },
+        {
+          "List" : {
+            "elements" : [
+
+            ],
+            "flowElementSkeleton" : {
+              "VStack" : {
+                "elements" : [
+                  {
+                    "Text" : {
+                      "keypath" : "displayName",
+                      "modifiers" : {
+                        "foregroundColor" : "#172033"
+                      }
+                    }
+                  },
+                  {
+                    "Text" : {
+                      "keypath" : "headline",
+                      "modifiers" : {
+                        "foregroundColor" : "#172033"
+                      }
+                    }
+                  },
+                  {
+                    "Text" : {
+                      "keypath" : "summary",
+                      "modifiers" : {
+                        "foregroundColor" : "#172033"
+                      }
+                    }
+                  },
+                  {
+                    "Text" : {
+                      "keypath" : "moderationStatus",
+                      "modifiers" : {
+                        "foregroundColor" : "#172033"
+                      }
+                    }
+                  }
+                ],
+                "modifiers" : {
+                  "accessibilityDragLabel" : "Dra person inn i chat",
+                  "background" : "#FFFFFF",
+                  "borderColor" : "#D7DCE2",
+                  "borderWidth" : 1,
+                  "cornerRadius" : 8,
+                  "dragPayloadKeypath" : "publicSafeDragPayload",
+                  "dragPreviewRole" : "person-chip",
+                  "draggableRole" : "person",
+                  "foregroundColor" : "#172033",
+                  "padding" : 14,
+                  "styleClasses" : [
+                    "person-drag-source"
+                  ],
+                  "styleRole" : "person-drag-source"
+                },
+                "spacing" : 4
+              }
+            },
+            "keypath" : "directory.state.lastSearch.results",
+            "selectionMode" : "single",
+            "selectionValueKeypath" : "id"
+          }
+        },
+        {
+          "Text" : {
+            "keypath" : "directory.state.blockedProfileCount",
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            }
+          }
+        }
+      ],
+      "spacing" : 10
+    }
+  },
+  "uuid" : "184D2F30-F45E-4AEC-A4A4-F2BA54AEC14A"
+}

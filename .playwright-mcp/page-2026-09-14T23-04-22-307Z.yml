@@ -1,0 +1,19 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Skeleton Parity · Text Fixture" [level=1] [ref=e5]
+      - paragraph [ref=e6]: Basic structure, text wrapping, badges, sections, and dividers.
+    - generic [ref=e7]: Preview ready
+  - generic [ref=e11]:
+    - generic [ref=e12]: Text Fixture
+    - generic [ref=e14]:
+      - generic [ref=e15]: Basic structure
+      - generic [ref=e16]: Denne fixture-en holder text, badge, section og divider stabile på tvers av web og Binding.
+      - generic [ref=e17]: public-safe
+      - generic [ref=e18]: deterministic
+      - separator [ref=e19]
+      - generic [ref=e20]: Dette er en bevisst lang tekstlinje som skal wrappe tydelig og likt nok til at vi ser renderer-avvik tidlig, uten å gjøre payloaden produktspesifikk eller vanskelig å feilsøke.
+      - generic [ref=e21]: Section with divider
+      - generic [ref=e22]: Bruk denne til å verifisere spacing, heading-hierarki og synlig seksjonsdeling.
+      - generic [ref=e23]: Ingen handlinger kjørt ennå.
+      - button "Acknowledge" [ref=e24] [cursor=pointer]

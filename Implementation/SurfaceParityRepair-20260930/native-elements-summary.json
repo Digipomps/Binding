@@ -1,0 +1,60 @@
+{
+  "devicesAndConfigurations" : [
+    {
+      "device" : {
+        "architecture" : "arm64",
+        "deviceId" : "00008142-001411C11A22401C",
+        "deviceName" : "My Mac",
+        "modelName" : "MacBook Pro",
+        "osBuildNumber" : "26A428",
+        "osVersion" : "27.0",
+        "platform" : "macOS"
+      },
+      "expectedFailures" : 0,
+      "failedTests" : 2,
+      "passedTests" : 0,
+      "skippedTests" : 0,
+      "testPlanConfiguration" : {
+        "configurationId" : "1",
+        "configurationName" : "Default"
+      }
+    }
+  ],
+  "environmentDescription" : "HAVEN · Built with macOS 27.0",
+  "expectedFailures" : 0,
+  "failedTests" : 2,
+  "finishTime" : 1790726913.4,
+  "passedTests" : 0,
+  "result" : "Failed",
+  "runtimeWarnings" : [
+
+  ],
+  "skippedTests" : 0,
+  "startTime" : 1790726874.933,
+  "statistics" : [
+
+  ],
+  "testFailures" : [
+    {
+      "failureText" : "XCTAssertTrue failed - 1 of 20 surfaces hide part of themselves:\nButterpop Studio: 1 unreachable element(s)\n    [missingRequiredAction] ScrollView[0].VStack[1].Section[2].HStack[0].Button — Button requires keypath or keypathKeypath.",
+      "targetName" : "BindingTests",
+      "testIdentifier" : 1,
+      "testIdentifierString" : "CellConfigurationVerifierXCTest/testNoLocalSurfaceHidesItsOwnWaysIn()",
+      "testIdentifierURL" : "test://com.apple.xcode/Binding/BindingTests/CellConfigurationVerifierXCTest/testNoLocalSurfaceHidesItsOwnWaysIn",
+      "testName" : "testNoLocalSurfaceHidesItsOwnWaysIn()"
+    },
+    {
+      "failureText" : "XCTAssertEqual failed: (\"6\") is not equal to (\"0\") - Some corpus surfaces failed; inspect the per-surface error artifacts.",
+      "targetName" : "BindingTests",
+      "testIdentifier" : 2,
+      "testIdentifierString" : "SkeletonSnapshotRenderXCTest/testRenderCorpusToPNG()",
+      "testIdentifierURL" : "test://com.apple.xcode/Binding/BindingTests/SkeletonSnapshotRenderXCTest/testRenderCorpusToPNG",
+      "testName" : "testRenderCorpusToPNG()"
+    }
+  ],
+  "title" : "Test - HAVEN",
+  "topInsights" : [
+
+  ],
+  "totalTestCount" : 2
+}

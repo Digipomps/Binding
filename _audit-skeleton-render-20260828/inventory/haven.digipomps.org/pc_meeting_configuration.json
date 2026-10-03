@@ -1,0 +1,180 @@
+{
+  "cellReferences" : [
+    {
+      "endpoint" : "cell:\/\/\/PersonalMeetingCoordinator",
+      "label" : "meetingCoordinator",
+      "setKeysAndValues" : [
+
+      ],
+      "subscribeFeed" : false,
+      "subscriptions" : [
+
+      ]
+    }
+  ],
+  "description" : "Foreslå møtetider og Jitsi-metadata som trygg placeholder uten native calendar, camera eller mic-permission.",
+  "discovery" : {
+    "interests" : [
+      "ageRatingHint=12+",
+      "appStoreScope=personal-copilot-v1",
+      "executionScope=hybrid",
+      "intent",
+      "jitsi",
+      "meeting",
+      "nativePermissionRequests=none",
+      "personal",
+      "policyCategory=meeting-intent",
+      "presentationClass=form",
+      "purpose=propose-accept-decline-no-native-permission",
+      "requiresLogin=true",
+      "requiresUserGeneratedContentModeration=true",
+      "reviewSummary=MeetingBridge metadata only; Binding asks for native capability consent later.",
+      "safe-placeholder",
+      "surfaceFamily=relationship",
+      "universalLink=https:\/\/staging.haven.digipomps.org\/app\/personal\/meeting",
+      "visibleAction=acceptTime",
+      "visibleAction=clearMeetingIntent",
+      "visibleAction=declineTime",
+      "visibleAction=editMeetingIntent",
+      "visibleAction=proposeTimes",
+      "visibleAction=updateMeetingIntent"
+    ],
+    "menuSlots" : [
+      "upperRight",
+      "lowerRight"
+    ],
+    "purpose" : "Coordinate meeting intent safely",
+    "purposeDescription" : "Foreslå møtetider og Jitsi-metadata som trygg placeholder uten native calendar, camera eller mic-permission.",
+    "sourceCellEndpoint" : "cell:\/\/\/PersonalMeetingCoordinator",
+    "sourceCellName" : "PersonalMeetingCoordinatorCell"
+  },
+  "name" : "Meeting Intent",
+  "skeleton" : {
+    "VStack" : {
+      "elements" : [
+        {
+          "Text" : {
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            },
+            "text" : "Meeting Intent"
+          }
+        },
+        {
+          "Text" : {
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            },
+            "text" : "Foreslå tider og vis Jitsi som metadata. Kamera, mikrofon og kalender bes ikke om her."
+          }
+        },
+        {
+          "TextField" : {
+            "placeholder" : "Meeting title",
+            "sourceKeypath" : "meetingCoordinator.state.draft.title",
+            "targetKeypath" : "meetingCoordinator.draft.title"
+          }
+        },
+        {
+          "TextField" : {
+            "placeholder" : "Optional target profile ID",
+            "sourceKeypath" : "meetingCoordinator.state.draft.targetProfileID",
+            "targetKeypath" : "meetingCoordinator.draft.targetProfileID"
+          }
+        },
+        {
+          "TextField" : {
+            "placeholder" : "Proposed times, comma separated ISO-8601",
+            "sourceKeypath" : "meetingCoordinator.state.draft.proposedTimesText",
+            "targetKeypath" : "meetingCoordinator.draft.proposedTimesText"
+          }
+        },
+        {
+          "HStack" : {
+            "elements" : [
+              {
+                "Button" : {
+                  "keypath" : "meetingCoordinator.proposeTimes",
+                  "label" : "Propose times",
+                  "payload" : {
+
+                  }
+                }
+              },
+              {
+                "Button" : {
+                  "keypath" : "meetingCoordinator.acceptTime",
+                  "label" : "Accept first time",
+                  "payload" : {
+
+                  }
+                }
+              },
+              {
+                "Button" : {
+                  "keypath" : "meetingCoordinator.declineTime",
+                  "label" : "Decline first time",
+                  "payload" : {
+
+                  }
+                }
+              },
+              {
+                "Button" : {
+                  "keypath" : "meetingCoordinator.clearMeetingIntent",
+                  "label" : "Clear intent",
+                  "payload" : {
+
+                  }
+                }
+              }
+            ],
+            "spacing" : 8
+          }
+        },
+        {
+          "Text" : {
+            "keypath" : "meetingCoordinator.state.coordinationStatus",
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            }
+          }
+        },
+        {
+          "Text" : {
+            "keypath" : "meetingCoordinator.state.meetingBridge.provider",
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            }
+          }
+        },
+        {
+          "Text" : {
+            "keypath" : "meetingCoordinator.state.meetingBridge.joinURL",
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            }
+          }
+        },
+        {
+          "Text" : {
+            "keypath" : "meetingCoordinator.state.meetingBridge.requiresCameraMicrophoneConsent",
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            }
+          }
+        },
+        {
+          "Text" : {
+            "keypath" : "meetingCoordinator.state.nativePermissionRequests",
+            "modifiers" : {
+              "foregroundColor" : "#172033"
+            }
+          }
+        }
+      ],
+      "spacing" : 10
+    }
+  },
+  "uuid" : "9B6E37F0-75D6-4406-B658-D52E6CFFFCB2"
+}

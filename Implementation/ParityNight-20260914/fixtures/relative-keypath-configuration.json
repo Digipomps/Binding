@@ -1,0 +1,91 @@
+{
+  "cellReferences" : [
+    {
+      "endpoint" : "cell:\/\/\/SkeletonParityRelativeKeypathFixture",
+      "label" : "fixture",
+      "setKeysAndValues" : [
+        {
+          "key" : "state"
+        }
+      ],
+      "subscribeFeed" : true,
+      "subscriptions" : [
+
+      ]
+    }
+  ],
+  "description" : "Absolute and relative keypaths together.",
+  "discovery" : {
+    "interests" : [
+      "skeleton",
+      "parity",
+      "relative-keypath"
+    ],
+    "menuSlots" : [
+
+    ],
+    "purpose" : "Skeleton Parity Relative Keypath Fixture",
+    "purposeDescription" : "Absolute and relative keypaths together.",
+    "sourceCellEndpoint" : "cell:\/\/\/SkeletonParityRelativeKeypathFixture",
+    "sourceCellName" : "SkeletonParityRelativeKeypathFixture"
+  },
+  "name" : "Skeleton Parity Relative Keypath Fixture",
+  "skeleton" : {
+    "VStack" : [
+      {
+        "Section" : {
+          "content" : [
+            {
+              "Text" : {
+                "keypath" : "fixture.state.headline"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.absoluteSummary"
+              }
+            },
+            {
+              "Text" : {
+                "keypath" : "fixture.state.status"
+              }
+            },
+            {
+              "List" : {
+                "elements" : [
+
+                ],
+                "flowElementSkeleton" : {
+                  "VStack" : [
+                    {
+                      "Text" : {
+                        "keypath" : "title"
+                      }
+                    },
+                    {
+                      "Text" : {
+                        "keypath" : "detail"
+                      }
+                    },
+                    {
+                      "Text" : {
+                        "keypath" : "stats.value"
+                      }
+                    }
+                  ]
+                },
+                "keypath" : "fixture.state.items"
+              }
+            }
+          ],
+          "header" : {
+            "Text" : {
+              "text" : "Relative Keypaths"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "uuid" : "2C9418CC-2792-4C41-8AF2-B4790FF725F5"
+}

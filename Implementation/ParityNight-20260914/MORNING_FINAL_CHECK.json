@@ -1,0 +1,45 @@
+{
+  "observedAt": "2026-09-15T05:01:09.014396+00:00",
+  "originalSourceChanges": [],
+  "patches": [
+    {
+      "name": "Binding-renderer-fixes.patch",
+      "sha256": "ffcc74319933c15dd44f51587471b6ad3aad18028ac019d5e48725a9aed3f22d",
+      "matchesLastTestedPatch": true,
+      "applyCheckExitCode": 0,
+      "output": ""
+    },
+    {
+      "name": "CellProtocol-renderer-fixes.patch",
+      "sha256": "e398cf03bdb063af3b46b691624a05dea67dc036231e897c83fb54cfbdaaf781",
+      "matchesLastTestedPatch": true,
+      "applyCheckExitCode": 0,
+      "output": ""
+    },
+    {
+      "name": "CellScaffold-compact-text.patch",
+      "sha256": "5fa0d90f47ebe37b1fd2d312cb6256670e35ff51b9686ae2f0cbee82de0226a8",
+      "matchesLastTestedPatch": true,
+      "applyCheckExitCode": 0,
+      "output": ""
+    }
+  ],
+  "simulatorProductExists": true,
+  "simulatorBundleID": "org.digipomps.haven.parity-night-test",
+  "simulatorMinimumOSVersion": "18.0",
+  "oldEntityLinkIPAExists": true,
+  "oldEntityLinkIPASHA256": "db0afc32ec88ea25912feeb60fe8c8b45f8cf710b11af46df6315b96ff8574a8",
+  "newTestsRun": false,
+  "artifactPathsExist": {
+    "phase3-toolbar-mac-test-logs/parity-tests.xcresult": true,
+    "phase3-toolbar-ui-test-logs/parity-ui-tests.xcresult": true,
+    "phase3-ui-images/chat-composer-and-send-with-keyboard.png": true,
+    "phase3-ui-images/library-compact-full-tab-labels-selected.png": true,
+    "phase3-final-ios26/ios-chat.png": true,
+    "phase3-final-ios18/ios-chat.png": true
+  },
+  "testLogAssertionsVerified": true,
+  "nightAutomationStatus": "PAUSED",
+  "nightCompletedAt": "2026-09-15T07:04:28.373601+02:00",
+  "morningReport": "MORNING_REPORT.md"
+}

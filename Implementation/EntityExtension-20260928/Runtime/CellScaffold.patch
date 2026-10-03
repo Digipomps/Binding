@@ -1,0 +1,154 @@
+diff --git a/Sources/App/Support/ProductionRuntimeAdmissionMiddleware.swift b/Sources/App/Support/ProductionRuntimeAdmissionMiddleware.swift
+index e4d93d93..15293c34 100644
+--- a/Sources/App/Support/ProductionRuntimeAdmissionMiddleware.swift
++++ b/Sources/App/Support/ProductionRuntimeAdmissionMiddleware.swift
+@@ -14,7 +14,8 @@ struct ProductionRuntimeAdmissionMiddleware: AsyncMiddleware {
+     private static let allowedHealthPaths: Set<String> = [
+         "/health/live",
+         "/health/build",
+-        "/health/ready"
++        "/health/ready",
++        "/health/entity-presence"
+     ]
+ 
+     /// A fixed scope is useful for isolated tests. Production resolves the
+diff --git a/Sources/App/configure.swift b/Sources/App/configure.swift
+index 64e01cef..f728e2ae 100644
+--- a/Sources/App/configure.swift
++++ b/Sources/App/configure.swift
+@@ -2425,7 +2425,11 @@ public func configure(_ app: Application) async throws {
+             scaffoldIdentity = resolvedOwner
+         }
+ 
++        if scaffoldIdentity == nil {
++            await OwnerAttachExtensionRuntime.shared.install(nil)
++        }
+         if let scaffoldIdentity {
++            await OwnerAttachRuntimeSupport.configure(app: app, receiver: scaffoldIdentity)
+             PortholeWebSessionSupport.configureScaffoldUtilityRequester(scaffoldIdentity)
+             app.scaffoldOwnerRuntimeState = .resolved(
+                 identity: scaffoldIdentity,
+diff --git a/Sources/App/routes.swift b/Sources/App/routes.swift
+index 955e3a5d..a42c4482 100644
+--- a/Sources/App/routes.swift
++++ b/Sources/App/routes.swift
+@@ -265,6 +265,7 @@ func routes(_ app: Application) throws {
+     app.get("health", "build") { _ -> BuildRuntimeInfo in
+         BuildInfoService().runtimeInfo()
+     }
++    OwnerAttachRuntimeSupport.registerHealthRoute(app: app)
+     
+ //    app.webSocket("bridgehead", ":pubId") { request, websocket in
+ //        print("got ws bridgehead")
+diff --git a/ci/test-filter.txt b/ci/test-filter.txt
+index 7436539e..1fc4ce79 100644
+--- a/ci/test-filter.txt
++++ b/ci/test-filter.txt
+@@ -467,3 +467,6 @@ AdminFundingRoutesTests
+ PaymentProviderConfigurationTests
+ 
+ FirstPartyAIUsageTests
++
++# Owner-attach availability must reflect the installed runtime without identity data.
++OwnerAttachRuntimeSupportTests
+diff --git a/private/tmp/haven-owner-attach-runtime/CellScaffold/Sources/App/Support/OwnerAttachRuntimeSupport.swift b/private/tmp/haven-owner-attach-runtime/CellScaffold/Sources/App/Support/OwnerAttachRuntimeSupport.swift
+new file mode 100644
+index 00000000..78434f3e
+--- /dev/null
++++ b/private/tmp/haven-owner-attach-runtime/CellScaffold/Sources/App/Support/OwnerAttachRuntimeSupport.swift
+@@ -0,0 +1,39 @@
++import Foundation
++import CellBase
++import Vapor
++
++/// Uses the already provisioned runtime signer; never mints a new service
++/// identity during strict production startup.
++enum OwnerAttachRuntimeSupport {
++    static func configure(app: Application, receiver: Identity) async {
++        guard let secrets = CellBase.defaultIdentityVault as? any ScopedSecretProviderProtocol,
++              let root = CellBase.documentRootPath else {
++            await OwnerAttachExtensionRuntime.shared.install(nil)
++            return
++        }
++        do {
++            let key = try await secrets.scopedSecretData(tag: "cellscaffold.owner-attach-presence.v1", minimumLength: 32)
++            let store = try OwnerAttachEncryptedStore(
++                directory: URL(fileURLWithPath: root).appendingPathComponent("OwnerAttachReceipts"), key: key)
++            let host = OwnerAttachEntityExtensionHost(receiver: receiver, label: "HAVEN på \(CellBase.hostname)", store: store)
++            await OwnerAttachExtensionRuntime.shared.install(host)
++        } catch {
++            await OwnerAttachExtensionRuntime.shared.install(nil)
++            app.logger.warning("Owner-attach entity presence unavailable; ordinary Cell access remains available.")
++        }
++    }
++
++    struct Readiness: Content {
++        let schema = "haven.owner-attach-readiness.v1"
++        let available: Bool
++    }
++
++    static func registerHealthRoute(app: Application) {
++        app.get("health", "entity-presence") { request async throws -> Response in
++            let available = await OwnerAttachExtensionRuntime.shared.host != nil
++            let response = try await Readiness(available: available).encodeResponse(for: request)
++            response.status = available ? .ok : .serviceUnavailable
++            return response
++        }
++    }
++}
+diff --git a/private/tmp/haven-owner-attach-runtime/CellScaffold/Tests/AppTests/OwnerAttachRuntimeSupportTests.swift b/private/tmp/haven-owner-attach-runtime/CellScaffold/Tests/AppTests/OwnerAttachRuntimeSupportTests.swift
+new file mode 100644
+index 00000000..df2aac3b
+--- /dev/null
++++ b/private/tmp/haven-owner-attach-runtime/CellScaffold/Tests/AppTests/OwnerAttachRuntimeSupportTests.swift
+@@ -0,0 +1,50 @@
++import CellBase
++import Vapor
++import XCTVapor
++import XCTest
++@testable import App
++
++final class OwnerAttachRuntimeSupportTests: XCTestCase {
++    actor Store: OwnerAttachExtensionStore {
++        var rows: [String: Data] = [:]
++        func read(id: String) -> Data? { rows[id] }
++        func write(_ data: Data, id: String) { rows[id] = data }
++    }
++
++    func testReadinessReportsActualInstallationWithoutIdentityData() async throws {
++        let app = try await Application.make(.testing)
++        let previous = await OwnerAttachExtensionRuntime.shared.host
++        OwnerAttachRuntimeSupport.registerHealthRoute(app: app)
++        do {
++            await OwnerAttachExtensionRuntime.shared.install(nil)
++            try await app.test(.GET, "/health/entity-presence") { response async throws in
++                XCTAssertEqual(response.status, .serviceUnavailable)
++                let fields = try response.content.decode([String: ValueType].self)
++                XCTAssertEqual(Set(fields.keys), ["schema", "available"])
++                XCTAssertEqual(fields["available"], .bool(false))
++            }
++            let vault = EphemeralIdentityVault()
++            let storedSigner = await vault.identity(for: "receipt-test", makeNewIfNotFound: true)
++            let signer = try XCTUnwrap(storedSigner)
++            await OwnerAttachExtensionRuntime.shared.install(OwnerAttachEntityExtensionHost(
++                receiver: signer, label: "Synthetic receiver", store: Store()))
++            try await app.test(.GET, "/health/entity-presence") { response async throws in
++                XCTAssertEqual(response.status, .ok)
++                let fields = try response.content.decode([String: ValueType].self)
++                XCTAssertEqual(Set(fields.keys), ["schema", "available"])
++                XCTAssertEqual(fields["available"], .bool(true))
++                XCTAssertEqual(fields["schema"], .string("haven.owner-attach-readiness.v1"))
++            }
++            XCTAssertTrue(ProductionRuntimeAdmissionMiddleware.isAllowedHealthRequest(
++                method: .GET, path: "/health/entity-presence"))
++            XCTAssertFalse(ProductionRuntimeAdmissionMiddleware.isAllowedHealthRequest(
++                method: .POST, path: "/health/entity-presence"))
++            await OwnerAttachExtensionRuntime.shared.install(previous)
++            try await app.asyncShutdown()
++        } catch {
++            await OwnerAttachExtensionRuntime.shared.install(previous)
++            try? await app.asyncShutdown()
++            throw error
++        }
++    }
++}

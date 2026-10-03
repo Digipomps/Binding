@@ -1,0 +1,17 @@
+{
+  "Binding": {
+    "path": "/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/Binding",
+    "revision": "8ce634f6533f5e63386229639c69c43aac25c31f",
+    "source": "origin/main; user WIP not overlaid"
+  },
+  "CellProtocol": {
+    "path": "/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellProtocol",
+    "revision": "81601a6f835252aba7e99d43786fb5d67227c245",
+    "source": "origin/main; user WIP not overlaid"
+  },
+  "CellScaffold": {
+    "path": "/Users/kjetil/Build/Digipomps/HAVEN/Binding/Implementation/SurfaceParityRepair-20260930/workspaces/CellScaffold",
+    "revision": "a8f03c2a02b32deb6a87a0da53b753f82e2d1382",
+    "source": "origin/main; user WIP not overlaid"
+  }
+}

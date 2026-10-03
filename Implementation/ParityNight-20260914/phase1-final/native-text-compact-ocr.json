@@ -1,0 +1,122 @@
+[
+  {
+    "confidence" : 1,
+    "height" : 0.014794125376154432,
+    "text" : "Text Fixture",
+    "width" : 0.18248590322641223,
+    "x" : 0.40875704807136259,
+    "y" : 0.95335875169279871
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.016236360604164113,
+    "text" : "Basic structure",
+    "width" : 0.23584905771108777,
+    "x" : 0.38364779657684611,
+    "y" : 0.92417061598512606
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.019157114752096027,
+    "text" : "Denne fixture-en holder text, badge, section og divider",
+    "width" : 0.85220125638521638,
+    "x" : 0.069182396762468193,
+    "y" : 0.89218009427577871
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.017441860307449431,
+    "text" : "stabile på tvers av web og Binding.",
+    "width" : 0.54402516682942714,
+    "x" : 0.0660377355842382,
+    "y" : 0.87500000010305823
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.018870610196443538,
+    "text" : "public-safe",
+    "width" : 0.17673774132361786,
+    "x" : 0.41163112796139378,
+    "y" : 0.83940190401846515
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.014534883589541248,
+    "text" : "deterministic",
+    "width" : 0.2044025127704327,
+    "x" : 0.39622641803077646,
+    "y" : 0.79941860477914961
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.016257026184226753,
+    "text" : "Dette er en bevisst lang tekstlinje som skal wrappe",
+    "width" : 0.78616348657852564,
+    "x" : 0.069182414205495965,
+    "y" : 0.75118483398670111
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.017772511848341166,
+    "text" : "tydelig og likt nok til at vi ser renderer-avvik tidlig, uten",
+    "width" : 0.85534589718549681,
+    "x" : 0.066037751957565824,
+    "y" : 0.73104265428341342
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.017441860307449431,
+    "text" : "å gjøre payloaden produktspesifikk eller vanskelig å",
+    "width" : 0.80188676883012822,
+    "x" : 0.066037740978017817,
+    "y" : 0.71366279072805827
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.015988371383522271,
+    "text" : "feilsøke.",
+    "width" : 0.13522012172601161,
+    "x" : 0.066037739005966933,
+    "y" : 0.694767442227328
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.013267386581095386,
+    "text" : "Section with divider",
+    "width" : 0.3113207499186198,
+    "x" : 0.34276729488345747,
+    "y" : 0.66860465143172787
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.019177780332158667,
+    "text" : "Bruk denne til å verifisere spacing, heading-hierarki og",
+    "width" : 0.84905661558493584,
+    "x" : 0.069182386295582307,
+    "y" : 0.63662790715567996
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.016098589128792473,
+    "text" : "synlig seksjonsdeling.",
+    "width" : 0.34276729485927482,
+    "x" : 0.06918239459080272,
+    "y" : 0.61907582910293957
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.017772511848341277,
+    "text" : "Ingen handlinger kjørt ennå.",
+    "width" : 0.43710691011868985,
+    "x" : 0.27987422170166121,
+    "y" : 0.59004739330284717
+  },
+  {
+    "confidence" : 1,
+    "height" : 0.017075557844333678,
+    "text" : "Acknowledge",
+    "width" : 0.2079266083546174,
+    "x" : 0.39603669745388215,
+    "y" : 0.56050291858380452
+  }
+]

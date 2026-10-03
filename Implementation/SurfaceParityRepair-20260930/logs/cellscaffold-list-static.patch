@@ -1,0 +1,26 @@
+diff --git a/Public/js/skeleton-runtime.js b/Public/js/skeleton-runtime.js
+index adb00bd1..9c225d5f 100644
+--- a/Public/js/skeleton-runtime.js
++++ b/Public/js/skeleton-runtime.js
+@@ -2007,6 +2007,7 @@
+       container: wrapper,
+       keypath,
+       context,
++      staticItems: Array.isArray(spec.elements) ? spec.elements : [],
+       rowSkeleton: spec.flowElementSkeleton ? decodeElement(spec.flowElementSkeleton) : null,
+       fallbackRowKeypath: inferFallbackRowKeypath(keypath),
+       selectionMode: normalizeSelectionMode(spec.selectionMode),
+@@ -7016,7 +7017,12 @@
+       const resolved = binding.keypath
+         ? resolveKeypath(binding.keypath, state.rootData, binding.context)
+         : [];
+-      const items = Array.isArray(resolved) ? resolved : [];
++      const boundItems = Array.isArray(resolved) ? resolved : [];
++      // Match CellListView.rows: bound rows precede declared static values.
++      // Grid and Reference retain their own collection semantics.
++      const items = binding.kind === "list"
++        ? boundItems.concat(binding.staticItems || [])
++        : boundItems;
+       const signature = buildListSignature(items);
+ 
+       if (signature === binding.lastSignature) {
