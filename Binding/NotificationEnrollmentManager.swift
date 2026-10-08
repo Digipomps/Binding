@@ -240,9 +240,14 @@ final class NotificationEnrollmentManager: ObservableObject {
         guard enrollmentEnabled else { return }
 
         if participantID == nil {
-            let envParticipant = ProcessInfo.processInfo.environment["BINDING_PARTICIPANT_ID"]
-            participantID = defaults.string(forKey: participantIDKey) ?? envParticipant ?? "binding-participant"
-            defaults.set(participantID, forKey: participantIDKey)
+            // Only a verified v3 completion establishes the server participant.
+            // Legacy settings/environment values are not chat authentication.
+            if let stored = defaults.string(forKey: participantIDKey),
+               stored.hasPrefix("entity-pairwise:") {
+                participantID = stored
+            } else {
+                defaults.removeObject(forKey: participantIDKey)
+            }
         }
 
         if deviceID == nil {
@@ -526,8 +531,7 @@ final class NotificationEnrollmentManager: ObservableObject {
             enrollmentPhase = .pushPermissionRequired
             return
         }
-        guard let participantID,
-              let deviceID,
+        guard let deviceID,
               let token = pendingAPNSToken,
               !token.isEmpty else {
             isDeviceRegistered = false
@@ -567,7 +571,9 @@ final class NotificationEnrollmentManager: ObservableObject {
         do {
             let buildProvenance = try buildProvenanceProvider()
             let payload = Self.registrationPayload(
-                participantID: participantID,
+                // Composition replaces this provisional field with the
+                // verified entity binding before signing the v3 request.
+                participantID: participantID ?? "",
                 deviceID: deviceID,
                 pushToken: token,
                 platform: "ios",

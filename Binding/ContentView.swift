@@ -4611,6 +4611,10 @@ struct ContentView: View {
         _ url: URL,
         execution: BindingRuntimeRouteExecution
     ) async {
+        if let threadID = BindingChatNotificationRoute.threadID(from: url) {
+            await openChatNotificationThread(threadID, execution: execution)
+            return
+        }
         if let hook = Self.conferenceAutomationHook(from: url) {
             guard execution.isActive else { return }
             let automationEnabled = conferenceAutomationOptInEnabled
@@ -4669,6 +4673,58 @@ struct ContentView: View {
             } onCancel: {
                 loadTask.cancel()
             }
+        }
+    }
+
+    @MainActor
+    private func openChatNotificationThread(
+        _ threadID: String,
+        execution: BindingRuntimeRouteExecution
+    ) async {
+        guard execution.isActive else { return }
+        if editorMode == .edit && editorState.isDirty {
+            execution.commit {
+                loadErrorMessage = "Lagre eller forkast editor-draften før HAVEN åpner chat-tråden."
+            }
+            return
+        }
+        await BindingRuntimeBootstrap.ensureInfrastructureBaseline()
+        guard execution.isActive,
+              await BindingLocalCellRegistration.shared.ensureLocallyRegistered(),
+              execution.isActive,
+              let requester = await privateRequesterIdentity(),
+              execution.isActive,
+              let resolver = CellBase.defaultCellResolver as? CellResolver else { return }
+        do {
+            guard let chat = try await resolver.cellAtEndpoint(
+                endpoint: Self.personalCopilotChatHubEndpoint, requester: requester
+            ) as? Meddle else { return }
+            guard execution.isActive else { return }
+            let result = try await chat.set(
+                keypath: "ui.setCurrentThread", value: .string(threadID), requester: requester
+            )
+            guard execution.isActive else { return }
+            guard BindingChatValue.string(BindingChatValue.object(result)?["threadID"]) == threadID else {
+                execution.commit {
+                    loadErrorMessage = "Varslets tråd er ikke tilgjengelig for denne chat-identiteten."
+                }
+                return
+            }
+            execution.commit {
+                if editorMode == .edit && editorState.isDirty {
+                    loadErrorMessage = "Lagre eller forkast editor-draften før HAVEN åpner chat-tråden."
+                    return
+                }
+                editorMode = .view
+                personalCopilotDestination = .inviteChat
+                personalCopilotPhoneTab = .chat
+                queueConfigurationLoad(
+                    personalCopilotDestination.configuration,
+                    navigationMode: .reset, provenance: .localTrusted
+                )
+            }
+        } catch {
+            execution.commit { loadErrorMessage = "Kunne ikke åpne varslets chat-tråd." }
         }
     }
 

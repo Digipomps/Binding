@@ -5,6 +5,38 @@ import Foundation
 
 @MainActor
 struct NotificationCallbackClientTests {
+    @Test func chatPushRoutesThreadAndDeepLinkWithoutCallbackTicket() throws {
+        let id = "thread-123"
+        for payload: [AnyHashable: Any] in [
+            ["threadID": id],
+            ["deepLink": "haven://chat?threadID=thread-123"],
+            ["threadID": id, "deepLink": "haven://chat?threadID=thread-123"],
+            ["ticketId": "ticket", "requiredActionKey": "chat.open",
+             "payload": ["threadID": id, "deepLink": "haven://chat?threadID=thread-123"]],
+            ["payloadJSON": "{\"threadID\":\"thread-123\"}"]
+        ] {
+            let url = try #require(BindingChatNotificationRoute.url(userInfo: payload))
+            #expect(BindingChatNotificationRoute.threadID(from: url) == id)
+        }
+        #expect(WorkflowNotificationPreferences.defaultSubscriptionTopics.contains("chat"))
+    }
+
+    @Test func chatPushRejectsAmbiguousAndInvalidNavigationHints() {
+        for payload: [AnyHashable: Any] in [
+            [:], ["threadID": "a", "payload": ["threadID": "b"]],
+            ["threadID": ""], ["threadID": "../other"],
+            ["threadID": "a", "deepLink": "haven://chat?threadID=b"],
+            ["deepLink": "https://evil.example/chat?threadID=a"],
+            ["deepLink": "haven://chat?threadID=a&threadID=b"],
+            ["deepLink": "haven://chat?threadID=a&endpoint=evil"],
+            ["deepLink": "haven://user@chat?threadID=a"],
+            ["deepLink": "haven://chat/path?threadID=a"],
+            ["threadID": String(repeating: "a", count: 129)]
+        ] {
+            #expect(BindingChatNotificationRoute.url(userInfo: payload) == nil)
+        }
+    }
+
     @Test
     func disabledRolloutRejectsBeforeCallbackComposition() async {
         let callbackOperator = RecordingCallbackOperator()
