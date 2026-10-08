@@ -4692,7 +4692,10 @@ struct ContentView: View {
         guard execution.isActive,
               await BindingLocalCellRegistration.shared.ensureLocallyRegistered(),
               execution.isActive,
-              let requester = await privateRequesterIdentity(),
+              let vault = try? await DeviceIngressAuthenticatedVaultHandle.current(),
+              let requester = await vault.identityVault.identity(
+                  for: "private", makeNewIfNotFound: false
+              ),
               execution.isActive,
               let resolver = CellBase.defaultCellResolver as? CellResolver else { return }
         do {

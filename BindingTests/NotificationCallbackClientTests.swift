@@ -38,6 +38,23 @@ struct NotificationCallbackClientTests {
     }
 
     #if os(iOS)
+    @Test func iOSRenderAuditProducesRealSnapshotAndRejectsMissingSkeleton() async throws {
+        var configuration = CellConfiguration(name: "Notification render fixture")
+        configuration.skeleton = .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(text: "Notification render fixture"))
+        ]))
+        let report = try await CellConfigurationVerifier.renderReport(
+            for: configuration, expectedVisibleStrings: []
+        )
+        #expect(report.snapshotByteCount > 100)
+        #expect(report.subviewCount > 1)
+        await #expect(throws: (any Error).self) {
+            _ = try await CellConfigurationVerifier.renderReport(
+                for: CellConfiguration(name: "Missing skeleton"), expectedVisibleStrings: []
+            )
+        }
+    }
+
     @Test func notificationTapQueuesChatURLBeforeCallbackIdentityIsAvailable() async throws {
         BindingIncomingURLBridge.resetForTesting()
         defer { BindingIncomingURLBridge.resetForTesting() }
