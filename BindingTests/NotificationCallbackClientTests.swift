@@ -37,6 +37,26 @@ struct NotificationCallbackClientTests {
         }
     }
 
+    #if os(iOS)
+    @Test func notificationTapQueuesChatURLBeforeCallbackIdentityIsAvailable() async throws {
+        BindingIncomingURLBridge.resetForTesting()
+        defer { BindingIncomingURLBridge.resetForTesting() }
+        let callbackOperator = RecordingCallbackOperator()
+        let client = NotificationCallbackClient.testing(
+            rolloutEnabled: false, callbackOperator: callbackOperator
+        )
+        await client.handleNotificationResponse(userInfo: [
+            "ticketId": "ticket", "requiredActionKey": "chat.open",
+            "payload": ["threadID": "thread-123", "deepLink": "haven://chat?threadID=thread-123"]
+        ])
+        let lease = try #require(BindingIncomingURLBridge.leaseNextPending(
+            consumerID: UUID(), hostingWindowNumber: nil
+        ))
+        #expect(BindingChatNotificationRoute.threadID(from: lease.event.url) == "thread-123")
+        #expect(await callbackOperator.operations().isEmpty)
+    }
+    #endif
+
     @Test
     func disabledRolloutRejectsBeforeCallbackComposition() async {
         let callbackOperator = RecordingCallbackOperator()
