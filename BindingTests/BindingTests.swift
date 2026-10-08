@@ -10793,6 +10793,7 @@ enum CellConfigurationVerifier {
         let subviewCount: Int
         let firstMeaningfulContentMilliseconds: Double
         let totalRenderMilliseconds: Double
+        var nonUniformSnapshot: Bool? = nil
 
         var unavailableNowCount: Int {
             visibleStrings.filter { $0.contains("Innholdet er ikke tilgjengelig akkurat nå.") }.count
@@ -11478,6 +11479,10 @@ enum CellConfigurationVerifier {
         expectedVisibleStrings: Set<String>,
         identityMode: VerifierIdentityMode? = nil
     ) async throws -> RenderReport {
+        guard configuration.skeleton != nil else {
+            throw NSError(domain: "CellConfigurationVerifier", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "Configuration mangler skeleton"])
+        }
         let context = try await makeRuntimeContext(for: configuration, identityMode: identityMode)
         context.porthole.detachAll(requester: context.owner)
         try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
@@ -11509,6 +11514,9 @@ enum CellConfigurationVerifier {
         var buttons = Set<String>()
         var snapshotBytes = 0
         var subviews = 0
+        var nonUniform = false
+        // Give SwiftUI an actual display turn before taking the first snapshot.
+        try await Task.sleep(nanoseconds: 50_000_000)
         for iteration in 0..<16 {
             window.setNeedsLayout()
             window.layoutIfNeeded()
@@ -11544,11 +11552,28 @@ enum CellConfigurationVerifier {
                 for child in view.subviews { collect(child) }
             }
             collect(controller.view)
-            let image = UIGraphicsImageRenderer(bounds: window.bounds).image { renderer in
-                window.layer.render(in: renderer.cgContext)
+            let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
             }
             snapshotBytes = max(snapshotBytes, image.pngData()?.count ?? 0)
-            if expectedVisibleStrings.isSubset(of: strings.union(buttons)) {
+            if let cgImage = image.cgImage, let pixelData = cgImage.dataProvider?.data {
+                let data = pixelData as Data
+                let stride = cgImage.bitsPerPixel / 8
+                if stride > 0, data.count >= cgImage.bytesPerRow * cgImage.height {
+                    nonUniform = data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) -> Bool in
+                        for y in 0..<cgImage.height {
+                            for x in 0..<cgImage.width {
+                                let offset = y * cgImage.bytesPerRow + x * stride
+                                for channel in 0..<stride where bytes[offset + channel] != bytes[channel] {
+                                    return true
+                                }
+                            }
+                        }
+                        return false
+                    }
+                }
+            }
+            if nonUniform && expectedVisibleStrings.isSubset(of: strings.union(buttons)) {
                 firstContent = milliseconds(since: start, clock: clock)
                 break
             }
@@ -11559,7 +11584,8 @@ enum CellConfigurationVerifier {
             visibleStrings: strings, buttonTitles: buttons,
             snapshotByteCount: snapshotBytes, subviewCount: subviews,
             firstMeaningfulContentMilliseconds: firstContent,
-            totalRenderMilliseconds: milliseconds(since: start, clock: clock)
+            totalRenderMilliseconds: milliseconds(since: start, clock: clock),
+            nonUniformSnapshot: nonUniform
         )
     }
 #endif

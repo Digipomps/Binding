@@ -47,7 +47,9 @@ struct NotificationCallbackClientTests {
             for: configuration, expectedVisibleStrings: []
         )
         #expect(report.snapshotByteCount > 100)
-        #expect(report.subviewCount > 1)
+        // SwiftUI can draw into one hosting view without UILabel children.
+        #expect(report.subviewCount >= 1)
+        #expect(report.nonUniformSnapshot == true)
         await #expect(throws: (any Error).self) {
             _ = try await CellConfigurationVerifier.renderReport(
                 for: CellConfiguration(name: "Missing skeleton"), expectedVisibleStrings: []
@@ -56,20 +58,29 @@ struct NotificationCallbackClientTests {
     }
 
     @Test func notificationTapQueuesChatURLBeforeCallbackIdentityIsAvailable() async throws {
-        BindingIncomingURLBridge.resetForTesting()
-        defer { BindingIncomingURLBridge.resetForTesting() }
+        let deliveryCenter = NotificationCenter()
+        var deliveredURL: URL?
         let callbackOperator = RecordingCallbackOperator()
         let client = NotificationCallbackClient.testing(
-            rolloutEnabled: false, callbackOperator: callbackOperator
+            rolloutEnabled: false, callbackOperator: callbackOperator,
+            chatURLDelivery: { url in
+                // A private center keeps the running app's URL consumer out
+                // of this test while exercising the actual bridge post.
+                BindingIncomingURLBridge.post(url: url, notificationCenter: deliveryCenter)
+                deliveredURL = url
+            }
         )
         await client.handleNotificationResponse(userInfo: [
             "ticketId": "ticket", "requiredActionKey": "chat.open",
             "payload": ["threadID": "thread-123", "deepLink": "haven://chat?threadID=thread-123"]
         ])
+        let consumerID = UUID()
         let lease = try #require(BindingIncomingURLBridge.leaseNextPending(
-            consumerID: UUID(), hostingWindowNumber: nil
+            consumerID: consumerID, hostingWindowNumber: nil
         ))
         #expect(BindingChatNotificationRoute.threadID(from: lease.event.url) == "thread-123")
+        #expect(deliveredURL == lease.event.url)
+        BindingIncomingURLBridge.acknowledge(lease, consumerID: consumerID)
         #expect(await callbackOperator.operations().isEmpty)
     }
     #endif

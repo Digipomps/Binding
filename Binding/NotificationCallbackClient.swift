@@ -526,6 +526,7 @@ final class NotificationCallbackClient {
 
     private let rolloutEnabled: @Sendable () -> Bool
     private let callbackClientProvider: CallbackClientProvider
+    private let chatURLDelivery: @MainActor @Sendable (URL) -> Void
 
     private init(
         rolloutEnabled: @escaping @Sendable () -> Bool = {
@@ -533,20 +534,28 @@ final class NotificationCallbackClient {
         },
         callbackClientProvider: @escaping CallbackClientProvider = {
             try await BindingDeviceIngressCallbackComposition.makeClient()
+        },
+        chatURLDelivery: @escaping @MainActor @Sendable (URL) -> Void = {
+            BindingIncomingURLBridge.submit(url: $0)
         }
     ) {
         self.rolloutEnabled = rolloutEnabled
         self.callbackClientProvider = callbackClientProvider
+        self.chatURLDelivery = chatURLDelivery
     }
 
     #if DEBUG
     static func testing(
         rolloutEnabled: Bool,
-        callbackOperator: any DeviceIngressCallbackOperating
+        callbackOperator: any DeviceIngressCallbackOperating,
+        chatURLDelivery: @escaping @MainActor @Sendable (URL) -> Void = {
+            BindingIncomingURLBridge.submit(url: $0)
+        }
     ) -> NotificationCallbackClient {
         NotificationCallbackClient(
             rolloutEnabled: { rolloutEnabled },
-            callbackClientProvider: { callbackOperator }
+            callbackClientProvider: { callbackOperator },
+            chatURLDelivery: chatURLDelivery
         )
     }
     #endif
@@ -575,7 +584,7 @@ final class NotificationCallbackClient {
 
     func handleNotificationResponse(userInfo: [AnyHashable: Any]) async {
         if let url = BindingChatNotificationRoute.url(userInfo: userInfo) {
-            BindingIncomingURLBridge.submit(url: url)
+            chatURLDelivery(url)
             return
         }
         guard let participantId = NotificationEnrollmentManager.shared.currentParticipantID(),
