@@ -50,15 +50,18 @@ struct NotificationCallbackClientTests {
         // SwiftUI can draw into one hosting view without UILabel children.
         #expect(report.subviewCount >= 1)
         #expect(report.nonUniformSnapshot == true)
+        var missingSkeleton = CellConfiguration(name: "Missing skeleton")
+        missingSkeleton.skeleton = nil
         await #expect(throws: (any Error).self) {
             _ = try await CellConfigurationVerifier.renderReport(
-                for: CellConfiguration(name: "Missing skeleton"), expectedVisibleStrings: []
+                for: missingSkeleton, expectedVisibleStrings: []
             )
         }
     }
 
     @Test func notificationTapQueuesChatURLBeforeCallbackIdentityIsAvailable() async throws {
         let deliveryCenter = NotificationCenter()
+        let sceneID = UUID()
         var deliveredURL: URL?
         let callbackOperator = RecordingCallbackOperator()
         let client = NotificationCallbackClient.testing(
@@ -66,7 +69,9 @@ struct NotificationCallbackClientTests {
             chatURLDelivery: { url in
                 // A private center keeps the running app's URL consumer out
                 // of this test while exercising the actual bridge post.
-                BindingIncomingURLBridge.post(url: url, notificationCenter: deliveryCenter)
+                BindingIncomingURLBridge.post(
+                    url: url, targetSceneID: sceneID, notificationCenter: deliveryCenter
+                )
                 deliveredURL = url
             }
         )
@@ -75,8 +80,11 @@ struct NotificationCallbackClientTests {
             "payload": ["threadID": "thread-123", "deepLink": "haven://chat?threadID=thread-123"]
         ])
         let consumerID = UUID()
+        #expect(BindingIncomingURLBridge.leaseNextPending(
+            consumerID: consumerID, hostingWindowNumber: nil, hostingSceneID: UUID()
+        ) == nil)
         let lease = try #require(BindingIncomingURLBridge.leaseNextPending(
-            consumerID: consumerID, hostingWindowNumber: nil
+            consumerID: consumerID, hostingWindowNumber: nil, hostingSceneID: sceneID
         ))
         #expect(BindingChatNotificationRoute.threadID(from: lease.event.url) == "thread-123")
         #expect(deliveredURL == lease.event.url)

@@ -536,7 +536,7 @@ final class NotificationCallbackClient {
             try await BindingDeviceIngressCallbackComposition.makeClient()
         },
         chatURLDelivery: @escaping @MainActor @Sendable (URL) -> Void = {
-            BindingIncomingURLBridge.submit(url: $0)
+            BindingChatNotificationRoute.deliverToAppScene($0)
         }
     ) {
         self.rolloutEnabled = rolloutEnabled
@@ -549,7 +549,7 @@ final class NotificationCallbackClient {
         rolloutEnabled: Bool,
         callbackOperator: any DeviceIngressCallbackOperating,
         chatURLDelivery: @escaping @MainActor @Sendable (URL) -> Void = {
-            BindingIncomingURLBridge.submit(url: $0)
+            BindingChatNotificationRoute.deliverToAppScene($0)
         }
     ) -> NotificationCallbackClient {
         NotificationCallbackClient(
@@ -900,6 +900,17 @@ struct NotificationCallbackHTTPError: LocalizedError, CustomStringConvertible {
 
 /// Navigation hints carry no authority. Thread access is checked by the chat cell.
 nonisolated enum BindingChatNotificationRoute {
+    @MainActor
+    static func deliverToAppScene(_ url: URL) {
+        #if os(iOS)
+        // RootView.onOpenURL adds its concrete scene ID. An untargeted
+        // bridge event cannot be leased by an iOS scene.
+        UIApplication.shared.open(url)
+        #else
+        BindingIncomingURLBridge.submit(url: url)
+        #endif
+    }
+
     static func threadID(from url: URL) -> String? {
         guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
               parts.scheme?.lowercased() == "haven",
