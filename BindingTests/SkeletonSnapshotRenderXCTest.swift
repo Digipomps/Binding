@@ -79,7 +79,27 @@ final class SkeletonSnapshotRenderXCTest: XCTestCase {
                     ? try decoder.decode(ValueType.self, from: Data(contentsOf: rootURL))
                     : nil
 
-                let png = try await renderPNG(element: element, root: root, surface: surface)
+                let interactionURL = directory.appendingPathComponent("interactions.json")
+                let tabLabels = fileManager.fileExists(atPath: interactionURL.path)
+                    ? try decoder.decode([String].self, from: Data(contentsOf: interactionURL)) : []
+                if !tabLabels.isEmpty,
+                   containsMountedSurface(try JSONSerialization.jsonObject(with: skeletonData)) {
+                    throw RenderFailure.mountedTabInteractionUnsupported
+                }
+                let expectedActionsURL = directory.appendingPathComponent("expected-actions.json")
+                let expectedActions = fileManager.fileExists(atPath: expectedActionsURL.path)
+                    ? try decoder.decode([RecordedAction].self, from: Data(contentsOf: expectedActionsURL)) : nil
+                guard tabLabels.isEmpty || expectedActions != nil else {
+                    throw RenderFailure.missingActionExpectations
+                }
+                let png = try await renderPNG(element: element, root: root, surface: surface, tabLabels: tabLabels)
+                try encoder.encode(png.actions).write(to: outputURL.appendingPathComponent("\(name).actions.json"), options: .atomic)
+                // ValueType equality does not recursively compare objects/lists.
+                // Sorted JSON verifies the complete payload without changing it.
+                if let expectedActions,
+                   try encoder.encode(png.actions) != encoder.encode(expectedActions) {
+                    throw RenderFailure.actionMismatch
+                }
                 try png.data.write(to: outputURL.appendingPathComponent("\(name).png"), options: .atomic)
 
                 let expectedURL = directory.appendingPathComponent("expected-text.json")
@@ -88,7 +108,12 @@ final class SkeletonSnapshotRenderXCTest: XCTestCase {
                     : []
                 if expected.isEmpty { rasterOnlyNames.append(name) }
                 let recognized = try recognizedText(in: png.data, expected: expected)
-                let missing = expected.filter { !recognized.contains($0) }
+                // OCR returns one line per visual text box. A line break between words
+                // is not missing content; breaking a word still fails this check.
+                let flattened = recognized.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+                let missing = expected.filter {
+                    !flattened.contains($0.split(whereSeparator: \.isWhitespace).joined(separator: " "))
+                }
                 let rasterURL = directory.appendingPathComponent("expected-raster.json")
                 let rasterExpectations = fileManager.fileExists(atPath: rasterURL.path)
                     ? try decoder.decode([RasterExpectation].self, from: Data(contentsOf: rasterURL))
@@ -169,17 +194,31 @@ final class SkeletonSnapshotRenderXCTest: XCTestCase {
         let data: Data
         let width: Int
         let height: Int
+        let actions: [RecordedAction]
+    }
+
+    private struct RecordedAction: Codable {
+        let keypath: String
+        let payload: ValueType?
+    }
+
+    private final class ActionRecorder {
+        var actions: [RecordedAction] = []
     }
 
     private enum RenderFailure: Error {
         case rasterizationFailed, encodingFailed
         case missingExpectedText([String])
         case missingExpectedRaster
+        case missingTab(String)
+        case ambiguousTab(String, Int)
+        case tabNotSelected(String)
+        case missingActionExpectations, actionMismatch, mountedTabInteractionUnsupported
     }
 
     /// Speiler `SkeletonParityRenderer.renderPNG`, men med webens
     /// vert-ramme rundt skjelettet (padding + sentrert innholdskolonne).
-    private func renderPNG(element: SkeletonElement, root: ValueType?, surface: SurfaceSettings) async throws -> RenderedPNG {
+    private func renderPNG(element: SkeletonElement, root: ValueType?, surface: SurfaceSettings, tabLabels: [String]) async throws -> RenderedPNG {
         let suite = "haven.skeleton.parity.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite) ?? .standard
         defaults.removePersistentDomain(forName: suite)
@@ -188,6 +227,11 @@ final class SkeletonSnapshotRenderXCTest: XCTestCase {
         let background = Self.rgb(fromHex: surface.backgroundHex).map { Color(red: $0.r, green: $0.g, blue: $0.b) } ?? .white
         let viewModel = PortholeViewModel()
         viewModel.skeletonRootData = root
+        let recorder = ActionRecorder()
+        let recordingHandler = SkeletonNativeActionHandler { request in
+            recorder.actions.append(RecordedAction(keypath: request.keypath, payload: request.payload))
+            return .null
+        }
         let content = VStack(spacing: 0) {
             // Exercise the actual host's observable root-state delivery path,
             // including mount data and presentation extraction.
@@ -198,6 +242,8 @@ final class SkeletonSnapshotRenderXCTest: XCTestCase {
         }
         .padding(surface.padding)
         .environmentObject(viewModel)
+        // Direct tab actions are recorded locally. Mounted-tab inputs are rejected above.
+        .environment(\.skeletonNativeActionHandler, recordingHandler)
         .defaultAppStorage(defaults)
         .environment(\.colorScheme, surface.isDarkMode ? .dark : .light)
         .frame(width: surface.width, height: surface.height, alignment: .topLeading)
@@ -215,11 +261,54 @@ final class SkeletonSnapshotRenderXCTest: XCTestCase {
         window.isReleasedWhenClosed = false
         window.animationBehavior = .none
         window.contentView = host
-        defer { window.orderOut(nil); window.close() }
+        let accessibilityMode = NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface")
+        let previousMode = NSApplication.shared.accessibilityAttributeValue(accessibilityMode)
+        NSApplication.shared.accessibilitySetValue(true, forAttribute: accessibilityMode)
+        defer {
+            window.orderOut(nil); window.close()
+            NSApplication.shared.accessibilitySetValue(previousMode, forAttribute: accessibilityMode)
+        }
         for _ in 0..<12 {
             host.layoutSubtreeIfNeeded()
             host.displayIfNeeded()
             try await Task.sleep(nanoseconds: 25_000_000)
+        }
+        func attribute(_ node: NSObject, _ name: String) -> Any? {
+            let selector = NSSelectorFromString(name)
+            return node.responds(to: selector) ? node.perform(selector)?.takeUnretainedValue() : nil
+        }
+        func tabButtons(named label: String) -> [NSObject] {
+            var visited = Set<ObjectIdentifier>()
+            var found: [NSObject] = []
+            func walk(_ value: Any) {
+                guard let node = value as? NSObject, visited.insert(ObjectIdentifier(node)).inserted else { return }
+                if attribute(node, "accessibilityLabel") as? String == label,
+                   attribute(node, "accessibilityRole") as? String == "AXButton" { found.append(node) }
+                for child in attribute(node, "accessibilityChildren") as? [Any] ?? [] { walk(child) }
+                if let view = node as? NSView { view.subviews.forEach(walk) }
+            }
+            walk(host)
+            return found
+        }
+        for label in tabLabels {
+            let matches = tabButtons(named: label)
+            guard !matches.isEmpty else { throw RenderFailure.missingTab(label) }
+            guard matches.count == 1 else { throw RenderFailure.ambiguousTab(label, matches.count) }
+            let node = matches[0]
+            let selector = NSSelectorFromString("accessibilityPerformPress")
+            guard node.responds(to: selector) else { throw RenderFailure.missingTab(label) }
+            typealias Press = @convention(c) (AnyObject, Selector) -> Bool
+            let press = unsafeBitCast(node.method(for: selector), to: Press.self)
+            guard press(node, selector) else { throw RenderFailure.missingTab(label) }
+            for _ in 0..<12 {
+                host.layoutSubtreeIfNeeded(); host.displayIfNeeded()
+                try await Task.sleep(nanoseconds: 25_000_000)
+            }
+            let selected = tabButtons(named: label)
+            guard selected.count == 1,
+                  attribute(selected[0], "accessibilityValue") as? String == "Selected" else {
+                throw RenderFailure.tabNotSelected(label)
+            }
         }
         guard let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
             throw RenderFailure.rasterizationFailed
@@ -228,7 +317,7 @@ final class SkeletonSnapshotRenderXCTest: XCTestCase {
         guard let data = bitmap.representation(using: .png, properties: [:]) else {
             throw RenderFailure.encodingFailed
         }
-        return RenderedPNG(data: data, width: bitmap.pixelsWide, height: bitmap.pixelsHigh)
+        return RenderedPNG(data: data, width: bitmap.pixelsWide, height: bitmap.pixelsHigh, actions: recorder.actions)
         #else
         let renderer = ImageRenderer(content: content)
         renderer.scale = 1
@@ -242,7 +331,7 @@ final class SkeletonSnapshotRenderXCTest: XCTestCase {
         }
         CGImageDestinationAddImage(destination, cgImage, nil)
         guard CGImageDestinationFinalize(destination) else { throw RenderFailure.encodingFailed }
-        return RenderedPNG(data: data as Data, width: cgImage.width, height: cgImage.height)
+        return RenderedPNG(data: data as Data, width: cgImage.width, height: cgImage.height, actions: recorder.actions)
         #endif
     }
 
@@ -309,6 +398,13 @@ final class SkeletonSnapshotRenderXCTest: XCTestCase {
         if value.hasPrefix("#") { value.removeFirst() }
         guard value.count == 6, let number = UInt32(value, radix: 16) else { return nil }
         return (Double((number >> 16) & 0xFF) / 255, Double((number >> 8) & 0xFF) / 255, Double(number & 0xFF) / 255)
+    }
+
+    private func containsMountedSurface(_ value: Any) -> Bool {
+        if let object = value as? [String: Any] {
+            return object["ComponentSurface"] != nil || object.values.contains(where: containsMountedSurface)
+        }
+        return (value as? [Any])?.contains(where: containsMountedSurface) ?? false
     }
 
     private func jsonObject(at url: URL) throws -> [String: Any]? {

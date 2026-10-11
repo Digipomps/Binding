@@ -11439,6 +11439,7 @@ enum CellConfigurationVerifier {
 
             let combinedStrings = visibleStrings.union(buttonTitles)
             if firstMeaningfulContentMilliseconds == 0,
+               !expectedVisibleStrings.isEmpty,
                expectedVisibleStrings.isSubset(of: combinedStrings) {
                 firstMeaningfulContentMilliseconds = milliseconds(since: renderStart, clock: clock)
                 break

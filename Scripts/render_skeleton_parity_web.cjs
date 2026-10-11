@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2026 Stiftelsen Digipomps and HAVEN contributors
 // Render the SAME frozen skeleton/root as SkeletonSnapshotRenderXCTest.
-// This is the standard light Porthole host, not a claim about product-specific CSS.
+// Reproduce the standard Porthole host styles and its product classification.
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -20,10 +20,18 @@ async function main() {
   fs.mkdirSync(output, { recursive: false });
   const assets = new Map([
     ['/css/porthole-webo.css', [path.join(scaffold, 'Public/css/porthole-webo.css'), 'text/css']],
+    ['/css/admin-skeleton.css', [path.join(scaffold, 'Public/css/admin-skeleton.css'), 'text/css']],
     ['/js/skeleton-runtime.js', [path.join(scaffold, 'Public/js/skeleton-runtime.js'), 'application/javascript']],
   ]);
   const assetHashes = Object.fromEntries([...assets].map(([url, [file]]) =>
     [url, crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')]));
+  const hostSource = fs.readFileSync(path.join(scaffold, 'Public/js/porthole-webo.js'), 'utf8');
+  const productStart = hostSource.indexOf('function isProductSurfaceConfigurationName(');
+  const productEnd = hostSource.indexOf('\nfunction ', productStart + 1);
+  if (productStart < 0 || productEnd < 0) throw new Error('Porthole product classification missing');
+  const classifyProduct = new Function('configuration', 'const portholeWebState = {bootstrap: {configuration}};'
+    + hostSource.slice(productStart, productEnd) + '; return isProductSurfaceConfigurationName(configuration.name);');
+  assetHashes['/js/porthole-webo.js (host classification)'] = crypto.createHash('sha256').update(hostSource).digest('hex');
   const browser = await chromium.launch({ headless: true });
   const results = [];
   try {
@@ -32,6 +40,9 @@ async function main() {
       if (!fs.existsSync(path.join(dir, 'skeleton.json'))) continue;
       const read = file => JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
       const skeleton = read('skeleton.json');
+      const configurationFile = path.join(dir, 'configuration.json');
+      const configuration = fs.existsSync(configurationFile) ? read('configuration.json') : {name, skeleton};
+      const productClass = classifyProduct(configuration) ? ' product-view' : '';
       const root = read('root.json');
       const viewport = read('viewport.json');
       const surface = read('surface.json');
@@ -41,17 +52,30 @@ async function main() {
       page.on('pageerror', error => errors.push(String(error)));
       await page.route('**/*', async route => {
         const url = new URL(route.request().url());
-        if (url.origin !== 'http://skeleton-parity.test') return route.abort();
+        if (url.origin !== 'http://skeleton-parity.test') {
+          // The Spatial Registry catalog explicitly specifies this public tile source.
+          if (route.request().method() === 'GET' && url.origin === 'https://tile.openstreetmap.org'
+              && /^\/\d+\/\d+\/\d+\.png$/.test(url.pathname)) return route.continue();
+          return route.abort();
+        }
         if (url.pathname === '/') {
           return route.fulfill({contentType: 'text/html', body: `<!doctype html><html><head>
-            <meta charset="utf-8"><link rel="stylesheet" href="/css/porthole-webo.css">
+            <meta charset="utf-8"><link rel="stylesheet" href="/css/porthole-webo.css"><link rel="stylesheet" href="/css/admin-skeleton.css">
             <style>body { background: ${surface.backgroundHex}; }
-              .parity-frame { padding: ${surface.padding}px; }
-              #root { max-width: ${surface.contentMaxWidth}px; margin: 0 auto; }
-            </style></head><body><main class="parity-frame"><div id="root"></div></main>
+              .parity-frame { border: 0; border-radius: 0; height: ${viewport.height}px; }
+              #root { max-width: ${surface.contentMaxWidth + 2 * surface.padding}px; margin: 0 auto; padding: ${surface.padding}px; }
+            </style></head><body><main class="parity-frame canvas view-mode${productClass}"><div id="root" class="skeleton-host"></div></main>
             <script src="/js/skeleton-runtime.js"></script></body></html>`});
         }
-        const asset = assets.get(url.pathname);
+        let asset = assets.get(url.pathname);
+        // Optional map runtime is part of the real host, not a missing feature.
+        if (!asset && /^\/vendor\/leaflet\/[a-zA-Z0-9/_.-]+$/.test(url.pathname) && !url.pathname.includes('..')) {
+          const file = path.join(scaffold, 'Public', url.pathname);
+          if (fs.existsSync(file)) {
+            asset = [file, file.endsWith('.css') ? 'text/css' : file.endsWith('.js') ? 'application/javascript' : 'image/png'];
+            assetHashes[url.pathname] = crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+          }
+        }
         return asset ? route.fulfill({path: asset[0], contentType: asset[1]}) : route.abort();
       });
       await page.goto('http://skeleton-parity.test/');
@@ -63,7 +87,28 @@ async function main() {
         });
         window.__parityRenderer.update(root);
       }, {skeleton, root});
+      const interactionFile = path.join(dir, 'interactions.json');
+      const tabLabels = fs.existsSync(interactionFile) ? read('interactions.json') : [];
+      for (const label of tabLabels) {
+        const tab = page.getByRole('tab', {name: label, exact: true});
+        if (await tab.count() !== 1 || !(await tab.isVisible())) errors.push(`Tab ${label}: not reachable with captured state`);
+        else {
+          await tab.click({timeout: 2500}).catch(error => errors.push(`Tab ${label}: ${error.message}`));
+          if (await tab.getAttribute('aria-selected') !== 'true') errors.push(`Tab ${label}: not selected after click`);
+        }
+      }
+      const actions = await page.evaluate(() => window.__parityActions.map(([keypath, payload]) => ({keypath, payload})));
+      const actionsPath = path.join(dir, 'expected-actions.json');
+      const canonicalJSON = value => JSON.stringify(value, (_, item) =>
+        item && typeof item === 'object' && !Array.isArray(item)
+          ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item);
+      if (fs.existsSync(actionsPath) && canonicalJSON(actions) !== canonicalJSON(read('expected-actions.json')))
+        errors.push('Recorded tab actions do not match the declared keypath/payload expectations');
       await page.evaluate(() => document.fonts.ready);
+      if (JSON.stringify(skeleton).includes('"Visualization"')) {
+        await page.waitForFunction(() => !document.querySelector('.skeleton-visualization-map')
+          || document.querySelector('.leaflet-container, .skeleton-visualization-fallback'), {timeout: 10000}).catch(error => errors.push(String(error)));
+      }
       const images = await page.locator('#root img').evaluateAll(async nodes => Promise.all(nodes.map(async node => {
         let decodeError = null;
         try { await node.decode(); } catch (error) { decodeError = String(error); }
@@ -110,6 +155,14 @@ async function main() {
       const geometry = await page.locator('#root').evaluate(node => ({
         box: node.getBoundingClientRect().toJSON(), scrollWidth: node.scrollWidth, clientWidth: node.clientWidth,
       }));
+      if (geometry.scrollWidth > geometry.clientWidth + 1)
+        errors.push(`Horizontal overflow: ${geometry.scrollWidth}px exceeds ${geometry.clientWidth}px`);
+      const diagnostics = await page.locator('.skeleton-visualization-fallback').allTextContents();
+      for (const diagnostic of diagnostics) {
+        // Empty-state text shares the fallback class; it is not a load failure.
+        if (/could not|unsupported|not supported|requires|failed|error|mangler/i.test(diagnostic))
+          errors.push(`Renderer diagnostic: ${diagnostic}`);
+      }
       const controls = await page.locator('#root button, #root input, #root textarea').evaluateAll(nodes => nodes.map(node => {
         const style = getComputedStyle(node);
         return {tag: node.tagName, text: node.textContent, box: node.getBoundingClientRect().toJSON(),
@@ -117,10 +170,10 @@ async function main() {
           border: style.border, borderRadius: style.borderRadius, boxSizing: style.boxSizing};
       }));
       await page.screenshot({path: path.join(output, name + '.png'), fullPage: false});
-      const result = {name, host: 'porthole-webo.css light baseline', viewport, deviceScaleFactor: 2,
+      const result = {name, host: 'Porthole light host: porthole-webo.css + admin-skeleton.css; actual product classification', productClass, viewport, deviceScaleFactor: 2,
         navigationBaseURL: 'http://skeleton-parity.test/',
         materialized: false, styleNormalizationApplied: false, content, fieldValues, expectedTextCount: expected.length,
-        missingExpectedText, errors, geometry, controls, images, selectedTexts, assetHashes};
+        missingExpectedText, errors, geometry, controls, diagnostics, images, selectedTexts, actions, assetHashes};
       fs.writeFileSync(path.join(output, name + '.json'), JSON.stringify(result, null, 2) + '\n');
       results.push(result);
       await context.close();

@@ -773,7 +773,7 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
 
 #if canImport(AppKit)
     @MainActor
-    func testRequestedStagingCatalogPublishesAvailableSkeletonConfigurationsAndRenderInBinding() async throws {
+    func testEntireStagingCatalogPublishesAvailableSkeletonConfigurationsAndRendersInBinding() async throws {
         try XCTSkipIf(
             Self.shouldSkipBridgeCanary,
             "Remote HTTP parity kjører uten bridge-canary. Kjør remote-contract for å hente og rendre catalog-publiserte staging-konfigurasjoner i HAVEN."
@@ -805,34 +805,48 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
             "Remote ConfigurationCatalog did not publish the complete requested surface matrix. Missing: \(missing.joined(separator: ", "))"
         )
 
+        XCTAssertFalse(configurations.isEmpty, "The catalog denominator must not be empty")
         var failures: [String] = []
-        for (surface, configuration) in matched {
+        // Named expectations remain contract checks, but every returned entry
+        // must be validated/rendered. A catalog may grow beyond the old list.
+        for configuration in configurations {
+            let surface = matched.first { $0.1.uuid == configuration.uuid }?.0
+            let displayName = surface?.displayName ?? configuration.name
             do {
                 guard configuration.skeleton != nil else {
-                    failures.append("\(surface.displayName): ConfigurationCatalog published \(configuration.name) without skeleton")
+                    failures.append("\(displayName): ConfigurationCatalog published \(configuration.name) without skeleton")
                     continue
                 }
 
                 let validation = CellConfigurationValidationService.validate(configuration)
                 guard validation.errorCount == 0 else {
-                    failures.append("\(surface.displayName): invalid CellConfiguration \(validation.issues)")
+                    failures.append("\(displayName): invalid CellConfiguration \(validation.issues)")
                     continue
                 }
 
+                let expected = surface?.expectedVisibleStrings ?? []
                 let report = try await CellConfigurationVerifier.renderReport(
                     for: configuration,
-                    expectedVisibleStrings: surface.expectedVisibleStrings
+                    expectedVisibleStrings: expected
                 )
+                if expected.isEmpty {
+                    failures.append("\(displayName): snapshot captured, but content is unverified; add an explicit visible-content or raster expectation for this catalog entry")
+                } else {
+                    let missingContent = expected.subtracting(report.visibleStrings.union(report.buttonTitles))
+                    if !missingContent.isEmpty {
+                        failures.append("\(displayName): missing expected content \(missingContent.sorted())")
+                    }
+                }
                 guard report.snapshotByteCount > 0 else {
-                    failures.append("\(surface.displayName): rendered a blank snapshot")
+                    failures.append("\(displayName): did not produce a snapshot")
                     continue
                 }
                 guard report.subviewCount > 0 else {
-                    failures.append("\(surface.displayName): rendered without SwiftUI subviews")
+                    failures.append("\(displayName): rendered without SwiftUI subviews")
                     continue
                 }
             } catch {
-                failures.append("\(surface.displayName): \(String(describing: error).prefix(360))")
+                failures.append("\(displayName): \(String(describing: error).prefix(360))")
             }
         }
 
@@ -887,8 +901,13 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
                     for: configuration,
                     expectedVisibleStrings: surface.expectedVisibleStrings
                 )
+                let missingContent = surface.expectedVisibleStrings.subtracting(report.visibleStrings.union(report.buttonTitles))
+                guard !surface.expectedVisibleStrings.isEmpty, missingContent.isEmpty else {
+                    failures.append("\(surface.displayName): content unverified or missing \(missingContent.sorted())")
+                    continue
+                }
                 guard report.snapshotByteCount > 0 else {
-                    failures.append("\(surface.displayName): rendered a blank snapshot")
+                    failures.append("\(surface.displayName): did not produce a snapshot")
                     continue
                 }
                 guard report.subviewCount > 0 else {
@@ -1194,7 +1213,12 @@ final class SkeletonParityRemoteXCTest: XCTestCase {
             )
         }
 
-        return items.compactMap { PortableSurfaceContractSupport.extractConfiguration(from: $0) }
+        return try items.enumerated().map { index, item in
+            guard let configuration = PortableSurfaceContractSupport.extractConfiguration(from: item) else {
+                throw RemoteParityError.invalidValueShape("ConfigurationCatalog.configurations[\(index)] is not a configuration")
+            }
+            return configuration
+        }
     }
 
     private static func isOwnerApprovalAdmissionGate(_ error: Error) -> Bool {
