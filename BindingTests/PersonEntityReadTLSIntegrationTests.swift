@@ -73,31 +73,44 @@ final class PersonEntityReadTLSIntegrationTests: XCTestCase {
             XCTAssertTrue(revoked.fragments.isEmpty)
             await client.close()
 
-            // Fresh HTTPS discovery must not reopen the now-revoked link.
+            // Fresh scope discovery over the shared Bridge must reject the revoked link.
             let reconnect = PersonEntityReadClient { uuid in uuid == phone.uuid ? phone : nil }
             do {
                 try await reconnect.connect(entry: entry)
                 XCTFail("Revocation must deny fresh native connection")
             } catch {
-                XCTAssertEqual(error as? C.Failure, .unavailable,
-                    "The actual discovery endpoint must deny; a timeout or TLS failure is not proof of authorization denial")
+                XCTAssertEqual(error as? C.Failure, .denied,
+                    "The actual gateway Cell must deny; a timeout or TLS failure is not proof of authorization denial")
             }
             await reconnect.close()
 
             // The same trusted test CA now serves a certificate for a different
             // hostname. The unchanged URLSession trust policy must reject it
-            // before any authenticated HTTP request reaches the proxy handler.
+            // before any authenticated Bridge message reaches the server.
             let countURL = root.appendingPathComponent("tls-accepted-count")
             let before = try String(contentsOf: countURL, encoding: .utf8)
-            try Data().write(to: root.appendingPathComponent("bad-certificate"), options: .atomic)
+            let certificateAttempt = UUID().uuidString.lowercased()
+            try Data(certificateAttempt.utf8).write(to: root.appendingPathComponent("bad-certificate"), options: .atomic)
             let wrongCertificate = PersonEntityReadClient { uuid in uuid == phone.uuid ? phone : nil }
             do {
                 try await wrongCertificate.connect(entry: entry)
                 XCTFail("A trusted issuer must not bypass TLS hostname validation")
             } catch {
-                let tlsError = try XCTUnwrap(error as? URLError)
-                XCTAssertTrue([URLError.Code.serverCertificateUntrusted, .secureConnectionFailed].contains(tlsError.code),
-                    "A timeout or application denial is not evidence of TLS hostname validation")
+                // The shared adapter retires its channel without preserving
+                // URLSession's original error. Require the actual TLS peer alert
+                // for this exact attempt/certificate; a client error alone proves nothing.
+                let witnessURL = root.appendingPathComponent("certificate-rejection.json")
+                try await waitForFile(witnessURL, root: root)
+                let witness = try JSONDecoder().decode(CertificateRejection.self, from: Data(contentsOf: witnessURL))
+                let pem = try String(contentsOf: root.appendingPathComponent("wrong-host.pem"), encoding: .utf8)
+                let base64 = pem.split(separator: "\n").filter { !$0.hasPrefix("-----") }.joined()
+                let der = try XCTUnwrap(Data(base64Encoded: base64))
+                let fingerprint = SHA256.hash(data: der).map { String(format: "%02x", $0) }.joined()
+                XCTAssertEqual(witness.attempt, certificateAttempt)
+                XCTAssertEqual(witness.serverName, "staging.haven.digipomps.org")
+                XCTAssertEqual(witness.certificateSHA256, fingerprint)
+                XCTAssertTrue([42, 43, 44, 45, 46, 48].contains(witness.alert),
+                    "Only an explicit fatal certificate alert proves TLS certificate rejection")
             }
             await wrongCertificate.close()
             XCTAssertEqual(try String(contentsOf: countURL, encoding: .utf8), before)
@@ -175,10 +188,18 @@ final class PersonEntityReadTLSIntegrationTests: XCTestCase {
         let entry = IdentityLinkCompletionStore.Entry(origin: origin, record: verified.record, envelope: envelope,
             storedAt: IdentityLinkProtocolService.iso8601(now), personEvidenceReference: C.digest(verified.requestHash))
         let input = PeerInput(root: root.path, port: 19089, ownerUUID: owner.uuid,
-            ownerPrivateKey: ownerKey.rawRepresentation, ownerUserID: UUID().uuidString, envelope: envelope)
+            ownerPrivateKey: ownerKey.rawRepresentation, ownerUserID: UUID().uuidString, envelope: envelope,
+            channelOrigin: "wss://staging.haven.digipomps.org")
         // Only this newly generated synthetic server key crosses the process
         // boundary. The linked phone's private key remains in this test process.
         return (input, entry, phone)
+    }
+
+    private struct CertificateRejection: Decodable {
+        let attempt: String
+        let serverName: String
+        let certificateSHA256: String
+        let alert: Int
     }
 
     private enum FixtureFailure: Error { case peerFailed, timeout, notLoopback, invalidSetup }
@@ -189,6 +210,7 @@ final class PersonEntityReadTLSIntegrationTests: XCTestCase {
         let ownerPrivateKey: Data
         let ownerUserID: String
         let envelope: IdentityLinkCompletionEnvelope
+        let channelOrigin: String
     }
     private struct PeerReady: Codable {
         let pid: Int32
