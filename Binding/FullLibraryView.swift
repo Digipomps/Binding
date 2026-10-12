@@ -1713,7 +1713,9 @@ final class FullLibraryViewModel: ObservableObject {
     }
 
     func refreshNow(retryAuthentication: Bool = false) async {
-        statusLine = "Klargjør ConfigurationCatalog…"
+        statusLine = runtimeBootstrapIsReady
+            ? "Klargjør biblioteket…"
+            : "Venter på opplåsing av identiteten. Fullfør autentiseringen i HAVEN."
         let outcome = await bootstrapRuntime(retryAuthentication)
         guard !Task.isCancelled else { return }
         guard outcome == .ready else {
