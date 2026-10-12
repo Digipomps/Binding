@@ -8407,6 +8407,36 @@ struct BindingTests {
         #expect(getKeys.contains("configurations"))
     }
 
+    @Test func desktopCatalogBootstrapAugmentsPersistedThreeSurfaceCatalog() async throws {
+        #if os(macOS) && DEBUG
+        let owner = await makeOwnerIdentity()
+        let original = await ConfigurationCatalogCell(owner: owner)
+        var stored = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any])
+        let entries = try #require(stored["entries"] as? [String: [String: Any]])
+        // The desktop catalog may publish more than one variant of a named
+        // surface. Recreate the installed three-entry profile, one per name.
+        var retained: [String: [String: Any]] = [:]
+        var retainedNames = Set<String>()
+        for key in entries.keys.sorted() {
+            guard let entry = entries[key],
+                  let configuration = entry["configuration"] as? [String: Any],
+                  let name = configuration["name"] as? String,
+                  BindingPersonalCopilotV1Policy.releaseAllowedConfigurationNames.contains(name.lowercased()),
+                  retainedNames.insert(name.lowercased()).inserted else { continue }
+            retained[key] = entry
+        }
+        #expect(retained.count == 3)
+        stored["entries"] = retained
+        let restored = try JSONDecoder().decode(ConfigurationCatalogCell.self,
+            from: JSONSerialization.data(withJSONObject: stored, options: [.sortedKeys]))
+        await restored.installRuntimeBindings(owner: owner)
+        let updated = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(restored)) as? [String: Any])
+        let updatedEntries = try #require(updated["entries"] as? [String: Any])
+        #expect(updatedEntries.count > retained.count)
+        #expect(Set(retained.keys).isSubset(of: Set(updatedEntries.keys)))
+        #endif
+    }
+
     private func makeOwnerIdentity() async -> Identity {
         CellBase.defaultIdentityVault = Self.testIdentityVault
         await CellResolver.sharedInstance.refreshNamedResolveOwnersFromCurrentVault()
