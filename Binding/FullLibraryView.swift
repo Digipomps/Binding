@@ -1105,7 +1105,7 @@ struct FullLibraryView: View {
             }
 
             Text(CellConfigurationEndpointRetargeting.redactedTextForDisplay(
-                "Route: \(item.route) · Source: \(item.sourceRef)"
+                "\(item.catalogLabel) · \(item.sourceRef)"
             ))
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
@@ -1466,6 +1466,14 @@ final class FullLibraryViewModel: ObservableObject {
         var scoreLabel: String {
             String(format: "%.2f", score)
         }
+
+        var catalogLabel: String {
+            switch origin {
+            case .hostTrusted: return "Denne appen"
+            case .catalog(let endpoint):
+                return "Katalog: " + CellConfigurationEndpointRetargeting.redactedEndpointForDisplay(endpoint)
+            }
+        }
     }
 
     struct ConnectivitySnapshot {
@@ -1486,11 +1494,13 @@ final class FullLibraryViewModel: ObservableObject {
         case unknown
         case fullQuery
         case directEntriesFallback
+        case catalogInventory
 
         var label: String {
             switch self {
             case .unknown: return "Ukjent"
             case .fullQuery: return "Full query"
+            case .catalogInventory: return "Katalogoversikt"
             case .directEntriesFallback: return "Direct catalog fallback"
             }
         }
@@ -1498,7 +1508,7 @@ final class FullLibraryViewModel: ObservableObject {
         var tint: Color {
             switch self {
             case .unknown: return .secondary
-            case .fullQuery: return .green
+            case .fullQuery, .catalogInventory: return .green
             case .directEntriesFallback: return .orange
             }
         }
@@ -1541,6 +1551,7 @@ final class FullLibraryViewModel: ObservableObject {
         case catalogUnavailable
         case catalogCandidateTimedOut(String)
         case catalogOperationTimedOut(String, String)
+        case invalidCatalogResponse
     }
 
     private struct ResolvedCatalog {
@@ -1583,6 +1594,10 @@ final class FullLibraryViewModel: ObservableObject {
     let fallbackFavorites: [CellConfiguration]
     let fallbackTemplates: [CellConfiguration]
 
+    /// Injecting the catalog read keeps source enumeration testable without
+    /// provisioning identities or changing resolver authorization.
+    typealias CatalogInventoryLoader = @MainActor (String) async throws -> [ValueType]
+    private let catalogInventoryLoader: CatalogInventoryLoader?
     private let catalogEndpoints: [String]
     private let queryContext: FullLibraryQueryContext
     private var refreshTask: Task<Void, Never>?
@@ -1601,11 +1616,13 @@ final class FullLibraryViewModel: ObservableObject {
         queryContext: FullLibraryQueryContext,
         fallbackFavorites: [CellConfiguration],
         fallbackTemplates: [CellConfiguration],
+        catalogInventoryLoader: CatalogInventoryLoader? = nil,
         bootstrapRuntime: @escaping (Bool) async -> BindingAuthenticatedRuntimeAttempt.Outcome = {
             await BindingRuntimeBootstrap.requestAuthenticatedRuntime(retryAfterFailure: $0)
         }
     ) {
         self.catalogEndpoints = catalogEndpoints
+        self.catalogInventoryLoader = catalogInventoryLoader
         self.queryContext = queryContext
         self.fallbackFavorites = fallbackFavorites
         self.fallbackTemplates = fallbackTemplates
@@ -1716,7 +1733,12 @@ final class FullLibraryViewModel: ObservableObject {
             let age = max(0, Int(Date().timeIntervalSince(cachedSnapshot.storedAt)))
             statusLine = "Viser siste treff fra cache (\(age)s) · oppdaterer..."
         }
-        defer { isLoading = false }
+        defer { if refreshGeneration == generation { isLoading = false } }
+
+        if selectedTab == .allConfigs || selectedTab == .sources {
+            await refreshCatalogInventory(generation: generation, querySignature: querySignature)
+            return
+        }
 
         do {
             let resolved = try await runRefreshPhase(
@@ -1864,6 +1886,93 @@ final class FullLibraryViewModel: ObservableObject {
             }
             catalogMode = offlineResults.isEmpty ? .unknown : .directEntriesFallback
             connectivity = ConnectivitySnapshot(onlineSources: 0, degradedSources: 0, offlineSources: 1)
+        }
+    }
+
+    /// A successful local catalog is one source, never a substitute for the
+    /// other configured scaffolds. Read the authorized full-entry contract;
+    /// query ranking/top-N limits do not define the inventory denominator.
+    private func refreshCatalogInventory(generation: Int, querySignature: String) async {
+        let endpoints = RemoteCatalogSupport.orderedCatalogCandidateEndpoints(
+            from: catalogEndpoints, preference: .preferLocal
+        ).filter { networkPolicy != .cacheOnly || RemoteCatalogSupport.isLocalCatalogEndpoint($0) }
+        var collected: [SearchResult] = []
+        var seen = Set<String>()
+        var succeeded: [String] = []
+        var failed = 0
+        var inventoryWarnings: [String] = []
+        replaceWarnings(with: [])
+        for endpoint in endpoints {
+            guard !Task.isCancelled, refreshGeneration == generation else { return }
+            statusLine = "Henter katalog: \(presentedCatalogEndpoint(endpoint))…"
+            do {
+                let items = try await loadInventoryItems(endpoint: endpoint)
+                guard !Task.isCancelled, refreshGeneration == generation else { return }
+                let sourceResults = directCatalogResults(items: items, catalogEndpoint: endpoint)
+                for var result in sourceResults {
+                    // Identical UUIDs published by different scaffolds retain
+                    // their origin and must not collapse to one SwiftUI row.
+                    result.id = "\(normalizedEndpointKey(endpoint))|\(result.configurationId)"
+                    if seen.insert(result.id).inserted { collected.append(result) }
+                }
+                succeeded.append(endpoint)
+            } catch is CancellationError {
+                return
+            } catch {
+                failed += 1
+                inventoryWarnings.append("Katalogen \(presentedCatalogEndpoint(endpoint)) kunne ikke leses. Oversikten er ufullstendig.")
+            }
+            guard !Task.isCancelled, refreshGeneration == generation else { return }
+            results = collected.sorted {
+                if $0.score != $1.score { return $0.score > $1.score }
+                return $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+            }
+            facetSections = deriveFacetSections(from: results)
+            selectedResultID = preferredSelectionID(in: results, currentSelectionID: selectedResultID)
+            connectivity = ConnectivitySnapshot(onlineSources: succeeded.count, degradedSources: 0, offlineSources: failed)
+        }
+        guard !Task.isCancelled, refreshGeneration == generation else { return }
+        replaceWarnings(with: inventoryWarnings)
+        if succeeded.isEmpty, networkPolicy != .healthyOnly,
+           let cached = queryResultCache[querySignature] {
+            applyCachedQuerySnapshot(cached)
+            connectivity = ConnectivitySnapshot(onlineSources: 0,
+                degradedSources: cached.connectivity.onlineSources, offlineSources: failed)
+            availability = .unavailable(reason: "Ingen kataloger kunne leses. Viser siste katalogoversikt.")
+            statusLine = "Lagret katalogoversikt · \(results.count) treff · kildene er utilgjengelige"
+        } else if succeeded.isEmpty {
+            results = offlineFallbackResults()
+            facetSections = deriveFacetSections(from: results)
+            selectedResultID = preferredSelectionID(in: results, currentSelectionID: selectedResultID)
+            availability = .unavailable(reason: "Ingen kataloger kunne leses.")
+            catalogMode = .directEntriesFallback
+            statusLine = "Ingen kataloger svarte · \(results.count) lokale favoritter/maler"
+        } else {
+            let sourceSummary = succeeded.map(presentedCatalogEndpoint).joined(separator: ", ")
+            availability = .available(endpoint: sourceSummary)
+            catalogMode = .catalogInventory
+            statusLine = "\(succeeded.count)/\(endpoints.count) kataloger lest · \(results.count) treff"
+            if failed > 0 { statusLine += " · ufullstendig oversikt" }
+            storeQuerySnapshot(signature: querySignature, endpoint: sourceSummary)
+        }
+    }
+
+    private func loadInventoryItems(endpoint: String) async throws -> [ValueType] {
+        if let catalogInventoryLoader { return try await catalogInventoryLoader(endpoint) }
+        guard runtimeBootstrapIsReady,
+              await BindingLocalCellRegistration.shared.ensureRegistered() else {
+            throw LibraryError.runtimeRegistrationUnavailable
+        }
+        guard let resolver = CellBase.defaultCellResolver as? CellResolver else {
+            throw LibraryError.resolverUnavailable
+        }
+        guard let identity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: false) else {
+            throw LibraryError.identityUnavailable
+        }
+        let emit = try await resolveCatalogCandidate(endpoint: endpoint, resolver: resolver, requester: identity)
+        guard let catalog = emit as? Meddle else { throw LibraryError.invalidCatalogResponse }
+        return try await runCatalogOperation(name: "catalogContracts", endpoint: endpoint) {
+            try await self.directCatalogItems(from: catalog, requester: identity)
         }
     }
 
@@ -2436,6 +2545,12 @@ final class FullLibraryViewModel: ObservableObject {
             details.append(contentsOf: remoteFallbackWarnings)
         }
 
+        let inventoryWarnings = trimmed.filter { normalizedWarningText($0).contains("oversikten er ufullstendig") }
+        if !inventoryWarnings.isEmpty {
+            messages.append("\(inventoryWarnings.count) kataloger kunne ikke leses. Oversikten er ufullstendig.")
+            details.append(contentsOf: inventoryWarnings)
+        }
+
         let incompatibleWarnings = trimmed.filter { normalizedWarningText($0).contains("eksponerer ikke meddle") }
         if !incompatibleWarnings.isEmpty {
             messages.append("En katalogkilde svarte i feil format og ble hoppet over.")
@@ -2515,14 +2630,21 @@ final class FullLibraryViewModel: ObservableObject {
         catalogEndpoint: String
     ) async throws -> [SearchResult] {
         let items = try await directCatalogItems(from: catalog, requester: requester)
+        return directCatalogResults(items: items, catalogEndpoint: catalogEndpoint)
+    }
 
-        let queryCorpusTokens = directMatchTokens()
+    private func directCatalogResults(items: [ValueType], catalogEndpoint: String) -> [SearchResult] {
+        let queryCorpusTokens = tokenize(defaultQueryTextForTab()) + tokens.filter {
+            $0.kind == .purpose || $0.kind == .interest
+        }.flatMap { tokenize($0.value) }
+        let filters = filtersObject()
         let queryText = defaultQueryTextForTab().trimmingCharacters(in: .whitespacesAndNewlines)
-        let hasSignal = !queryText.isEmpty || !queryCorpusTokens.isEmpty || !selectedFacets.isEmpty
+        let hasSignal = !queryText.isEmpty || !queryCorpusTokens.isEmpty
 
         let results = items.compactMap { item -> SearchResult? in
             guard case let .object(object) = item,
-                  let decodedConfiguration = decodeCellConfiguration(from: object["configuration"])
+                  let decodedConfiguration = decodeCellConfiguration(from: object["configuration"]),
+                  matchesCatalogFilters(object, filters: filters)
             else {
                 return nil
             }
@@ -2581,7 +2703,7 @@ final class FullLibraryViewModel: ObservableObject {
                 badges.append("Editable")
             }
 
-            let id = object["id"]?.stringValueOrNil ?? UUID().uuidString
+            let id = object["id"]?.stringValueOrNil ?? object["configurationId"]?.stringValueOrNil ?? configuration.uuid
             return SearchResult(
                 id: id,
                 configurationId: id,
@@ -2618,18 +2740,41 @@ final class FullLibraryViewModel: ObservableObject {
             return lhs.score > rhs.score
         }
 
-        return Array(results.prefix(selectedTab == .sources ? 100 : 60))
+        return results
+    }
+
+    private func matchesCatalogFilters(_ entry: Object, filters: Object) -> Bool {
+        for (key, selected) in filters {
+            guard case let .list(values) = selected, !values.isEmpty else { continue }
+            if ["authRequired", "flowDriven", "editable"].contains(key) {
+                guard let actual = entry[key]?.boolValue,
+                      values.contains(.bool(actual)) else { return false }
+            } else {
+                let actual: [String]
+                switch key {
+                case "sourceRefs": actual = [entry["sourceCellEndpoint"]?.stringValueOrNil ?? ""]
+                case "categoryPath":
+                    let components = entry[key]?.stringListValue ?? []
+                    actual = components + [components.joined(separator: "/")]
+                default: actual = entry[key]?.stringListValue ?? []
+                }
+                let normalized = Set(actual.map { $0.lowercased() })
+                guard values.contains(where: { value in
+                    value.stringValueOrNil.map { normalized.contains($0.lowercased()) } ?? false
+                }) else { return false }
+            }
+        }
+        return true
     }
 
     private func directCatalogItems(from catalog: Meddle, requester: Identity) async throws -> [ValueType] {
         if let contracts = try? await catalog.get(keypath: "catalogContracts", requester: requester),
-           case let .list(items) = contracts,
-           items.isEmpty == false {
+           case let .list(items) = contracts {
             return items
         }
 
         let rawEntries = try await catalog.get(keypath: "catalogEntries", requester: requester)
-        guard case let .list(items) = rawEntries else { return [] }
+        guard case let .list(items) = rawEntries else { throw LibraryError.invalidCatalogResponse }
         return items
     }
 
@@ -2732,7 +2877,7 @@ final class FullLibraryViewModel: ObservableObject {
             return lhs.score > rhs.score
         }
 
-        return Array(results.prefix(selectedTab == .sources ? 100 : 60))
+        return results
     }
 
     private func directMatchTokens() -> [String] {

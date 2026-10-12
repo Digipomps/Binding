@@ -114,7 +114,14 @@ enum BindingPersonalCopilotV1Policy {
     ]
 
     nonisolated static var appStoreCatalogGateEnabled: Bool {
+        // The desktop development host must expose its actual catalog. The
+        // conference demo opt-in is unrelated to ordinary scaffold discovery.
+        // App Store/release builds retain the Personal Co-Pilot scope.
+        #if os(macOS) && DEBUG
+        false
+        #else
         !conferenceDemoMenusEnabled
+        #endif
     }
 
     nonisolated static var stagingSurfaceTestingEnabled: Bool {
@@ -5249,7 +5256,10 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
 
     private func bootstrapDefaultsIfNeeded(requester: Identity) async {
         let hasEntries = stateQueue.sync { !entriesByID.isEmpty }
-        if hasEntries { return }
+        // A persisted three-entry App Store catalog must acquire the desktop
+        // templates when opened by the full development host. Sync preserves
+        // existing entries and adds/refreshes only the registered templates.
+        if hasEntries && BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled { return }
         _ = await syncScaffoldPurposeGoals(requester: requester, includeResolverLookups: false)
     }
 
