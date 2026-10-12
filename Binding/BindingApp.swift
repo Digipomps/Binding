@@ -39,6 +39,7 @@ struct BindingApp: App {
         .commands {
             CommandMenu("Min entitet") {
                 Button("Utvid min entitet …") { IdentityLinkFlowPresenter.shared.presentScanner() }
+                PersonEntityReadCommand()
             }
             BindingConferenceAutomationCommands()
             CommandGroup(after: .appSettings) {
@@ -49,6 +50,9 @@ struct BindingApp: App {
 #if os(macOS)
         Window("Private celledata", id: "database-key-custody") {
             DatabaseKeyCustodyView()
+        }
+        Window("Opplysninger fra min entitet", id: "person-entity-read") {
+            PersonEntityReadView()
         }
 #endif
     }
