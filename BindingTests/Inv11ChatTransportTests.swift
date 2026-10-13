@@ -196,3 +196,144 @@ final class Inv11ChatTransportTests: XCTestCase {
         XCTAssertEqual(BindingChatValue.string(message["body"]), "hello")
     }
 }
+
+/// Gates, rather than a fast mock response, prove that connected getters finish
+/// while receipt lookup / transport are still suspended. No saved links or HTTP.
+private actor Inv14ReadGate {
+    private var open = false
+    private var continuations: [CheckedContinuation<Void, Never>] = []
+    func wait() async {
+        if open { return }
+        await withCheckedContinuation { continuations.append($0) }
+    }
+    func release() {
+        open = true
+        continuations.forEach { $0.resume() }
+        continuations.removeAll()
+    }
+}
+
+private actor Inv14ReadTransport: BindingChatTransport {
+    let lookupGate = Inv14ReadGate()
+    let requestGate = Inv14ReadGate()
+    private let linked: Bool
+    private var lookupCount = 0
+    private var requestCount = 0
+    private var fail = false
+    init(linked: Bool) { self.linked = linked }
+    func canRefreshSharedChat() async -> Bool {
+        lookupCount += 1
+        await lookupGate.wait()
+        return linked
+    }
+    func request(_ path: String, payload: Object?) async throws -> Object {
+        requestCount += 1
+        await requestGate.wait()
+        if fail { throw URLError(.notConnectedToInternet) }
+        let thread: Object = ["id": .string("shared"), "messages": .list([
+            .object(["id": .string("m1"), "body": .string("From the shared server")])
+        ])]
+        return ["threads": .list([.object(thread)]), "currentThread": .object(thread)]
+    }
+    func counts() -> (Int, Int) { (lookupCount, requestCount) }
+    func setUnavailable() { fail = true }
+    func waitForRequest() async -> Bool {
+        for _ in 0..<200 {
+            if requestCount > 0 { return true }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return false
+    }
+}
+
+@MainActor
+final class Inv14NonblockingChatReadTests: XCTestCase {
+    private func withChat(_ run: (BindingConnectedPersonalChatHubCell, Identity) async throws -> Void) async throws {
+        let oldVault = CellBase.defaultIdentityVault
+        let vault = EphemeralIdentityVault()
+        CellBase.defaultIdentityVault = vault
+        defer { CellBase.defaultIdentityVault = oldVault }
+        var owner = Identity(UUID().uuidString, displayName: "Synthetic inv14", identityVault: vault)
+        await vault.addIdentity(identity: &owner, for: "inv14-" + UUID().uuidString)
+        let chat = await BindingConnectedPersonalChatHubCell(owner: owner)
+        try await run(chat, owner)
+    }
+
+    func testUnlinkedReadsReturnBeforeReceiptLookupAndNeverRequestTransport() async throws {
+        try await withChat { chat, owner in
+            let transport = Inv14ReadTransport(linked: false)
+            chat.chatTransport = transport
+            let returned = expectation(description: "all getters return while person-link lookup is suspended")
+            let reads = Task {
+                for prefix in ["", "chatHub."] {
+                    for key in ["state", "threads", "messages", "state.threads", "state.messages", "state.contactInbox.incomingInvites"] {
+                        _ = try await chat.get(keypath: prefix + key, requester: owner)
+                    }
+                }
+                returned.fulfill()
+            }
+            await fulfillment(of: [returned], timeout: 2)
+            let pending = chat.readRefreshTask
+            await transport.lookupGate.release()
+            await transport.requestGate.release()
+            try await reads.value
+            await pending?.value
+            let counts = await transport.counts()
+            XCTAssertEqual(counts.0, 1, "Concurrent skeleton reads must coalesce receipt discovery")
+            XCTAssertEqual(counts.1, 0, "No completed person-link means no transport request")
+        }
+    }
+
+    func testLinkedReadsReturnCachedStateWhileTransportWaitsThenApplyRefresh() async throws {
+        try await withChat { chat, owner in
+            let transport = Inv14ReadTransport(linked: true)
+            chat.chatTransport = transport
+            await transport.lookupGate.release()
+            let returned = expectation(description: "state returns before transport response")
+            let read = Task {
+                let state = BindingChatValue.object(try await chat.get(keypath: "state", requester: owner))
+                XCTAssertEqual(BindingChatValue.list(state?["messages"])?.count, 0)
+                for key in ["threads", "messages", "chatHub.state.threads"] {
+                    _ = try await chat.get(keypath: key, requester: owner)
+                }
+                returned.fulfill()
+            }
+            await fulfillment(of: [returned], timeout: 2)
+            let entered = await transport.waitForRequest()
+            XCTAssertTrue(entered, "A linked read starts a background transport refresh")
+            let pending = chat.readRefreshTask
+            let counts = await transport.counts()
+            XCTAssertEqual(counts.1, 1, "Repeated reads must not multiply an in-flight request")
+            await transport.requestGate.release()
+            try await read.value
+            await pending?.value
+            let body = try await chat.get(keypath: "state.currentThread.id", requester: owner)
+            XCTAssertEqual(BindingChatValue.string(body), "shared")
+            // The second read returns the populated cache, even if its new refresh fails.
+            await transport.setUnavailable()
+            let cached = BindingChatValue.object(try await chat.get(keypath: "state", requester: owner))
+            XCTAssertEqual(BindingChatValue.list(cached?["messages"])?.count, 1)
+            await chat.readRefreshTask?.value
+            let thread = try await chat.get(keypath: "state.currentThread", requester: owner)
+            XCTAssertEqual(thread, .null, "Failed refresh must still discard stale authorized projection")
+        }
+    }
+
+    func testExplicitPushRefreshWinsOverPendingReadDiscovery() async throws {
+        try await withChat { chat, owner in
+            let transport = Inv14ReadTransport(linked: true)
+            chat.chatTransport = transport
+            _ = try await chat.get(keypath: "threads", requester: owner)
+            let pending = chat.readRefreshTask
+            await transport.requestGate.release()
+            // This is the push handler's existing awaited refresh + select path.
+            let result = BindingChatValue.object(try await chat.set(keypath: "ui.setCurrentThread",
+                value: .string("shared"), requester: owner))
+            XCTAssertEqual(BindingChatValue.string(result?["threadID"]), "shared")
+            await transport.lookupGate.release()
+            await pending?.value
+            let counts = await transport.counts()
+            XCTAssertEqual(counts.1, 1, "Late discovery must not supersede the explicit push refresh")
+        }
+    }
+}

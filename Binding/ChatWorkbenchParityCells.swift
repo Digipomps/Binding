@@ -4596,7 +4596,7 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     nonisolated(unsafe) private var latestAnalysisID = UUID()
     nonisolated(unsafe) private var latestInviteLookupID = UUID()
     nonisolated(unsafe) var chatTransport: (any BindingChatTransport)?
-    nonisolated(unsafe) private var sharedRefreshID = UUID()
+    nonisolated(unsafe) private(set) var sharedRefreshID = UUID()
     // Injected only by local contract tests; no wire action can replace the model.
     nonisolated(unsafe) var localLanguageResponder: (@Sendable (ButlerLanguageSupport.Request) async -> ButlerLanguageSupport.Reply)?
 
@@ -4629,12 +4629,7 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             await registerGet(key: key, owner: owner, returns: .object([:])) { [weak self] requester in
                 guard let self else { return .string("failure") }
                 guard await self.validateAccess("r---", at: key, for: requester) else { return .string("denied") }
-                if Self.shouldHydrateHistoryPolicy(for: key) {
-                    await self.hydrateHistoryPolicyIfNeeded(requester: requester)
-                }
-                if self.chatTransport != nil, ["state", "threads", "messages", "state.threads", "state.messages", "state.contactInbox.incomingInvites"].contains(Self.canonicalChatHubKey(key)) {
-                    _ = await self.refreshSharedChat()
-                }
+                await self.prepareForRead(key: key, requester: requester)
                 return self.readValue(for: key)
             }
         }
@@ -4663,6 +4658,21 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
                 return await self.handleSet(key: key, value: value, requester: requester)
             }
         }
+    }
+
+    // The connected runtime overrides this hook to keep all I/O off its read path.
+    func prepareForRead(key: String, requester: Identity) async {
+        if Self.shouldHydrateHistoryPolicy(for: key) {
+            await hydrateHistoryPolicyIfNeeded(requester: requester)
+        }
+        if chatTransport != nil, Self.shouldRefreshSharedChat(for: key) {
+            _ = await refreshSharedChat()
+        }
+    }
+
+    static func shouldRefreshSharedChat(for key: String) -> Bool {
+        ["state", "threads", "messages", "state.threads", "state.messages", "state.contactInbox.incomingInvites"]
+            .contains(canonicalChatHubKey(key))
     }
 
     private var readableKeys: [String] {
@@ -4984,7 +4994,7 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         return key
     }
 
-    private static func shouldHydrateHistoryPolicy(for key: String) -> Bool {
+    static func shouldHydrateHistoryPolicy(for key: String) -> Bool {
         let key = canonicalChatHubKey(key)
         return key == "state" || key == "history" || key == "state.history"
     }
@@ -5381,7 +5391,7 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         }
     }
 
-    private func hydrateHistoryPolicyIfNeeded(requester: Identity, force: Bool = false) async {
+    func hydrateHistoryPolicyIfNeeded(requester: Identity, force: Bool = false) async {
         guard force || historyPolicyLoaded == false else { return }
         historyPolicyLoaded = true
         do {
@@ -7868,7 +7878,7 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
 
     // Only server-owned conversation fields are projected. Butler state and
     // unsent drafts remain local, and no successful send is fabricated locally.
-    private func refreshSharedChat() async -> ValueType {
+    func refreshSharedChat() async -> ValueType {
         guard let chatTransport else { return sharedChatFailure("Chattransport mangler.") }
         let refreshID = UUID()
         sharedRefreshID = refreshID

@@ -2,7 +2,13 @@ import Foundation
 import CellBase
 
 nonisolated protocol BindingChatTransport: Sendable {
+    func canRefreshSharedChat() async -> Bool
     func request(_ path: String, payload: Object?) async throws -> Object
+}
+
+extension BindingChatTransport {
+    // In-memory transports have no persisted person-link prerequisite.
+    nonisolated func canRefreshSharedChat() async -> Bool { true }
 }
 
 /// One authenticated person-link context per call. No cookies, bearer storage,
@@ -11,6 +17,15 @@ actor BindingNativeChatTransport: BindingChatTransport {
     private typealias C = BindingPersonEntityReadRouteContract
     private let requesterUUID: String
     init(requesterUUID: String) { self.requesterUUID = requesterUUID }
+
+    // Runs on the transport actor, never on the state reader's executor. This
+    // is only a readiness hint; request still performs every authorization check.
+    func canRefreshSharedChat() async -> Bool {
+        IdentityLinkCompletionStore.entries().contains {
+            $0.record.status == .active && $0.record.linkedIdentity.uuid == requesterUUID
+                && $0.personEvidenceReference != nil && IdentityLinkTrust.isTrustedOrigin($0.origin)
+        }
+    }
 
     func request(_ path: String, payload: Object?) async throws -> Object {
         let entries = IdentityLinkCompletionStore.entries().filter {
@@ -85,6 +100,36 @@ private nonisolated final class NativeChatNoRedirects: NSObject, URLSessionTaskD
 /// The registered app runtime always uses shared transport, including decoded
 /// cells. The base cell remains available for isolated local helper contracts.
 final class BindingConnectedPersonalChatHubCell: BindingPersonalChatHubCell {
+    private(set) var readRefreshTask: Task<Void, Never>?
+    private var historyReadTask: Task<Void, Never>?
+
+    override func prepareForRead(key: String, requester: Identity) async {
+        // No await of history persistence, receipt discovery or transport here.
+        // Coalesce the many skeleton keypath reads into one in-flight refresh.
+        if Self.shouldHydrateHistoryPolicy(for: key), historyReadTask == nil {
+            historyReadTask = Task { [weak self] in
+                guard let self else { return }
+                defer { self.historyReadTask = nil }
+                await self.hydrateHistoryPolicyIfNeeded(requester: requester)
+            }
+        }
+        guard Self.shouldRefreshSharedChat(for: key), readRefreshTask == nil,
+              let transport = chatTransport else { return }
+        let refreshID = sharedRefreshID
+        readRefreshTask = Task { [weak self] in
+            let ready = await transport.canRefreshSharedChat()
+            guard let self else { return }
+            defer { self.readRefreshTask = nil }
+            // An explicit refresh/push while discovery was pending takes priority.
+            guard self.sharedRefreshID == refreshID else { return }
+            guard ready else {
+                self.discardLocalChatProjection()
+                return
+            }
+            _ = await self.refreshSharedChat()
+        }
+    }
+
     required init(owner: Identity) async {
         await super.init(owner: owner)
     }
