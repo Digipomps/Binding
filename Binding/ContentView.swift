@@ -300,6 +300,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     case entityScanner = "Entity Scanner"
     case workflowStudio = "Workflow Studio"
     case palazzoConcierge = "Palazzo Concierge"
+    case palazzoArticleLocal = "Palazzo artikkel (lokal)"
 
     var id: String { rawValue }
     var title: String { rawValue }
@@ -317,7 +318,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
 
     var phoneTab: BindingPersonalCopilotPhoneTab {
         switch self {
-        case .personalHome, .agendaContext, .butterpopStudio, .meetingIntent, .appleIntelligence, .entityScanner, .workflowStudio, .palazzoConcierge:
+        case .personalHome, .agendaContext, .butterpopStudio, .meetingIntent, .appleIntelligence, .entityScanner, .workflowStudio, .palazzoConcierge, .palazzoArticleLocal:
             return .home
         case .publicProfileDirectory, .matches, .relations:
             return .matches
@@ -338,7 +339,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
             return "Personal"
         case .publicProfileDirectory, .matches, .inviteChat, .meetingIntent, .relations:
             return "Network"
-        case .agendaContext, .butterpopStudio, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio, .palazzoConcierge:
+        case .agendaContext, .butterpopStudio, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio, .palazzoConcierge, .palazzoArticleLocal:
             return "Workspace"
         }
     }
@@ -386,6 +387,8 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
             return ConfigurationCatalogCell.entityScannerForPersonalCopilotConfiguration()
         case .workflowStudio:
             return ConfigurationCatalogCell.workflowStudioForPersonalCopilotConfiguration()
+        case .palazzoArticleLocal:
+            return WP8ArticleMenu.placeholder
         case .palazzoConcierge:
             return ConfigurationCatalogCell.palazzoConciergeMenuConfiguration()
         }
@@ -404,7 +407,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
             // configuration list for ten days and in no sidebar — a surface
             // nobody can open is a surface that does not exist.
             ("Network", [.relations, .matches, .publicProfileDirectory, .inviteChat, .meetingIntent]),
-            ("Workspace", [.agendaContext, .butterpopStudio, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio, .palazzoConcierge])
+            ("Workspace", [.agendaContext, .butterpopStudio, .vaultIdeas, .personalCopilotCatalog, .appleIntelligence, .entityScanner, .workflowStudio, .palazzoConcierge, .palazzoArticleLocal])
         ]
         return sections.compactMap { section in
             let destinations = section.destinations.filter(visibleDestinations.contains)
@@ -422,7 +425,7 @@ enum BindingPersonalCopilotDestination: String, CaseIterable, Identifiable {
     static func visibleDestinations(
         appStoreCatalogGateEnabled: Bool
     ) -> [BindingPersonalCopilotDestination] {
-        guard appStoreCatalogGateEnabled else { return allCases }
+        guard appStoreCatalogGateEnabled else { return allCases.filter { $0 != .palazzoArticleLocal || WP8ArticleMenu.enabled } }
         return allCases.filter { destination in
             guard let releaseConfigurationName = destination.releaseConfigurationName else {
                 return false
@@ -5533,7 +5536,18 @@ struct ContentView: View {
         _ configuration: CellConfiguration?,
         provenance: ConfigurationProvenance
     ) async {
-        guard let configuration else { return }
+        guard var configuration else { return }
+#if DEBUG
+        if configuration.name == WP8ArticleMenu.title {
+            do {
+                guard let identity = await startupRequesterIdentity() else { throw WP8Failure("No app identity") }
+                configuration = try await WP8ArticleMenu.configuration(appIdentity: identity)
+            } catch {
+                loadErrorMessage = "Palazzo-testoppsettet kunne ikke åpnes. Kontroller server, pin-liste og testidentitet."
+                return
+            }
+        }
+#endif
         let requestID = UUID()
         activeLoadingRequestID = requestID
         isLoadingConfiguration = true
