@@ -49,12 +49,11 @@ actor BindingNativeChatTransport: BindingChatTransport {
         let signing = try IdentitySigningChallenge.signingData(for: identity, trustedIdentity: identity,
             domain: C.domain, resource: resource, action: "personal-chat.request.v1", audience: entry.origin, nonce: random)
         guard let signature = try await identity.sign(data: signing) else { throw C.Failure.denied }
-        struct Envelope: Encodable { let nonce: String; let proof: C.Proof }
         let proof = C.Proof(evidenceReference: reference, linkID: entry.record.linkID, challenge: signing, signature: signature)
         var request = URLRequest(url: actionURL, timeoutInterval: 20)
         request.httpMethod = method; request.httpBody = payload == nil ? nil : bytes
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(try C.encode(Envelope(nonce: nonce, proof: proof)).base64EncodedString(), forHTTPHeaderField: "X-Haven-Chat-Proof")
+        request.setValue(try C.encode(BindingNativeChatEnvelope(nonce: nonce, proof: proof)).base64EncodedString(), forHTTPHeaderField: "X-Haven-Chat-Proof")
         return try await Self.perform(request, session: session)
     }
 
@@ -71,7 +70,12 @@ actor BindingNativeChatTransport: BindingChatTransport {
     }
 }
 
-private final class NativeChatNoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+private nonisolated struct BindingNativeChatEnvelope: Encodable, Sendable {
+    let nonce: String
+    let proof: BindingPersonEntityReadRouteContract.Proof
+}
+
+private nonisolated final class NativeChatNoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                                newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
         completionHandler(nil)
