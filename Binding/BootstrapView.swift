@@ -795,12 +795,18 @@ actor BindingLocalCellRegistration {
         on resolver: CellResolver,
         persistency: Persistancy? = .persistant
     ) async {
+        // Persisted inv10 cells retain their coding name. Decode that name as
+        // the connected runtime too; never reopen an old local-only sender.
+        if let utility = resolver.tcUtility {
+            do { try utility.register(name: "BindingPersonalChatHubCell", type: BindingConnectedPersonalChatHubCell.self) }
+            catch { /* Repeated registration uses the same process-installed decoder. */ }
+        }
         await register(
             name: "PersonalChatHub",
             cellScope: .identityUnique,
             persistency: persistency,
             identityDomain: "private",
-            type: BindingPersonalChatHubCell.self,
+            type: BindingConnectedPersonalChatHubCell.self,
             resolver: resolver
         )
         await register(

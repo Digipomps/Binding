@@ -1513,7 +1513,8 @@ struct BindingTests {
         #expect(skeletonTextArea(targetKeypath: "teamChat.setComposer", in: mergeResult.rewrittenFragment)?.submitActionKeypath == "teamChat.prompt.submit")
         #expect(skeletonContainsList(keypath: "teamChat.state.ui.promptMessages", topic: nil, in: mergeResult.rewrittenFragment))
         #expect(skeletonContainsButton(keypath: "teamChat.prompt.submit", label: "↑", in: mergeResult.rewrittenFragment))
-        #expect(!skeletonContainsButton(keypath: "teamChat.sendComposedMessage", in: mergeResult.rewrittenFragment))
+        #expect(skeletonContainsButton(keypath: "teamChat.sendComposedMessage", label: "Send til samtalen", in: mergeResult.rewrittenFragment))
+        #expect(skeletonTextArea(targetKeypath: "teamChat.message.setComposer", in: mergeResult.rewrittenFragment)?.submitActionKeypath == "teamChat.sendComposedMessage")
     }
 
     @Test func componentMergeRewritesListSelectionKeypathsForAssistantComponent() {
@@ -1761,7 +1762,8 @@ struct BindingTests {
         #expect(skeletonContainsTextArea(targetKeypath: "chatHub.setComposer", in: workingSkeleton))
         #expect(skeletonContainsList(keypath: "chatHub.state.ui.promptMessages", topic: nil, in: workingSkeleton))
         #expect(skeletonContainsButton(keypath: "chatHub.prompt.submit", label: "↑", in: workingSkeleton))
-        #expect(!skeletonContainsButton(keypath: "chatHub.sendComposedMessage", in: workingSkeleton))
+        #expect(skeletonContainsButton(keypath: "chatHub.sendComposedMessage", label: "Send til samtalen", in: workingSkeleton))
+        #expect(skeletonTextArea(targetKeypath: "chatHub.message.setComposer", in: workingSkeleton)?.submitActionKeypath == "chatHub.sendComposedMessage")
     }
 
     @Test func localOnlyCellsAreNotRetargetedToStaging() {

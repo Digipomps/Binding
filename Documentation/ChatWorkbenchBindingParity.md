@@ -12,6 +12,53 @@ og `../../CellProtocolDocuments/Book/21_Contact_Endpoint_Cell.md`. Søskenrepoet
 heter `CellProtocolDocuments`; jeg fant ikke et separat
 `CellProtocolDocumentation`-repo under `HAVEN`.
 
+## Shared native chat candidate (inv11, 2026-10-13)
+
+The registered `PersonalChatHub` now uses `BindingConnectedPersonalChatHubCell`,
+which installs `BindingNativeChatTransport` before actions or reads. The legacy
+persisted coding name decodes to that connected type. A restored local message
+projection is discarded. The isolated base class remains the local helper/contact
+contract harness used by older unit tests; it is not the registered app sender.
+There is no local fallback in the connected runtime when authentication or HTTP fails.
+
+Both surfaces expose a separate human-message composer, shared thread selection,
+explicit refresh/accept/decline and external identity approval/rejection/revocation.
+Butler prompts still use `prompt.submit`. Reads of state/threads/messages and
+explicit refresh obtain server state; push selection hydrates before selecting.
+There is no background polling or websocket subscription in this candidate.
+
+The transport uses the already completed person-link ceremony, not notification
+registration as authority. It requires a saved active receipt with
+`personEvidenceReference`, the matching private identity in its actual home vault,
+and one unambiguous person/origin context. Renewals for that same context use the
+latest saved receipt. A DeviceIngress-only receipt is insufficient; use the existing
+person-link flow. No synthetic chat identity is created and no web password is needed
+in the app. Server-side owner resolution still requires the existing person account
+that approved the link. See the server candidate's `Documentation/NativeChatAuthentication.md`.
+
+Known verification boundary: Binding build-for-testing stopped before compilation
+with exit 74 (SwiftPM manifest diagnostics cache permission). Syntax parsing and
+`git diff --check` pass. The 19 inv10 tests are retained; the six shared-chat tests
+now inject a per-test server through the real cell transport boundary and compare
+all participants' messages. `Inv11ChatTransportTests` adds wire shape, signing
+resource, decode/runtime and offline failure tests. GUI and real two-device delivery
+are not yet measured. Full host test commands and commit IDs belong in the inv11
+handoff result; do not call this release-ready on syntax evidence.
+
+Reusable lessons from this change:
+
+- Independent UI-entry tests need independent recipients/InvitationCell fixtures.
+  Reusing the same address tests duplicate-invitation denial on the second pass.
+- Bind native proofs to the evidence reference and link ID as well as origin,
+  method, path, body digest and one-shot server nonce. One key can have more than
+  one approved person context; signing only the HTTP operation does not select it.
+- Account migration must include persisted coding names; changing only the factory
+  leaves existing decoded cells on their previous runtime behavior.
+- A local contract suite and a shared transport suite prove different paths. Keep
+  both explicit and use server-shaped JSON at the injected transport boundary.
+
+The following inv10 audit is historical and describes the pre-inv11 implementation.
+
 ## Invitation/chat audit (inv10, 2026-10-13)
 
 Source audit of `47cbd937` found two different paths: Butler and the embedded

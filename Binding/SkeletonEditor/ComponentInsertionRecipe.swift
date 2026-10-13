@@ -364,7 +364,14 @@ enum ComponentPaletteCatalog {
             .List(messagesList),
             .TextArea(composer),
             .HStack(actionsRow),
-            embeddedInvitationControls(referenceLabel: referenceLabel)
+            embeddedInvitationControls(referenceLabel: referenceLabel),
+            .Text(SkeletonText(text: "Delt samtale")),
+            BindingSharedChatControls.threads(reference: referenceLabel),
+            BindingSharedChatControls.messages(reference: referenceLabel),
+            .TextArea(SkeletonTextArea(text: nil, sourceKeypath: "\(referenceLabel).state.messageComposer.body",
+                targetKeypath: "\(referenceLabel).message.setComposer", placeholder: "Melding til deltakerne",
+                minLines: 2, maxLines: 4, submitOnEnter: true, submitActionKeypath: "\(referenceLabel).sendComposedMessage")),
+            .Button(SkeletonButton(keypath: "\(referenceLabel).sendComposedMessage", label: "Send til samtalen"))
         ])
         card.modifiers = sectionModifier
         return .VStack(card)
@@ -412,7 +419,8 @@ enum ComponentPaletteCatalog {
             action("contactInbox.refresh", "Hent nye"),
             action("acceptInvite", "Godta", payload: .object(["requireTicket": .bool(true)])),
             action("declineInvite", "Avslå", payload: .object(["requireTicket": .bool(true)])),
-            action("invite.refreshStatuses", "Oppdater svar")
+            action("invite.refreshStatuses", "Oppdater svar"),
+            BindingSharedChatControls.external(reference: referenceLabel)
         ]))
     }
 

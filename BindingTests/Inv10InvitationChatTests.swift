@@ -63,23 +63,23 @@ final class Inv10InvitationChatTests: XCTestCase {
     }
 
     func testButlerAndComponentPrepareSelectedExternalRelationLink() async throws {
-        try await withFixture { fixture in
-            let relations = await BindingRelationsCell(owner: fixture.owner)
-            let invitation = await BindingInvitationCell(owner: fixture.owner)
-            try await fixture.resolver.registerNamedEmitCell(name: "Relations", emitCell: relations,
-                scope: .identityUnique, identity: fixture.owner)
-            try await fixture.resolver.registerNamedEmitCell(name: "Invitation", emitCell: invitation,
-                scope: .identityUnique, identity: fixture.owner)
-            // Disable publication BEFORE any preparation; Invitation defaults to production.
-            _ = try await invitation.set(keypath: "invite.configure", value: .object([
-                "autoPublish": .bool(false), "landingBase": .string("https://staging.haven.digipomps.org"),
-                "fallbackLandingBase": .string("")
-            ]), requester: fixture.owner)
-            _ = try await relations.set(keypath: "relations.upsert", value: .object([
-                "contacts": .list([.object(["displayName": .string("Synthetic External"),
-                    "email": .string("external@example.invalid")])])
-            ]), requester: fixture.owner)
-            for key in ["assistant.acceptSuggestion", "chatHub.invite"] {
+        for key in ["assistant.acceptSuggestion", "chatHub.invite"] {
+            try await withFixture { fixture in
+                let relations = await BindingRelationsCell(owner: fixture.owner)
+                let invitation = await BindingInvitationCell(owner: fixture.owner)
+                try await fixture.resolver.registerNamedEmitCell(name: "Relations", emitCell: relations,
+                    scope: .identityUnique, identity: fixture.owner)
+                try await fixture.resolver.registerNamedEmitCell(name: "Invitation", emitCell: invitation,
+                    scope: .identityUnique, identity: fixture.owner)
+                // Disable publication BEFORE any preparation; Invitation defaults to production.
+                _ = try await invitation.set(keypath: "invite.configure", value: .object([
+                    "autoPublish": .bool(false), "landingBase": .string("https://staging.haven.digipomps.org"),
+                    "fallbackLandingBase": .string("")
+                ]), requester: fixture.owner)
+                _ = try await relations.set(keypath: "relations.upsert", value: .object([
+                    "contacts": .list([.object(["displayName": .string("Synthetic External"),
+                        "email": .string("external@example.invalid")])])
+                ]), requester: fixture.owner)
                 let chat = await BindingPersonalChatHubCell(owner: fixture.owner)
                 chat.localLanguageResponder = { _ in
                     ButlerLanguageSupport.Reply(answer: "Velg invitasjonen.", helper: "invite",
@@ -274,8 +274,8 @@ final class Inv10InvitationChatTests: XCTestCase {
 }
 
 // These are required acceptance tests, intentionally kept as ordinary tests.
-// Source inspection shows missing shared transport; no skip/expected-failure
-// converts that gap into green. The host run must report their actual outcome.
+// The injected per-test server uses the same JSON boundary as production.
+// The host run must report their actual outcome.
 @MainActor
 final class Inv10ChatEndToEndTests: XCTestCase {
     func testButlerTwoParticipantsReceiveEachOthersMessages() async throws { try await messaging(entry: 0, group: false) }
@@ -284,19 +284,20 @@ final class Inv10ChatEndToEndTests: XCTestCase {
     func testComponentThreeParticipantsShareOneThread() async throws { try await messaging(entry: 1, group: true) }
 
     private func messaging(entry: Int, group: Bool) async throws {
+        let server = Inv11ChatServer()
         try await withFixture { fixture in
             let skeleton = try surfaces()[entry]
-            let pair = try await invitePair(fixture: fixture, skeleton: skeleton)
+            let pair = try await sharedInvitePair(server: server, fixture: fixture, skeleton: skeleton)
             _ = try await pair.sender.set(keypath: "invite.refreshStatuses", value: .object([:]), requester: fixture.owner)
-            _ = try await pair.sender.set(keypath: "setComposer", value: .string("A to everyone"), requester: fixture.owner)
+            _ = try await pair.sender.set(keypath: "message.setComposer", value: .string("A to everyone"), requester: fixture.owner)
             _ = try await pair.sender.set(keypath: "sendComposedMessage", value: .object([:]), requester: fixture.owner)
-            _ = try await pair.receiver.set(keypath: "setComposer", value: .string("B to everyone"), requester: pair.recipient)
+            _ = try await pair.receiver.set(keypath: "message.setComposer", value: .string("B to everyone"), requester: pair.recipient)
             _ = try await pair.receiver.set(keypath: "sendComposedMessage", value: .object([:]), requester: pair.recipient)
             var participants: [(BindingPersonalChatHubCell, Identity)] = [(pair.sender, fixture.owner), (pair.receiver, pair.recipient)]
             var expected = Set(["A to everyone", "B to everyone"])
             if group {
-                let third = try await invitePair(fixture: fixture, skeleton: skeleton, sender: pair.sender)
-                _ = try await third.receiver.set(keypath: "setComposer", value: .string("C to everyone"), requester: third.recipient)
+                let third = try await sharedInvitePair(server: server, fixture: fixture, skeleton: skeleton, sender: pair.sender)
+                _ = try await third.receiver.set(keypath: "message.setComposer", value: .string("C to everyone"), requester: third.recipient)
                 _ = try await third.receiver.set(keypath: "sendComposedMessage", value: .object([:]), requester: third.recipient)
                 participants.append((third.receiver, third.recipient))
                 expected.insert("C to everyone")
@@ -320,8 +321,9 @@ final class Inv10ChatEndToEndTests: XCTestCase {
     func testButlerPushOpensAcceptedThreadBeforeFirstMessage() async throws { try await push(entry: 0) }
     func testComponentPushOpensAcceptedThreadBeforeFirstMessage() async throws { try await push(entry: 1) }
     private func push(entry: Int) async throws {
+        let server = Inv11ChatServer()
         try await withFixture { fixture in
-            let pair = try await invitePair(fixture: fixture, skeleton: try surfaces()[entry])
+            let pair = try await sharedInvitePair(server: server, fixture: fixture, skeleton: try surfaces()[entry])
             let url = try XCTUnwrap(BindingChatNotificationRoute.url(userInfo: ["payload": ["threadID": pair.threadID]]))
             let threadID = try XCTUnwrap(BindingChatNotificationRoute.threadID(from: url))
             let result = try object(try await pair.receiver.set(keypath: "ui.setCurrentThread",
@@ -411,6 +413,32 @@ private func invitePair(fixture: Fixture, skeleton: SkeletonElement, sender exis
     let intro = try object(request["payload"])
     let threadID = try XCTUnwrap(string(intro["introThreadID"]))
     return (sender, receiver, recipient, threadID, descriptor)
+}
+
+@MainActor
+private func sharedInvitePair(server: Inv11ChatServer, fixture: Fixture, skeleton: SkeletonElement,
+                              sender existing: BindingPersonalChatHubCell? = nil) async throws
+    -> (sender: BindingPersonalChatHubCell, receiver: BindingPersonalChatHubCell, recipient: Identity, threadID: String) {
+    let recipientVault = EphemeralIdentityVault()
+    var recipient = Identity(UUID().uuidString, displayName: "Synthetic recipient", identityVault: recipientVault)
+    await recipientVault.addIdentity(identity: &recipient, for: "inv11-" + UUID().uuidString)
+    let sender: BindingPersonalChatHubCell
+    if let existing { sender = existing } else {
+        sender = await BindingPersonalChatHubCell(owner: fixture.owner)
+        sender.chatTransport = server.client(fixture.owner.uuid)
+    }
+    let receiver = await BindingPersonalChatHubCell(owner: recipient)
+    receiver.chatTransport = server.client(recipient.uuid)
+    let invite = try XCTUnwrap(buttons(skeleton).first { $0.keypath == "chatHub.invite" })
+    let result = try object(try await sender.set(keypath: invite.keypath,
+        value: .object(["userUUID": .string(recipient.uuid), "title": .string("Shared chat")]), requester: fixture.owner))
+    XCTAssertEqual(BindingChatValue.bool(result["ok"]), true)
+    let id = try XCTUnwrap(string(BindingChatValue.nested("thread.id", in: result)))
+    _ = try await receiver.set(keypath: "contactInbox.refresh", value: .object([:]), requester: recipient)
+    let accept = try XCTUnwrap(buttons(skeleton).first { $0.keypath == "chatHub.acceptInvite" })
+    let accepted = try object(try await receiver.set(keypath: accept.keypath, value: accept.payload ?? .object([:]), requester: recipient))
+    XCTAssertEqual(string(accepted["status"]), "accepted")
+    return (sender, receiver, recipient, id)
 }
 
 @MainActor
