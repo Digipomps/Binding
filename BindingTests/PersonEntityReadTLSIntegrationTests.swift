@@ -9,6 +9,7 @@ import XCTest
 
 #if os(macOS)
 import CFNetwork
+import Security
 /// CI-only pairing with the actual CellScaffold route in a separate process.
 /// The ephemeral CI host maps the trusted staging hostname to loopback and
 /// trusts a generated test CA. Production client networking is unchanged.
@@ -89,6 +90,8 @@ final class PersonEntityReadTLSIntegrationTests: XCTestCase {
             // before any authenticated Bridge message reaches the server.
             let countURL = root.appendingPathComponent("tls-accepted-count")
             let before = try String(contentsOf: countURL, encoding: .utf8)
+            let sentURL = root.appendingPathComponent("certificate-sent.json")
+            if FileManager.default.fileExists(atPath: sentURL.path) { try FileManager.default.removeItem(at: sentURL) }
             let certificateAttempt = UUID().uuidString.lowercased()
             try Data(certificateAttempt.utf8).write(to: root.appendingPathComponent("bad-certificate"), options: .atomic)
             let wrongCertificate = PersonEntityReadClient { uuid in uuid == phone.uuid ? phone : nil }
@@ -96,21 +99,19 @@ final class PersonEntityReadTLSIntegrationTests: XCTestCase {
                 try await wrongCertificate.connect(entry: entry)
                 XCTFail("A trusted issuer must not bypass TLS hostname validation")
             } catch {
-                // The shared adapter retires its channel without preserving
-                // URLSession's original error. Require the actual TLS peer alert
-                // for this exact attempt/certificate; a client error alone proves nothing.
-                let witnessURL = root.appendingPathComponent("certificate-rejection.json")
-                try await waitForFile(witnessURL, root: root)
-                let witness = try JSONDecoder().decode(CertificateRejection.self, from: Data(contentsOf: witnessURL))
-                let pem = try String(contentsOf: root.appendingPathComponent("wrong-host.pem"), encoding: .utf8)
-                let base64 = pem.split(separator: "\n").filter { !$0.hasPrefix("-----") }.joined()
-                let der = try XCTUnwrap(Data(base64Encoded: base64))
-                let fingerprint = SHA256.hash(data: der).map { String(format: "%02x", $0) }.joined()
+                let native = error as NSError
+                XCTAssertEqual(native.domain, NSURLErrorDomain)
+                XCTAssertEqual(native.code, NSURLErrorServerCertificateUntrusted,
+                    "Only the actual native certificate rejection qualifies; timeout/closure/denial do not")
+                try await waitForFile(sentURL, root: root)
+                let witness = try JSONDecoder().decode(CertificateTransmission.self, from: Data(contentsOf: sentURL))
+                let fingerprint = try verifyFixtureHostnamePolicy(root: root)
                 XCTAssertEqual(witness.attempt, certificateAttempt)
                 XCTAssertEqual(witness.serverName, "staging.haven.digipomps.org")
                 XCTAssertEqual(witness.certificateSHA256, fingerprint)
-                XCTAssertTrue([42, 43, 44, 45, 46, 48].contains(witness.alert),
-                    "Only an explicit fatal certificate alert proves TLS certificate rejection")
+                XCTAssertEqual(witness.messageType, 11,
+                    "The exact wrong-host context must emit its Certificate handshake")
+
             }
             await wrongCertificate.close()
             XCTAssertEqual(try String(contentsOf: countURL, encoding: .utf8), before)
@@ -195,11 +196,40 @@ final class PersonEntityReadTLSIntegrationTests: XCTestCase {
         return (input, entry, phone)
     }
 
-    private struct CertificateRejection: Decodable {
+    /// Separate ordinary OS trust evaluation complements the actual native
+    /// rejection and emitted-leaf witness. It does not claim that Foundation's
+    /// WebSocket NSError exposes its original hostname-mismatch cause.
+    private func verifyFixtureHostnamePolicy(root: URL) throws -> String {
+        func certificate(_ name: String) throws -> (SecCertificate, Data) {
+            let pem = try String(contentsOf: root.appendingPathComponent(name + ".pem"), encoding: .utf8)
+            let base64 = pem.split(separator: "\n").filter { !$0.hasPrefix("-----") }.joined()
+            let data = try XCTUnwrap(Data(base64Encoded: base64))
+            return (try XCTUnwrap(SecCertificateCreateWithData(nil, data as CFData)), data)
+        }
+        let ca = try certificate("ca").0
+        let normal = try certificate("server")
+        let wrong = try certificate("wrong-host")
+        for (leaf, expected) in [(normal.0, true), (wrong.0, false)] {
+            let policy = SecPolicyCreateSSL(true, "staging.haven.digipomps.org" as CFString)
+            var trust: SecTrust?
+            XCTAssertEqual(SecTrustCreateWithCertificates([leaf, ca] as CFArray, policy, &trust), errSecSuccess)
+            let actualTrust = try XCTUnwrap(trust)
+            var error: CFError?
+            XCTAssertEqual(SecTrustEvaluateWithError(actualTrust, &error), expected)
+            if !expected {
+                let failure = try XCTUnwrap(error)
+                XCTAssertEqual(CFErrorGetDomain(failure) as String, NSOSStatusErrorDomain)
+                XCTAssertEqual(CFErrorGetCode(failure), Int(errSecHostNameMismatch))
+            }
+        }
+        return SHA256.hash(data: wrong.1).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private struct CertificateTransmission: Decodable {
         let attempt: String
         let serverName: String
         let certificateSHA256: String
-        let alert: Int
+        let messageType: Int
     }
 
     private enum FixtureFailure: Error { case peerFailed, timeout, notLoopback, invalidSetup }
