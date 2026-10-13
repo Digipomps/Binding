@@ -124,10 +124,19 @@ final class Inv11ChatTransportTests: XCTestCase {
         var owner = Identity(UUID().uuidString, displayName: "Synthetic", identityVault: vault)
         await vault.addIdentity(identity: &owner, for: "inv11-decode-" + UUID().uuidString)
         let old = await BindingPersonalChatHubCell(owner: owner)
+        _ = try await old.set(keypath: "acceptInvite", value: .object([:]), requester: owner)
+        _ = try await old.set(keypath: "setComposer", value: .string("Historical local message"), requester: owner)
+        _ = try await old.set(keypath: "sendComposedMessage", value: .object([:]), requester: owner)
+        let before = BindingChatValue.list(try await old.get(keypath: "messages", requester: owner))
+        XCTAssertEqual(before?.count, 1)
         let decoded = try JSONDecoder().decode(BindingConnectedPersonalChatHubCell.self, from: JSONEncoder().encode(old))
         // This installs bindings only; no state read, network, or saved receipt lookup.
-        await decoded.installRuntimeBindings(owner: owner)
+        try await decoded.ensureRuntimeBindings()
         XCTAssertTrue(decoded.chatTransport is BindingNativeChatTransport)
+        let encoded = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(decoded)) as? [String: Any])
+        let state = try XCTUnwrap(encoded["cachedState"] as? [String: Any])
+        XCTAssertEqual((state["messages"] as? [Any])?.count, 0)
+        XCTAssertEqual((state["threads"] as? [Any])?.count, 0)
     }
 
     func testButlerAndComponentExternalLinkTargetsTheCurrentSharedThread() async throws {
