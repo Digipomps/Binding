@@ -4594,6 +4594,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     nonisolated(unsafe) private var voiceTranscriber = BindingVoiceInputTranscriber()
     nonisolated(unsafe) private var historyPolicyLoaded = false
     nonisolated(unsafe) private var latestAnalysisID = UUID()
+    nonisolated(unsafe) private var latestInviteLookupID = UUID()
     // Injected only by local contract tests; no wire action can replace the model.
     nonisolated(unsafe) var localLanguageResponder: (@Sendable (ButlerLanguageSupport.Request) async -> ButlerLanguageSupport.Reply)?
 
@@ -4901,6 +4902,9 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         "state.butler.support.summary",
         "state.butler.privacy.summary",
         "state.inviteDraft.title",
+        "state.assistant.lastPreparedInvite.link",
+        "state.assistant.lastPreparedInvite.body",
+        "state.status",
         "state.invites",
         "state.contactInbox",
         "state.contactInbox.incomingInvites",
@@ -5136,9 +5140,10 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         case "butler.sync.push":
             return await pushButlerPreferences(requester: requester)
         case "assistant.setCandidateQuery":
-            BindingChatValue.set(.string(text(from: value)), for: "assistant.candidateQuery", in: &cachedState)
-            return response(status: "ok", message: "Candidate query updated.")
+            return await updateInviteCandidateQuery(text(from: value), requester: requester)
         case "assistant.selectCandidate":
+            latestInviteLookupID = UUID()
+            BindingChatValue.set(.null, for: "assistant.lastPreparedInvite", in: &cachedState)
             BindingChatValue.set(.string(text(from: value)), for: "assistant.latestSuggestion.selectedCandidateProfileID", in: &cachedState)
             return response(status: "ok", message: "Candidate selected.")
         case "entityExtension.scan":
@@ -5160,13 +5165,22 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         case "inviteDraft.title":
             BindingChatValue.set(.string(text(from: value)), for: "inviteDraft.title", in: &cachedState)
             return response(status: "ok", message: "Invite title updated.")
-        case "inviteDraft.profileID":
-            BindingChatValue.set(.string(text(from: value)), for: "inviteDraft.profileID", in: &cachedState)
-            return response(status: "ok", message: "Invite profile updated.")
-        case "inviteDraft.userUUID":
-            BindingChatValue.set(.string(text(from: value)), for: "inviteDraft.userUUID", in: &cachedState)
-            return response(status: "ok", message: "Invite user updated.")
+        case "inviteDraft.profileID", "inviteDraft.userUUID":
+            let field = key == "inviteDraft.profileID" ? "profileID" : "userUUID"
+            latestInviteLookupID = UUID()
+            updateInviteRecipient([field: .string(text(from: value))])
+            BindingChatValue.set(.null, for: "assistant.latestSuggestion.helperID", in: &cachedState)
+            BindingChatValue.set(.list([]), for: "assistant.latestSuggestion.candidates", in: &cachedState)
+            return response(status: "ok", message: "Invite recipient updated.")
         case "invite":
+            let submitted = BindingChatValue.object(value) ?? [:]
+            let hasExplicitRecipient = ["profileID", "userUUID", "contactEndpoint", "contactEndpointDescriptor", "contactEndpointID", "contactEndpointId"]
+                .contains { submitted[$0] != nil }
+            if !hasExplicitRecipient,
+               let suggestion = BindingChatValue.object(BindingChatValue.nested("assistant.latestSuggestion", in: cachedState)),
+               BindingChatValue.string(suggestion["helperID"]) == "invite" {
+                return await acceptInviteSuggestion(suggestion, requester: requester)
+            }
             return await createInvite(value: value, requester: requester)
         case "invite.refreshStatuses":
             return await refreshOutgoingInviteStatuses(value: value, requester: requester)
@@ -5558,6 +5572,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         let originatingMessages = BindingChatValue.list(BindingChatValue.nested("ui.promptMessages", in: cachedState)) ?? []
         let analysisID = UUID()
         latestAnalysisID = analysisID
+        latestInviteLookupID = UUID()
         let capabilityDiscoveryEnabled = BindingChatValue.bool(BindingChatValue.nested("ui.capabilityDiscoveryEnabled", in: cachedState)) ?? false
         let perspective = await perspectiveSummary(requester: requester)
         let perspectiveContext = BindingChatPurposeContext
@@ -6644,6 +6659,14 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         let drop = chatDropObject(validationState: "valid", deniedReason: "")
         BindingChatValue.set(.object(inviteDraft), for: "inviteDraft", in: &cachedState)
         BindingChatValue.set(.string(profileID), for: "assistant.latestSuggestion.selectedCandidateProfileID", in: &cachedState)
+        latestInviteLookupID = UUID()
+        // A direct person drop replaces the previous Butler invite proposal.
+        // Its candidate list must not intercept the draft's explicit send.
+        if BindingChatValue.string(BindingChatValue.nested("assistant.latestSuggestion.helperID", in: cachedState)) == "invite" {
+            BindingChatValue.set(.null, for: "assistant.latestSuggestion.helperID", in: &cachedState)
+            BindingChatValue.set(.list([]), for: "assistant.latestSuggestion.candidates", in: &cachedState)
+        }
+        BindingChatValue.set(.null, for: "assistant.lastPreparedInvite", in: &cachedState)
         BindingChatValue.set(.object(drop), for: "drop", in: &cachedState)
         BindingChatValue.set(.string("mer"), for: "ui.activeTab", in: &cachedState)
         BindingChatValue.set(.string("verktoy"), for: "ui.activeMoreTab", in: &cachedState)
@@ -7919,18 +7942,50 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     /// chat if he has an entity, otherwise hand the invitation cell his
     /// relation so it prepares a link on the channel we hold. Either way the
     /// relation's chronicle learns that something started.
+    private func updateInviteCandidateQuery(_ query: String, requester: Identity) async -> ValueType {
+        let lookupID = UUID()
+        latestInviteLookupID = lookupID
+        latestAnalysisID = UUID()
+        BindingChatValue.set(.string(query), for: "assistant.candidateQuery", in: &cachedState)
+        BindingChatValue.set(.object([
+            "helperID": .string("invite"), "status": .string("low_confidence"),
+            "candidates": .list([]), "selectedCandidateProfileID": .null
+        ]), for: "assistant.latestSuggestion", in: &cachedState)
+        BindingChatValue.set(.null, for: "assistant.lastPreparedInvite", in: &cachedState)
+        let draft = "inviter " + query
+        let classification = BindingChatIntentClassifier.classify(prompt: draft)
+        let lookup = await relationCandidates(for: classification, draft: draft, requester: requester)
+        // A slower previous lookup cannot replace the user's newer selection.
+        guard latestInviteLookupID == lookupID else {
+            return response(status: "superseded", message: "Et nyere personsøk er aktivt.")
+        }
+        var suggestion = classification.objectValue()
+        suggestion["candidates"] = .list(lookup.rows)
+        suggestion["candidateSource"] = .string(lookup.source)
+        suggestion["status"] = .string(lookup.status)
+        suggestion["explanation"] = lookup.reason.map(ValueType.string) ?? .string("")
+        suggestion["selectedCandidateProfileID"] = lookup.rows.count == 1
+            ? (BindingChatValue.object(lookup.rows[0])?["id"] ?? .null) : .null
+        BindingChatValue.set(.object(suggestion), for: "assistant.latestSuggestion", in: &cachedState)
+        return response(status: "ok", message: lookup.reason ?? "Personsøk oppdatert.")
+    }
+
     private func acceptInviteSuggestion(_ suggestion: Object, requester: Identity) async -> ValueType {
+        BindingChatValue.set(.null, for: "assistant.lastPreparedInvite", in: &cachedState)
+        guard BindingChatValue.string(suggestion["status"]) != "low_confidence" else {
+            return response(status: "blocked", message: "Velg hvem du vil invitere fra relasjonene først.")
+        }
         let candidates = (BindingChatValue.list(suggestion["candidates"]) ?? []).compactMap { BindingChatValue.object($0) }
         let selectedID = BindingChatValue.string(suggestion["selectedCandidateProfileID"])
-        let chosen = candidates.first { BindingChatValue.string($0["id"]) == selectedID }
-            ?? (candidates.count == 1 ? candidates.first : nil)
+        let chosen: Object?
+        if let selectedID {
+            chosen = candidates.first { BindingChatValue.string($0["id"]) == selectedID }
+        } else {
+            chosen = candidates.count == 1 ? candidates.first : nil
+        }
 
         guard let chosen, let relationID = BindingChatValue.string(chosen["relationID"]) else {
-            if candidates.count > 1 {
-                return response(status: "blocked", message: "Flere passer — velg hvem du mener først.")
-            }
-            // No relation behind the suggestion: the old contact-endpoint flow.
-            return await createInvite(value: .object([:]), requester: requester)
+            return response(status: "blocked", message: "Velg hvem du vil invitere fra relasjonene først.")
         }
 
         let displayName = BindingChatValue.string(chosen["displayName"]) ?? relationID
@@ -7945,10 +8000,8 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
                 value: .object(["title": .string("Chat med \(displayName)"), "profileID": .string(relationID), "userUUID": .string(entityRef)]),
                 requester: requester
             )
-            await recordRelationInteraction(
-                relationID: relationID, kind: "chat.started", channel: "haven-chat",
-                resolver: resolver, requester: requester
-            )
+            // A contact request is not a started conversation. In particular,
+            // bootstrap_required must not advance the relation's last-contact history.
             return result
         }
 
@@ -7965,7 +8018,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         let message = BindingChatValue.string(preparedObject["message"])
             ?? BindingChatValue.string(preparedObject["summaryText"])
             ?? "Invitasjonen til \(displayName) er klar — du trykker send."
-        var reply = response(status: BindingChatValue.string(preparedObject["status"]) == "error" ? "blocked" : "ok", message: message)
+        var reply = response(status: BindingChatValue.bool(preparedObject["ok"]) == true ? "ok" : "blocked", message: message)
         if case var .object(object) = reply {
             object["preparedInvite"] = prepared
             object["relationID"] = .string(relationID)
@@ -7995,20 +8048,35 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         )
     }
 
-    private func createInvite(value: ValueType, requester: Identity) async -> ValueType {
-        let submitted = BindingChatValue.object(value) ?? [:]
+    /// Recipient identity and delivery endpoint form one draft. Changing either
+    /// identity field invalidates the previous endpoint and the other identity.
+    private func updateInviteRecipient(_ submitted: Object) {
         var draft = BindingChatValue.object(BindingChatValue.nested("inviteDraft", in: cachedState)) ?? [:]
-        for key in ["title", "profileID", "userUUID"] {
-            if let submittedValue = submitted[key] {
-                draft[key] = submittedValue
-            }
+        let recipientChanged = ["profileID", "userUUID"].contains { key in
+            guard let next = submitted[key] else { return false }
+            return BindingChatValue.string(next) != BindingChatValue.string(draft[key])
         }
-        if let submittedEndpoint = normalizedContactEndpoint(from: submitted) {
-            draft["contactEndpoint"] = .object(submittedEndpoint)
+        if recipientChanged {
+            BindingChatValue.set(.null, for: "assistant.lastPreparedInvite", in: &cachedState)
+            draft["profileID"] = .string("")
+            draft["userUUID"] = .string("")
+            draft["contactEndpoint"] = .null
+        }
+        for key in ["title", "profileID", "userUUID"] {
+            if let value = submitted[key] { draft[key] = value }
+        }
+        let hasEndpoint = ["contactEndpoint", "contactEndpointDescriptor", "contactEndpointID", "contactEndpointId"]
+            .contains { submitted[$0] != nil }
+        if hasEndpoint {
+            draft["contactEndpoint"] = normalizedContactEndpoint(from: submitted).map(ValueType.object) ?? .null
         }
         BindingChatValue.set(.object(draft), for: "inviteDraft", in: &cachedState)
+    }
 
-        var invites = BindingChatValue.list(BindingChatValue.nested("invites", in: cachedState)) ?? []
+    private func createInvite(value: ValueType, requester: Identity) async -> ValueType {
+        updateInviteRecipient(BindingChatValue.object(value) ?? [:])
+        let draft = BindingChatValue.object(BindingChatValue.nested("inviteDraft", in: cachedState)) ?? [:]
+
         let inviteID = UUID().uuidString.lowercased()
         let title = BindingChatValue.string(draft["title"])?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
             ?? "Ny invitasjon"
@@ -8062,9 +8130,11 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         invite["deliveryFailureReason"] = delivery["deliveryFailureReason"] ?? .null
         invite["bootstrapDraft"] = delivery["bootstrapDraft"] ?? .null
         invite["updatedAt"] = .float(Date().timeIntervalSince1970)
+        var invites = BindingChatValue.list(BindingChatValue.nested("invites", in: cachedState)) ?? []
         invites.append(.object(invite))
         BindingChatValue.set(.list(invites), for: "invites", in: &cachedState)
         BindingChatValue.set(.string(status), for: "inviteStatus", in: &cachedState)
+        cachedState["status"] = .string(message)
         cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
 
         var response: Object = [
@@ -8236,7 +8306,8 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     }
 
     private func shouldUseLegacyLocalInviteGate(_ value: ValueType) -> Bool {
-        guard selectedTicketID(from: value) == nil,
+        guard BindingChatValue.bool(BindingChatValue.object(value)?["requireTicket"]) != true,
+              selectedTicketID(from: value) == nil,
               BindingChatValue.string(BindingChatValue.nested("contactInbox.selectedTicketID", in: cachedState)) == nil else {
             return false
         }

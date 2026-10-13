@@ -363,10 +363,57 @@ enum ComponentPaletteCatalog {
             .HStack(headerRow),
             .List(messagesList),
             .TextArea(composer),
-            .HStack(actionsRow)
+            .HStack(actionsRow),
+            embeddedInvitationControls(referenceLabel: referenceLabel)
         ])
         card.modifiers = sectionModifier
         return .VStack(card)
+    }
+
+    /// An embedded prompt must expose the explicit follow-up actions too.
+    /// Opening a helper changes cell state; it does not mount the full workbench.
+    private static func embeddedInvitationControls(referenceLabel: String) -> SkeletonElement {
+        func action(_ key: String, _ title: String, payload: ValueType = .object([:])) -> SkeletonElement {
+            .Button(SkeletonButton(keypath: "\(referenceLabel).\(key)", label: title, payload: payload))
+        }
+        var candidates = SkeletonList(keypath: "\(referenceLabel).state.assistant.latestSuggestion.candidates")
+        candidates.flowElementSkeleton = SkeletonVStack(elements: [
+            .Text(SkeletonText(keypath: "displayName")), .Text(SkeletonText(keypath: "summary"))
+        ])
+        candidates.selectionMode = .single
+        candidates.selectionStateKeypath = "\(referenceLabel).state.assistant.latestSuggestion.selectedCandidateProfileID"
+        candidates.selectionValueKeypath = "id"
+        candidates.selectionActionKeypath = "\(referenceLabel).assistant.selectCandidate"
+        candidates.selectionPayloadMode = .itemID
+        var incoming = SkeletonList(keypath: "\(referenceLabel).state.contactInbox.incomingInvites")
+        incoming.flowElementSkeleton = SkeletonVStack(elements: [
+            .Text(SkeletonText(keypath: "title")), .Text(SkeletonText(keypath: "statusSummary"))
+        ])
+        incoming.selectionMode = .single
+        incoming.selectionStateKeypath = "\(referenceLabel).state.contactInbox.selectedTicketID"
+        incoming.selectionValueKeypath = "ticketID"
+        incoming.selectionActionKeypath = "\(referenceLabel).contactInbox.select"
+        incoming.selectionPayloadMode = .itemID
+        incoming.allowsEmptySelection = false
+        return .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(text: "Invitasjoner")),
+            .TextField(SkeletonTextField(text: nil,
+                sourceKeypath: "\(referenceLabel).state.assistant.candidateQuery",
+                targetKeypath: "\(referenceLabel).assistant.setCandidateQuery", placeholder: "Hvem vil du invitere?")),
+            .List(candidates),
+            .TextField(SkeletonTextField(text: nil,
+                sourceKeypath: "\(referenceLabel).state.inviteDraft.title",
+                targetKeypath: "\(referenceLabel).inviteDraft.title", placeholder: "Tittel")),
+            action("invite", "Klargjør invitasjon"),
+            .Text(SkeletonText(keypath: "\(referenceLabel).state.status")),
+            .Text(SkeletonText(keypath: "\(referenceLabel).state.assistant.lastPreparedInvite.link")),
+            .Text(SkeletonText(keypath: "\(referenceLabel).state.assistant.lastPreparedInvite.body")),
+            .List(incoming),
+            action("contactInbox.refresh", "Hent nye"),
+            action("acceptInvite", "Godta", payload: .object(["requireTicket": .bool(true)])),
+            action("declineInvite", "Avslå", payload: .object(["requireTicket": .bool(true)])),
+            action("invite.refreshStatuses", "Oppdater svar")
+        ]))
     }
 
     private static func embeddedVaultSnapshotSkeleton(referenceLabel: String) -> SkeletonElement {

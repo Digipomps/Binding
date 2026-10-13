@@ -12,6 +12,45 @@ og `../../CellProtocolDocuments/Book/21_Contact_Endpoint_Cell.md`. Søskenrepoet
 heter `CellProtocolDocuments`; jeg fant ikke et separat
 `CellProtocolDocumentation`-repo under `HAVEN`.
 
+## Invitation/chat audit (inv10, 2026-10-13)
+
+Source audit of `47cbd937` found two different paths: Butler and the embedded
+`ComponentPaletteCatalog.embeddedChatCard` both use the identity-local
+`BindingPersonalChatHubCell`. `prompt.submit` talks to Butler;
+`sendComposedMessage` appends to local state. A local “accepted” status or a
+signed ContactEndpoint receipt is **not proof of a shared conversation**.
+`ContentView.openChatNotificationThread` selects a cached thread and does not
+hydrate a remote conversation. The staging REST smoke tests exercise another
+implementation, `/personal-copilot-v1/chat/api/`, and cannot certify these native
+surfaces. The older `/i` InvitationCell link is an onboarding/contact ticket,
+not evidence of membership in the collaboration API's shared thread.
+
+The inv10 working change routes the visible invitation action through the
+selected Butler relation, performs candidate-query lookups, invalidates stale
+recipient endpoints and prepared links, exposes invitation controls/receipts in
+the component, and makes surface accept/decline buttons require a real ticket.
+Legacy direct empty `acceptInvite` calls remain for the existing local contract;
+new user surfaces pass `requireTicket: true`. No shared message transport or
+remote thread hydration has been added. `chat.started` is no longer recorded
+when only an undelivered bootstrap draft was produced.
+
+Verification status: syntax parse and diff checks passed; build and XCTest
+attempts stopped at SwiftPM manifest-cache permission denial (exit 74), before
+compilation/tests. The new `Inv10InvitationChatTests` cover the local fixes.
+`Inv10ChatEndToEndTests` are ordinary, unskipped acceptance tests for two/three
+participants and push before the first local message; source inspection predicts
+failures until shared transport is wired. The contact fixtures use distinct
+signing vaults/UUIDs and explicit owner grants with access validation enabled;
+they do not prove first-contact grant acquisition, bridge delivery or UI rendering.
+The new embedded layout still requires native GUI verification.
+
+For future audits: derive actions from the actual skeleton, use separate
+participant identities, assert messages at every participant, and test push
+before any local send. Do not replace these checks with local counters or a
+server-only smoke run. Never run default InvitationCell preparation in a
+no-production test: configure `autoPublish: false` and a synthetic/staging landing
+base before preparing any ticket.
+
 ## Contract
 
 - Default Porthole-flate i Personal Co-Pilot mode er `Co-Pilot Chat`.
