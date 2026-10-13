@@ -12,6 +12,62 @@ og `../../CellProtocolDocuments/Book/21_Contact_Endpoint_Cell.md`. Søskenrepoet
 heter `CellProtocolDocuments`; jeg fant ikke et separat
 `CellProtocolDocumentation`-repo under `HAVEN`.
 
+## Last two app failures (inv12, 2026-10-13)
+
+The host run on Binding `b075a2d4` reported two failures: external invitation
+preparation returned no link, and failed shared sends returned no `ok` field.
+The candidate changes below have not yet passed a new iOS app run.
+
+- `GeneralCell.storedOwnerIdentity` returns a public identity snapshot without a
+  vault. Calling `sign` on it fails with `noVaultIdentity`. Invitation preparation
+  now obtains `verifiedRuntimeOwnerIdentity()` before signing the ticket and its
+  optional publication. This API verifies the attached runtime owner's key; there
+  is no default-vault lookup or UUID-only substitution. Existing access validation
+  remains in place. Explicit later publication/revocation paths are outside this
+  two-test repair and still require a separate signing audit.
+- `InvitationCell` returns HavenValue's `status: "ok"`, not HTTP's `ok: true`.
+  The Butler adapter now reads that actual status contract. Previously even a
+  successfully prepared ticket would have been presented as blocked.
+- Shared-chat local failures now include `ok: false`, preserving the existing
+  blocked message/state response. Server responses without affirmative `ok` are
+  normalized to false. The transport failure does not clear the draft or append a
+  local message. Both the base cell with injected transport and the registered
+  connected subclass use this handler.
+
+Bounded local evidence: a standalone macOS probe compiled the original and
+changed `Cells/InvitationCell.swift` with the real relation model/presenter and
+invitation transport source. It used an ephemeral signed owner, a synthetic
+Relations read/write fixture, and `autoPublish: false`. UI configuration and URL
+opening were fatal-error stubs, neither invoked. The original prepare result was:
+
+```json
+{"status":"error","code":"signing_failed","sideEffect":false,"message":"Kunne ikke signere invitasjonen. Uten signatur sender jeg den ikke."}
+```
+
+The changed prepare returned `status: "ok"`, a successfully verified signed link,
+`published: false`, and `requiresUserToPressSend: true`. Both probe executions
+exited 0. The probe reused compiled macOS CellProtocol `b4100f5734bb0b3781600845a267e424e55c0989`;
+the actual iOS app dependency is `79497e85ef2f3fb02db0d6df5b601c5f1bc76391`.
+Both inspected sources expose the public-snapshot/runtime-owner boundary. This
+probe is not a run of either Butler entry action or of the iOS XCTest suite.
+The changed invitation sources also compiled and ran with `-default-isolation
+MainActor -strict-concurrency=complete -swift-version 5` (the checked-in app
+target selects Swift 5 language mode); both exits were 0. Existing warnings in
+the included sources remain, so this is not a warning-free full-target build.
+
+The existing app assertions are retained and strengthened with full synthetic
+result diagnostics, both success statuses, issuer key/identity checks and blocked
+send status. Run both named failing tests and the full existing inv10 script on
+the host before marking them green. CoreSimulator access is denied in the agent
+sandbox; Swift syntax parsing is not app compilation.
+
+Reusable lesson: trace the actual response contract and signing identity at the
+failing boundary before changing fixture isolation. A public identity descriptor
+can verify a ticket but cannot sign one. Fixture separation remains useful for
+duplicate-invite tests; it did not repair this failure. Learning routing was run;
+this worktree document carries the findings because global capture/sync would
+write primary checkouts, prohibited by the task.
+
 ## Shared native chat candidate (inv11, 2026-10-13)
 
 The registered `PersonalChatHub` now uses `BindingConnectedPersonalChatHubCell`,

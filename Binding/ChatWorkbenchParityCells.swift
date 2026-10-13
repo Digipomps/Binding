@@ -7869,7 +7869,7 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     // Only server-owned conversation fields are projected. Butler state and
     // unsent drafts remain local, and no successful send is fabricated locally.
     private func refreshSharedChat() async -> ValueType {
-        guard let chatTransport else { return response(status: "blocked", message: "Chattransport mangler.") }
+        guard let chatTransport else { return sharedChatFailure("Chattransport mangler.") }
         let refreshID = UUID()
         sharedRefreshID = refreshID
         do {
@@ -7878,11 +7878,11 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             applySharedState(state)
             return .object(["ok": .bool(true), "status": .string("ready"), "state": .object(cachedState)])
         } catch {
-            guard sharedRefreshID == refreshID else { return response(status: "blocked", message: "En nyere oppdatering pågår.") }
+            guard sharedRefreshID == refreshID else { return sharedChatFailure("En nyere oppdatering pågår.") }
             // A stale authorized snapshot must not remain selectable after an
             // expired link or a failed membership refresh.
             discardLocalChatProjection()
-            return response(status: "blocked", message: "Kunne ikke hente delt chat. Kontroller personkoblingen og forbindelsen.")
+            return sharedChatFailure("Kunne ikke hente delt chat. Kontroller personkoblingen og forbindelsen.")
         }
     }
 
@@ -7918,8 +7918,14 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         return payload
     }
 
+    private func sharedChatFailure(_ message: String) -> ValueType {
+        var result = BindingChatValue.object(response(status: "blocked", message: message)) ?? [:]
+        result["ok"] = .bool(false)
+        return .object(result)
+    }
+
     private func sharedChatAction(_ path: String, payload: Object) async -> ValueType {
-        guard let chatTransport else { return response(status: "blocked", message: "Chattransport mangler.") }
+        guard let chatTransport else { return sharedChatFailure("Chattransport mangler.") }
         var payload = payload
         if !["accept", "decline"].contains(path), payload["threadID"] == nil,
            let id = BindingChatValue.string(BindingChatValue.nested("currentThread.id", in: cachedState)),
@@ -7927,13 +7933,14 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             payload["threadID"] = .string(id)
         }
         if ["send", "accept", "decline"].contains(path), BindingChatValue.string(payload["threadID"]) == nil {
-            return response(status: "blocked", message: "Velg en delt tråd eller invitasjon først.")
+            return sharedChatFailure("Velg en delt tråd eller invitasjon først.")
         }
         do {
-            let result = try await chatTransport.request(path, payload: payload)
+            var result = try await chatTransport.request(path, payload: payload)
             guard BindingChatValue.bool(result["ok"]) == true else {
                 _ = await refreshSharedChat()
                 cachedState["status"] = .string("Serveren avviste handlingen.")
+                result["ok"] = .bool(false)
                 return .object(result)
             }
             if path == "send",
@@ -7945,7 +7952,7 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             cachedState["status"] = .string(path == "send" ? "Meldingen er sendt." : "Delt chat er oppdatert.")
             return .object(result)
         } catch {
-            return response(status: "blocked", message: "Handlingen kunne ikke bekreftes. Hent chatten før du prøver igjen.")
+            return sharedChatFailure("Handlingen kunne ikke bekreftes. Hent chatten før du prøver igjen.")
         }
     }
 
@@ -8164,7 +8171,8 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         let message = BindingChatValue.string(preparedObject["message"])
             ?? BindingChatValue.string(preparedObject["summaryText"])
             ?? "Invitasjonen til \(displayName) er klar — du trykker send."
-        var reply = response(status: BindingChatValue.bool(preparedObject["ok"]) == true ? "ok" : "blocked", message: message)
+        // InvitationCell uses HavenValue's status contract, not the HTTP ok flag.
+        var reply = response(status: BindingChatValue.string(preparedObject["status"]) == "ok" ? "ok" : "blocked", message: message)
         if case var .object(object) = reply {
             object["preparedInvite"] = prepared
             object["relationID"] = .string(relationID)

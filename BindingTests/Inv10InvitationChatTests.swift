@@ -99,10 +99,15 @@ final class Inv10InvitationChatTests: XCTestCase {
                 XCTAssertEqual(BindingChatValue.list(opened["outbox"])?.count, beforeCount, "Opening the helper must not mint or send")
                 let result = try object(try await chat.set(keypath: key, value: .object([:]), requester: fixture.owner))
                 let prepared = try object(result["preparedInvite"])
-                let link = try XCTUnwrap(string(prepared["link"]))
+                let diagnostic = "entry=\(key), result=\(result), preparedInvite=\(prepared)"
+                XCTAssertEqual(string(prepared["status"]), "ok", diagnostic)
+                XCTAssertEqual(string(result["status"]), "ok", diagnostic)
+                let link = try XCTUnwrap(string(prepared["link"]), diagnostic)
                 XCTAssertFalse(link.isEmpty)
                 let ticket = try HavenInviteLink.decode(HavenInviteLink.token(fromLink: link))
                 XCTAssertTrue(HavenInviteVerifier.verify(ticket: ticket).isValid)
+                XCTAssertEqual(ticket.issuer.uuid, fixture.owner.uuid)
+                XCTAssertEqual(ticket.issuer.publicKey, fixture.owner.publicSecureKey?.compressedKey)
                 XCTAssertEqual(BindingChatValue.bool(prepared["requiresUserToPressSend"]), true)
                 XCTAssertEqual(BindingChatValue.bool(prepared["published"]), false)
             }
