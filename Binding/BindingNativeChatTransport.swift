@@ -85,6 +85,14 @@ private nonisolated final class NativeChatNoRedirects: NSObject, URLSessionTaskD
 /// The registered app runtime always uses shared transport, including decoded
 /// cells. The base cell remains available for isolated local helper contracts.
 final class BindingConnectedPersonalChatHubCell: BindingPersonalChatHubCell {
+    required init(owner: Identity) async {
+        await super.init(owner: owner)
+    }
+
+    nonisolated required init(from decoder: Decoder) throws {
+        try super.init(from: decoder)
+    }
+
     override func installRuntimeBindings(owner: Identity) async {
         if chatTransport == nil {
             chatTransport = BindingNativeChatTransport(requesterUUID: owner.uuid)
