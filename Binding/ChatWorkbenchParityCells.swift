@@ -4632,7 +4632,7 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
                 if Self.shouldHydrateHistoryPolicy(for: key) {
                     await self.hydrateHistoryPolicyIfNeeded(requester: requester)
                 }
-                if self.chatTransport != nil, ["state", "threads", "messages", "chatHub.state", "chatHub.threads", "chatHub.messages"].contains(key) {
+                if self.chatTransport != nil, ["state", "threads", "messages", "state.threads", "state.messages", "state.contactInbox.incomingInvites"].contains(Self.canonicalChatHubKey(key)) {
                     _ = await self.refreshSharedChat()
                 }
                 return self.readValue(for: key)
@@ -4923,6 +4923,8 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         "state.contactInbox.incomingInvites",
         "state.contactInbox.selectedTicketID",
         "state.messages",
+        "state.threads",
+        "state.currentThread.id",
         "state.pollDraft.optionsText",
         "state.pollDraft.question",
         "state.polls",
