@@ -67,7 +67,8 @@ struct NotificationConsentBanner: View {
             Button("Åpne Identity Link") {
                 BindingPortholeLoadBridge.post(
                     configuration: ConfigurationCatalogCell
-                        .conferenceIdentityLinkWorkbenchConfiguration()
+                        .conferenceIdentityLinkWorkbenchConfiguration(),
+                    origin: .hostOwned
                 )
             }
             .buttonStyle(.borderedProminent)

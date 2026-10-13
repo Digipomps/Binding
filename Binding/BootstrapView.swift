@@ -2536,7 +2536,7 @@ private final class PersonalCopilotNavigatorLocalCell: PersonalCopilotLocalCell 
         ])
 
         Task { @MainActor [weak self] in
-            BindingPortholeLoadBridge.post(configuration: configuration)
+            BindingPortholeLoadBridge.post(configuration: configuration, origin: .hostOwned)
             self?.mergeState([
                 "status": .string("Opened \(configuration.name)."),
                 "lastAction": .string(actionKeypath),
@@ -2873,7 +2873,7 @@ private final class ConferenceConfigurationNavigatorLocalCell: PersonalCopilotLo
         ])
 
         Task { @MainActor [weak self] in
-            BindingPortholeLoadBridge.post(configuration: configuration)
+            BindingPortholeLoadBridge.post(configuration: configuration, origin: .hostOwned)
             self?.mergeState([
                 "status": .string("Opened \(configuration.name)."),
                 "lastAction": .string(actionKeypath),
@@ -4984,7 +4984,7 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
         successSummary: String
     ) {
         Task { @MainActor [weak self] in
-            BindingPortholeLoadBridge.post(configuration: configuration)
+            BindingPortholeLoadBridge.post(configuration: configuration, origin: .hostOwned)
             self?.lastError = nil
             self?.lastActionSummary = successSummary
             self?.emitSnapshot(requester: requester)
@@ -10120,7 +10120,7 @@ private final class ConferenceParticipantChatSnapshotLocalCell: GeneralCell {
         successSummary: String
     ) {
         Task { @MainActor [weak self] in
-            BindingPortholeLoadBridge.post(configuration: configuration)
+            BindingPortholeLoadBridge.post(configuration: configuration, origin: .hostOwned)
             self?.recentActionSummary = successSummary
             if let self {
                 self.cachedChatState = Self.chatStateWithStatus(
@@ -11548,7 +11548,7 @@ private final class ConferenceDemoLauncherLocalCell: GeneralCell {
         successSummary: String
     ) {
         Task { @MainActor [weak self] in
-            BindingPortholeLoadBridge.post(configuration: configuration)
+            BindingPortholeLoadBridge.post(configuration: configuration, origin: .hostOwned)
             guard let self else { return }
             self.cachedState = Self.stateWithStatus(
                 basedOn: self.cachedState,

@@ -686,6 +686,25 @@ struct ContentView: View {
         }
     }
 
+    private static func configurationProvenance(
+        for origin: BindingPortholeLoadBridge.Origin
+    ) -> ConfigurationProvenance {
+        switch origin {
+        case .hostOwned:
+            return .hostPrepared
+        case .untrustedImport:
+            return .imported
+        }
+    }
+
+    /// Test seam for the Porthole load bridge mapping; returns the trust flags the load path uses.
+    static func portholeLoadTrust(
+        for origin: BindingPortholeLoadBridge.Origin
+    ) -> (isUntrustedImport: Bool, mayUseLocalControlPlane: Bool) {
+        let provenance = configurationProvenance(for: origin)
+        return (provenance.isUntrustedImport, provenance.mayUseLocalControlPlane)
+    }
+
     nonisolated struct RemoteRequesterDescriptor: Hashable {
         let identityContext: String
         let displayName: String
@@ -946,12 +965,15 @@ struct ContentView: View {
         .onReceive(
             NotificationCenter.default
                 .publisher(for: BindingPortholeLoadBridge.notificationName)
-                .compactMap(BindingPortholeLoadBridge.configuration)
-        ) { configuration in
+                .compactMap(BindingPortholeLoadBridge.request)
+        ) { request in
             if editorMode == .edit {
                 editorMode = .view
             }
-            queueConfigurationLoad(configuration, provenance: .imported)
+            queueConfigurationLoad(
+                request.configuration,
+                provenance: Self.configurationProvenance(for: request.origin)
+            )
         }
         .onReceive(
             NotificationCenter.default.publisher(for: BindingConferenceNavigationBridge.notificationName)

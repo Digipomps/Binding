@@ -2488,6 +2488,97 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
         XCTAssertTrue(controlTowerConfiguration.cellReferences?.contains(where: { $0.label == "conferenceAdminShell" }) == true)
     }
 
+    func testPortholeLoadBridgeDefaultsToUntrustedImportAndCarriesHostOrigin() throws {
+        let notificationCenter = NotificationCenter()
+        var received: [BindingPortholeLoadBridge.Request] = []
+        let token = notificationCenter.addObserver(
+            forName: BindingPortholeLoadBridge.notificationName,
+            object: nil,
+            queue: nil
+        ) { notification in
+            if let request = BindingPortholeLoadBridge.request(from: notification) {
+                received.append(request)
+            }
+        }
+        defer { notificationCenter.removeObserver(token) }
+
+        let configuration = ConfigurationCatalogCell.conferencePublicWorkbenchConfiguration(
+            endpoint: "cell:///ConferencePublicShellFixture"
+        )
+        BindingPortholeLoadBridge.post(configuration: configuration, notificationCenter: notificationCenter)
+        BindingPortholeLoadBridge.post(
+            configuration: configuration,
+            origin: .hostOwned,
+            notificationCenter: notificationCenter
+        )
+
+        XCTAssertEqual(received.map(\.origin), [.untrustedImport, .hostOwned])
+        XCTAssertEqual(received.map(\.configuration.name), [configuration.name, configuration.name])
+
+        let legacyNotification = Notification(
+            name: BindingPortholeLoadBridge.notificationName,
+            object: nil,
+            userInfo: ["configurationData": try JSONEncoder().encode(configuration), "origin": "bogus"]
+        )
+        XCTAssertEqual(BindingPortholeLoadBridge.origin(from: legacyNotification), .untrustedImport)
+    }
+
+    func testPortholeLoadBridgeOriginMapsToContentViewProvenance() {
+        let hostOwned = ContentView.portholeLoadTrust(for: .hostOwned)
+        XCTAssertFalse(hostOwned.isUntrustedImport)
+        XCTAssertTrue(hostOwned.mayUseLocalControlPlane)
+
+        let untrusted = ContentView.portholeLoadTrust(for: .untrustedImport)
+        XCTAssertTrue(untrusted.isUntrustedImport)
+        XCTAssertFalse(untrusted.mayUseLocalControlPlane)
+    }
+
+    func testConferenceDemoLauncherPostsHostOwnedConfigurationsThatPassTrustBoundary() async throws {
+        let configuration = ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
+        let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+
+        for (actionKeypath, expectedName) in [
+            ("launcher.openPublicSurface", "Conference Public Surface"),
+            ("launcher.openParticipantCockpit", "Conference Participant Portal")
+        ] {
+            let expectedLoad = Task {
+                await waitForPortholeLoadBridgeRequest(containingName: expectedName)
+            }
+            let response = try await context.porthole.set(
+                keypath: "conferenceDemoLauncher.dispatchAction",
+                value: .object([
+                    "keypath": .string(actionKeypath),
+                    "payload": .bool(true)
+                ]),
+                requester: context.owner
+            )
+            XCTAssertNotNil(response, actionKeypath)
+
+            guard let request = await expectedLoad.value else {
+                XCTFail("Expected BindingPortholeLoadBridge request for \(expectedName)")
+                continue
+            }
+            XCTAssertEqual(request.origin, .hostOwned, actionKeypath)
+
+            let trust = ContentView.portholeLoadTrust(for: request.origin)
+            XCTAssertFalse(trust.isUntrustedImport, actionKeypath)
+            XCTAssertTrue(
+                CellConfigurationEndpointRetargeting.isAllowedByHostTrustBoundary(
+                    request.configuration,
+                    mayUseLocalControlPlane: trust.mayUseLocalControlPlane
+                ),
+                "\(actionKeypath) must pass the host trust boundary as host-prepared"
+            )
+            // The same configuration would be rejected as an import, which is what the launcher hit before.
+            XCTAssertFalse(
+                CellConfigurationEndpointRetargeting.isSafeForUntrustedImport(request.configuration),
+                actionKeypath
+            )
+        }
+    }
+
     func testConferenceDemoLauncherCanOpenParticipantCockpitChatAndAIAssistant() async throws {
         let configuration = ConfigurationCatalogCell.conferenceDemoLauncherWorkbenchConfiguration()
         let context = try await CellConfigurationVerifier.makeRuntimeContext(for: configuration)
@@ -3206,6 +3297,42 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             return skeletonString
         }
         return nil
+    }
+
+    private func waitForPortholeLoadBridgeRequest(
+        containingName expectedNameFragment: String,
+        timeout: TimeInterval = 2.0
+    ) async -> BindingPortholeLoadBridge.Request? {
+        let notificationCenter = NotificationCenter.default
+        return await withCheckedContinuation { continuation in
+            var token: NSObjectProtocol?
+            var didResume = false
+
+            func finish(_ request: BindingPortholeLoadBridge.Request?) {
+                guard !didResume else { return }
+                didResume = true
+                if let token {
+                    notificationCenter.removeObserver(token)
+                }
+                continuation.resume(returning: request)
+            }
+
+            token = notificationCenter.addObserver(
+                forName: BindingPortholeLoadBridge.notificationName,
+                object: nil,
+                queue: nil
+            ) { notification in
+                guard let request = BindingPortholeLoadBridge.request(from: notification),
+                      request.configuration.name.contains(expectedNameFragment) else {
+                    return
+                }
+                finish(request)
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + timeout) {
+                finish(nil)
+            }
+        }
     }
 
     private func waitForPortholeLoadBridgeConfiguration(

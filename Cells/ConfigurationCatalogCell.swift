@@ -30,23 +30,55 @@ enum ConfigurationCatalogPreviewBridge {
 }
 
 enum BindingPortholeLoadBridge {
+    /// Who built the configuration being posted. Only configurations produced by the app's own
+    /// factories may be `.hostOwned`; anything forwarded from search results, links or remote
+    /// state stays `.untrustedImport` so the host trust boundary still applies.
+    nonisolated enum Origin: String, Sendable {
+        case hostOwned
+        case untrustedImport
+    }
+
+    nonisolated struct Request {
+        let configuration: CellConfiguration
+        let origin: Origin
+    }
+
     nonisolated static let notificationName = Notification.Name("BindingPortholeLoadBridge.requested")
 
     nonisolated private static let configurationDataKey = "configurationData"
+    nonisolated private static let originKey = "origin"
 
-    nonisolated static func post(configuration: CellConfiguration, notificationCenter: NotificationCenter = .default) {
+    nonisolated static func post(
+        configuration: CellConfiguration,
+        origin: Origin = .untrustedImport,
+        notificationCenter: NotificationCenter = .default
+    ) {
         let encoder = JSONEncoder()
         guard let data = try? encoder.encode(configuration) else { return }
         notificationCenter.post(
             name: notificationName,
             object: nil,
-            userInfo: [configurationDataKey: data]
+            userInfo: [configurationDataKey: data, originKey: origin.rawValue]
         )
     }
 
     nonisolated static func configuration(from notification: Notification) -> CellConfiguration? {
         guard let data = notification.userInfo?[configurationDataKey] as? Data else { return nil }
         return try? JSONDecoder().decode(CellConfiguration.self, from: data)
+    }
+
+    /// Missing or unknown origins are treated as untrusted imports.
+    nonisolated static func origin(from notification: Notification) -> Origin {
+        guard let rawValue = notification.userInfo?[originKey] as? String,
+              let origin = Origin(rawValue: rawValue) else {
+            return .untrustedImport
+        }
+        return origin
+    }
+
+    nonisolated static func request(from notification: Notification) -> Request? {
+        guard let configuration = configuration(from: notification) else { return nil }
+        return Request(configuration: configuration, origin: origin(from: notification))
     }
 }
 
