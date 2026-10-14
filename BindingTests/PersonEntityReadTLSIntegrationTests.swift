@@ -95,26 +95,22 @@ final class PersonEntityReadTLSIntegrationTests: XCTestCase {
             let certificateAttempt = UUID().uuidString.lowercased()
             try Data(certificateAttempt.utf8).write(to: root.appendingPathComponent("bad-certificate"), options: .atomic)
             let wrongCertificate = PersonEntityReadClient { uuid in uuid == phone.uuid ? phone : nil }
+            var nativeFailure: NSError?
             do {
                 try await wrongCertificate.connect(entry: entry)
-                XCTFail("A trusted issuer must not bypass TLS hostname validation")
             } catch {
-                let native = error as NSError
-                XCTAssertEqual(native.domain, NSURLErrorDomain)
-                XCTAssertEqual(native.code, NSURLErrorServerCertificateUntrusted,
-                    "Only the actual native certificate rejection qualifies; timeout/closure/denial do not")
-                try await waitForFile(sentURL, root: root)
-                let witness = try JSONDecoder().decode(CertificateTransmission.self, from: Data(contentsOf: sentURL))
-                let fingerprint = try verifyFixtureHostnamePolicy(root: root)
-                XCTAssertEqual(witness.attempt, certificateAttempt)
-                XCTAssertEqual(witness.serverName, "staging.haven.digipomps.org")
-                XCTAssertEqual(witness.certificateSHA256, fingerprint)
-                XCTAssertEqual(witness.messageType, 11,
-                    "The exact wrong-host context must emit its Certificate handshake")
-
+                nativeFailure = error as NSError
             }
             await wrongCertificate.close()
-            XCTAssertEqual(try String(contentsOf: countURL, encoding: .utf8), before)
+            try await waitForFile(sentURL, root: root)
+            let witness = try JSONDecoder().decode(TLSCertificateTransmission.self, from: Data(contentsOf: sentURL))
+            let policy = try fixtureHostnamePolicy(root: root)
+            let after = try String(contentsOf: countURL, encoding: .utf8)
+            let evidence = TLSWrongHostRejectionEvidence(nativeFailure: nativeFailure,
+                transmission: witness, normalPolicy: policy.normal, wrongHostPolicy: policy.wrong,
+                admissionsBefore: Int(before.trimmingCharacters(in: .whitespacesAndNewlines)),
+                admissionsAfter: Int(after.trimmingCharacters(in: .whitespacesAndNewlines)))
+            try evidence.verify(expectedAttempt: certificateAttempt, expectedFingerprint: policy.fingerprint)
             try Data().write(to: root.appendingPathComponent("stop"), options: .atomic)
         } catch {
             await client.close()
@@ -199,7 +195,8 @@ final class PersonEntityReadTLSIntegrationTests: XCTestCase {
     /// Separate ordinary OS trust evaluation complements the actual native
     /// rejection and emitted-leaf witness. It does not claim that Foundation's
     /// WebSocket NSError exposes its original hostname-mismatch cause.
-    private func verifyFixtureHostnamePolicy(root: URL) throws -> String {
+    private func fixtureHostnamePolicy(root: URL) throws
+        -> (fingerprint: String, normal: TLSFixtureTrustEvaluation, wrong: TLSFixtureTrustEvaluation) {
         func certificate(_ name: String) throws -> (SecCertificate, Data) {
             let pem = try String(contentsOf: root.appendingPathComponent(name + ".pem"), encoding: .utf8)
             let base64 = pem.split(separator: "\n").filter { !$0.hasPrefix("-----") }.joined()
@@ -209,27 +206,21 @@ final class PersonEntityReadTLSIntegrationTests: XCTestCase {
         let ca = try certificate("ca").0
         let normal = try certificate("server")
         let wrong = try certificate("wrong-host")
-        for (leaf, expected) in [(normal.0, true), (wrong.0, false)] {
+        func evaluate(_ leaf: SecCertificate) throws -> TLSFixtureTrustEvaluation {
             let policy = SecPolicyCreateSSL(true, "staging.haven.digipomps.org" as CFString)
             var trust: SecTrust?
-            XCTAssertEqual(SecTrustCreateWithCertificates([leaf, ca] as CFArray, policy, &trust), errSecSuccess)
+            guard SecTrustCreateWithCertificates([leaf, ca] as CFArray, policy, &trust) == errSecSuccess else {
+                throw FixtureFailure.invalidSetup
+            }
             let actualTrust = try XCTUnwrap(trust)
             var error: CFError?
-            XCTAssertEqual(SecTrustEvaluateWithError(actualTrust, &error), expected)
-            if !expected {
-                let failure = try XCTUnwrap(error)
-                XCTAssertEqual(CFErrorGetDomain(failure) as String, NSOSStatusErrorDomain)
-                XCTAssertEqual(CFErrorGetCode(failure), Int(errSecHostNameMismatch))
-            }
+            let accepted = SecTrustEvaluateWithError(actualTrust, &error)
+            return TLSFixtureTrustEvaluation(accepted: accepted,
+                errorDomain: error.map { CFErrorGetDomain($0) as String },
+                errorCode: error.map { CFErrorGetCode($0) })
         }
-        return SHA256.hash(data: wrong.1).map { String(format: "%02x", $0) }.joined()
-    }
-
-    private struct CertificateTransmission: Decodable {
-        let attempt: String
-        let serverName: String
-        let certificateSHA256: String
-        let messageType: Int
+        return (SHA256.hash(data: wrong.1).map { String(format: "%02x", $0) }.joined(),
+                try evaluate(normal.0), try evaluate(wrong.0))
     }
 
     private enum FixtureFailure: Error { case peerFailed, timeout, notLoopback, invalidSetup }
@@ -249,6 +240,148 @@ final class PersonEntityReadTLSIntegrationTests: XCTestCase {
         let anchorUUID: String
         let queryUUID: String
         let gatewayUUID: String
+    }
+}
+
+/// A native error is only one part of this controlled wrong-host proof.
+/// Apple TN2232 lists both -1200 and -1202 among server-trust failures. Neither
+/// identifies Foundation's private cause on its own; require all independent
+/// witnesses below, including ordinary OS hostname evaluation and no admission.
+private struct TLSWrongHostRejectionEvidence {
+    enum Failure: Error, Equatable {
+        case nativeFailure, transmission, hostnamePolicy, admission
+    }
+    var nativeFailure: NSError?
+    var transmission: TLSCertificateTransmission?
+    var normalPolicy: TLSFixtureTrustEvaluation?
+    var wrongHostPolicy: TLSFixtureTrustEvaluation?
+    var admissionsBefore: Int?
+    var admissionsAfter: Int?
+
+    func verify(expectedAttempt: String, expectedFingerprint: String) throws {
+        guard let nativeFailure, nativeFailure.domain == NSURLErrorDomain,
+              [NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateUntrusted].contains(nativeFailure.code)
+        else { throw Failure.nativeFailure }
+        guard let transmission,
+              UUID(uuidString: expectedAttempt) != nil,
+              transmission.attempt == expectedAttempt,
+              transmission.serverName == "staging.haven.digipomps.org",
+              expectedFingerprint.count == 64,
+              expectedFingerprint.allSatisfy({ "0123456789abcdef".contains($0) }),
+              transmission.certificateSHA256 == expectedFingerprint,
+              transmission.messageType == 11
+        else { throw Failure.transmission }
+        guard let normalPolicy, normalPolicy.accepted,
+              normalPolicy.errorDomain == nil, normalPolicy.errorCode == nil,
+              let wrongHostPolicy, !wrongHostPolicy.accepted,
+              wrongHostPolicy.errorDomain == NSOSStatusErrorDomain,
+              wrongHostPolicy.errorCode == Int(errSecHostNameMismatch)
+        else { throw Failure.hostnamePolicy }
+        guard let admissionsBefore, admissionsBefore > 0,
+              let admissionsAfter, admissionsAfter == admissionsBefore
+        else { throw Failure.admission }
+    }
+}
+
+private struct TLSCertificateTransmission: Decodable {
+    var attempt: String
+    var serverName: String
+    var certificateSHA256: String
+    var messageType: Int
+}
+
+private struct TLSFixtureTrustEvaluation {
+    var accepted: Bool
+    var errorDomain: String?
+    var errorCode: Int?
+}
+
+/// Runs locally without networking, fixture trust, or any host configuration.
+/// The hosted integration above supplies real observations to the same verifier.
+final class PersonEntityReadTLSRejectionEvidenceTests: XCTestCase {
+    private let attempt = "f8e68f4b-4194-4366-a663-6baf33782e7c"
+    private let fingerprint = String(repeating: "a1", count: 32)
+
+    private func completeEvidence(code: Int = NSURLErrorSecureConnectionFailed) -> TLSWrongHostRejectionEvidence {
+        TLSWrongHostRejectionEvidence(nativeFailure: NSError(domain: NSURLErrorDomain, code: code),
+            transmission: TLSCertificateTransmission(attempt: attempt, serverName: "staging.haven.digipomps.org",
+                certificateSHA256: fingerprint, messageType: 11),
+            normalPolicy: TLSFixtureTrustEvaluation(accepted: true, errorDomain: nil, errorCode: nil),
+            wrongHostPolicy: TLSFixtureTrustEvaluation(accepted: false, errorDomain: NSOSStatusErrorDomain,
+                errorCode: Int(errSecHostNameMismatch)), admissionsBefore: 3, admissionsAfter: 3)
+    }
+
+    private func expectRejected(_ failure: TLSWrongHostRejectionEvidence.Failure,
+                                file: StaticString = #filePath, line: UInt = #line,
+                                mutate: (inout TLSWrongHostRejectionEvidence) -> Void) {
+        // Every negative witness must reject BOTH allowed native error variants.
+        for code in [NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateUntrusted] {
+            var evidence = completeEvidence(code: code)
+            mutate(&evidence)
+            XCTAssertThrowsError(try evidence.verify(expectedAttempt: attempt, expectedFingerprint: fingerprint),
+                                 file: file, line: line) {
+                XCTAssertEqual($0 as? TLSWrongHostRejectionEvidence.Failure, failure, file: file, line: line)
+            }
+        }
+    }
+
+    func testBothNativeTrustErrorVariantsRequireCompleteEvidence() throws {
+        for code in [NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateUntrusted] {
+            try completeEvidence(code: code).verify(expectedAttempt: attempt, expectedFingerprint: fingerprint)
+        }
+    }
+
+    func testSuccessTimeoutCancellationResetAndGatewayDenialCannotPass() {
+        expectRejected(.nativeFailure) { $0.nativeFailure = nil }
+        for code in [NSURLErrorTimedOut, NSURLErrorCancelled, NSURLErrorNetworkConnectionLost,
+                     NSURLErrorCannotConnectToHost, NSURLErrorBadServerResponse] {
+            expectRejected(.nativeFailure) { $0.nativeFailure = NSError(domain: NSURLErrorDomain, code: code) }
+        }
+        expectRejected(.nativeFailure) { $0.nativeFailure = NSError(domain: NSPOSIXErrorDomain, code: Int(ECONNRESET)) }
+        expectRejected(.nativeFailure) { $0.nativeFailure = BindingPersonEntityReadRouteContract.Failure.denied as NSError }
+        expectRejected(.nativeFailure) { $0.nativeFailure = NSError(domain: NSPOSIXErrorDomain, code: -1200) }
+    }
+
+    func testMissingOrStaleTransmissionCannotPass() {
+        expectRejected(.transmission) { $0.transmission = nil }
+        expectRejected(.transmission) { $0.transmission?.attempt = "471e0ff2-73bc-452c-ac04-5d2c7183b7bb" }
+        expectRejected(.transmission) { $0.transmission?.attempt = "" }
+    }
+
+    func testDifferentHostLeafOrHandshakeCannotPass() {
+        expectRejected(.transmission) { $0.transmission?.serverName = "wrong-host.invalid" }
+        expectRejected(.transmission) { $0.transmission?.certificateSHA256 = String(repeating: "b2", count: 32) }
+        expectRejected(.transmission) { $0.transmission?.certificateSHA256 = "" }
+        expectRejected(.transmission) { $0.transmission?.messageType = 1 }
+    }
+
+    func testMissingOrFailedPositiveTrustControlCannotPass() {
+        expectRejected(.hostnamePolicy) { $0.normalPolicy = nil }
+        expectRejected(.hostnamePolicy) { $0.normalPolicy?.accepted = false }
+        expectRejected(.hostnamePolicy) { $0.normalPolicy?.errorDomain = NSOSStatusErrorDomain }
+        expectRejected(.hostnamePolicy) { $0.normalPolicy?.errorCode = Int(errSecHostNameMismatch) }
+    }
+
+    func testMissingOrAcceptedWrongHostPolicyCannotPass() {
+        expectRejected(.hostnamePolicy) { $0.wrongHostPolicy = nil }
+        expectRejected(.hostnamePolicy) { $0.wrongHostPolicy?.accepted = true }
+        expectRejected(.hostnamePolicy) { $0.wrongHostPolicy?.errorDomain = nil }
+        expectRejected(.hostnamePolicy) { $0.wrongHostPolicy?.errorCode = nil }
+    }
+
+    func testUnrelatedNativeTrustFailureCannotPass() {
+        expectRejected(.hostnamePolicy) { $0.wrongHostPolicy?.errorDomain = NSURLErrorDomain }
+        expectRejected(.hostnamePolicy) { $0.wrongHostPolicy?.errorCode = Int(errSecCertificateExpired) }
+        expectRejected(.hostnamePolicy) { $0.wrongHostPolicy?.errorCode = Int(errSSLFatalAlert) }
+    }
+
+    func testMissingChangedOrImpossibleAdmissionCountsCannotPass() {
+        expectRejected(.admission) { $0.admissionsBefore = nil }
+        expectRejected(.admission) { $0.admissionsAfter = nil }
+        expectRejected(.admission) { $0.admissionsBefore = -1; $0.admissionsAfter = -1 }
+        expectRejected(.admission) { $0.admissionsBefore = 0; $0.admissionsAfter = 0 }
+        expectRejected(.admission) { $0.admissionsAfter = 4 }
+        expectRejected(.admission) { $0.admissionsAfter = 2 }
     }
 }
 
