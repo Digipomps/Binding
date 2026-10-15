@@ -1144,6 +1144,30 @@ struct DeviceIngressRegistrationClientTests {
         )
     }
 
+    @Test func enrollmentProtectedBodyPreservesAPNSTokenAndChatSubscription() throws {
+        let consent = try makeConsentEvidence()
+        let token = String(repeating: "ab", count: 32)
+        let payload = NotificationEnrollmentManager.registrationPayload(
+            participantID: "", deviceID: "provisional", pushToken: token,
+            platform: "ios", consent: consent, conferenceID: nil,
+            subscriptionTopics: WorkflowNotificationPreferences.defaultSubscriptionTopics,
+            mutedEventTypes: [], buildProvenance: try makeBuildProvenance()
+        )
+        let data = try NotificationEnrollmentManager.registrationProtectedBody(payload)
+        let bound = try BindingDeviceIngressRegistrationComposition.identityBoundRegistrationBody(
+            data, participantID: "entity-pairwise:approved",
+            deviceIdentityUUID: "registered-device", consentEvidence: consent
+        )
+        let decoded = try JSONDecoder().decode([String: JSONValue].self, from: bound)
+        #expect(decoded["pushToken"] == .string(token))
+        #expect(decoded["participantId"] == .string("entity-pairwise:approved"))
+        #expect(decoded["deviceId"] == .string("registered-device"))
+        #expect(decoded["subscriptionTopics"] == .array(
+            WorkflowNotificationPreferences.defaultSubscriptionTopics.map(JSONValue.string)
+        ))
+        #expect(WorkflowNotificationPreferences.defaultSubscriptionTopics.contains("chat"))
+    }
+
     @Test
     func runtimeConfigurationAcceptsExplicitMatchingIssuerDescriptor() throws {
         let configuration = try BindingDeviceIngressRuntimeConfiguration.validated(

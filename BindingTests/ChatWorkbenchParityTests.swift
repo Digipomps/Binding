@@ -2590,6 +2590,29 @@ struct ChatWorkbenchParityTests {
         #expect((promptLog.modifiers?.height ?? 0) >= 220)
     }
 
+    @Test func notificationThreadSelectionPreservesScopeAndRejectsUnknownThread() async throws {
+        let owner = await signedOwner("binding-notification-thread")
+        let chat = await BindingPersonalChatHubCell(owner: owner)
+        _ = try await chat.set(keypath: "acceptInvite", value: .object([:]), requester: owner)
+        _ = try await chat.set(keypath: "setComposer", value: .string("fixture"), requester: owner)
+        _ = try await chat.set(keypath: "sendComposedMessage", value: .object([:]), requester: owner)
+        let url = try #require(BindingChatNotificationRoute.url(userInfo: [
+            "payload": ["threadID": "local-copilot-thread"]
+        ]))
+        let id = try #require(BindingChatNotificationRoute.threadID(from: url))
+        let selected = try #require(asObject(try await chat.set(
+            keypath: "ui.setCurrentThread", value: .string(id), requester: owner
+        ) ?? .null))
+        #expect(asString(selected["threadID"]) == id)
+        let rejected = try #require(asObject(try await chat.set(
+            keypath: "ui.setCurrentThread", value: .string("foreign-thread"), requester: owner
+        ) ?? .null))
+        #expect(asString(rejected["status"]) == "blocked")
+        #expect(asString(rejected["threadID"]) == nil)
+        let state = try #require(asObject(try await chat.get(keypath: "state", requester: owner)))
+        #expect(asString(asObject(state["currentThread"])?["id"]) == id)
+    }
+
     @Test func sendComposedMessageCreatesThreadReadModel() async throws {
         let previousDebugAccess = CellBase.debugValidateAccessForEverything
         CellBase.debugValidateAccessForEverything = true

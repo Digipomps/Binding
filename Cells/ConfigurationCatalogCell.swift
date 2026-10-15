@@ -9483,6 +9483,9 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 .TextField(candidateField),
                 .List(candidates),
                 .TextField(inviteTitleField),
+                .Text(personalBoundText("chatHub.state.status", lineLimit: 3)),
+                .Text(personalBoundText("chatHub.state.assistant.lastPreparedInvite.link", lineLimit: 4)),
+                .Text(personalBoundText("chatHub.state.assistant.lastPreparedInvite.body", lineLimit: 8)),
                 .HStack(SkeletonHStack(elements: [
                     .Button(button("chatHub.invite", "Send invitasjon")),
                     .Button(button("chatHub.ui.minimizeComponentSurface", "Skjul", style: .secondary))
@@ -9750,7 +9753,11 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 content: [
                     .Text(personalBodyText("Sendte chatmeldinger grupperes her. Forslag og helperåpning ligger i promptloggen og sender ikke melding.")),
                     .List(threads),
-                    .List(messages)
+                    .List(messages),
+                    .TextArea(SkeletonTextArea(text: nil, sourceKeypath: "chatHub.state.messageComposer.body",
+                        targetKeypath: "chatHub.message.setComposer", placeholder: "Melding til deltakerne",
+                        minLines: 2, maxLines: 4, submitOnEnter: true, submitActionKeypath: "chatHub.sendComposedMessage")),
+                    .Button(button("chatHub.sendComposedMessage", "Send til samtalen", style: .secondary))
                 ]
             ),
             personalSection(
@@ -9774,8 +9781,8 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                     .List(incomingInvites),
                     .HStack(SkeletonHStack(elements: [
                         .Button(button("chatHub.contactInbox.refresh", "Hent nye", style: .secondary)),
-                        .Button(button("chatHub.acceptInvite", "Godta", style: .secondary)),
-                        .Button(button("chatHub.declineInvite", "Avslaa", style: .warning))
+                        .Button(button("chatHub.acceptInvite", "Godta", payload: .object(["requireTicket": .bool(true)]), style: .secondary)),
+                        .Button(button("chatHub.declineInvite", "Avslaa", payload: .object(["requireTicket": .bool(true)]), style: .warning))
                     ]))
                 ]
             ),
@@ -9784,7 +9791,8 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 content: [
                     .Text(personalBodyText("Levering og svar vises her. Status hentes bare fra kontaktendepunktet som mottok den signerte forespørselen.")),
                     .List(invites),
-                    .Button(button("chatHub.invite.refreshStatuses", "Oppdater svar", style: .secondary))
+                    .Button(button("chatHub.invite.refreshStatuses", "Oppdater svar", style: .secondary)),
+                    BindingSharedChatControls.external(reference: "chatHub")
                 ]
             ),
             personalSection(

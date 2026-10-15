@@ -12,6 +12,148 @@ og `../../CellProtocolDocuments/Book/21_Contact_Endpoint_Cell.md`. Søskenrepoet
 heter `CellProtocolDocuments`; jeg fant ikke et separat
 `CellProtocolDocumentation`-repo under `HAVEN`.
 
+## Last two app failures (inv12, 2026-10-13)
+
+The host run on Binding `b075a2d4` reported two failures: external invitation
+preparation returned no link, and failed shared sends returned no `ok` field.
+The candidate changes below have not yet passed a new iOS app run.
+
+- `GeneralCell.storedOwnerIdentity` returns a public identity snapshot without a
+  vault. Calling `sign` on it fails with `noVaultIdentity`. Invitation preparation
+  now obtains `verifiedRuntimeOwnerIdentity()` before signing the ticket and its
+  optional publication. This API verifies the attached runtime owner's key; there
+  is no default-vault lookup or UUID-only substitution. Existing access validation
+  remains in place. Explicit later publication/revocation paths are outside this
+  two-test repair and still require a separate signing audit.
+- `InvitationCell` returns HavenValue's `status: "ok"`, not HTTP's `ok: true`.
+  The Butler adapter now reads that actual status contract. Previously even a
+  successfully prepared ticket would have been presented as blocked.
+- Shared-chat local failures now include `ok: false`, preserving the existing
+  blocked message/state response. Server responses without affirmative `ok` are
+  normalized to false. The transport failure does not clear the draft or append a
+  local message. Both the base cell with injected transport and the registered
+  connected subclass use this handler.
+
+Bounded local evidence: a standalone macOS probe compiled the original and
+changed `Cells/InvitationCell.swift` with the real relation model/presenter and
+invitation transport source. It used an ephemeral signed owner, a synthetic
+Relations read/write fixture, and `autoPublish: false`. UI configuration and URL
+opening were fatal-error stubs, neither invoked. The original prepare result was:
+
+```json
+{"status":"error","code":"signing_failed","sideEffect":false,"message":"Kunne ikke signere invitasjonen. Uten signatur sender jeg den ikke."}
+```
+
+The changed prepare returned `status: "ok"`, a successfully verified signed link,
+`published: false`, and `requiresUserToPressSend: true`. Both probe executions
+exited 0. The probe reused compiled macOS CellProtocol `b4100f5734bb0b3781600845a267e424e55c0989`;
+the actual iOS app dependency is `79497e85ef2f3fb02db0d6df5b601c5f1bc76391`.
+Both inspected sources expose the public-snapshot/runtime-owner boundary. This
+probe is not a run of either Butler entry action or of the iOS XCTest suite.
+The changed invitation sources also compiled and ran with `-default-isolation
+MainActor -strict-concurrency=complete -swift-version 5` (the checked-in app
+target selects Swift 5 language mode); both exits were 0. Existing warnings in
+the included sources remain, so this is not a warning-free full-target build.
+
+The existing app assertions are retained and strengthened with full synthetic
+result diagnostics, both success statuses, issuer key/identity checks and blocked
+send status. Run both named failing tests and the full existing inv10 script on
+the host before marking them green. CoreSimulator access is denied in the agent
+sandbox; Swift syntax parsing is not app compilation.
+
+Reusable lesson: trace the actual response contract and signing identity at the
+failing boundary before changing fixture isolation. A public identity descriptor
+can verify a ticket but cannot sign one. Fixture separation remains useful for
+duplicate-invite tests; it did not repair this failure. Learning routing was run;
+this worktree document carries the findings because global capture/sync would
+write primary checkouts, prohibited by the task.
+
+## Shared native chat candidate (inv11, 2026-10-13)
+
+The registered `PersonalChatHub` now uses `BindingConnectedPersonalChatHubCell`,
+which installs `BindingNativeChatTransport` before actions or reads. The legacy
+persisted coding name decodes to that connected type. A restored local message
+projection is discarded. The isolated base class remains the local helper/contact
+contract harness used by older unit tests; it is not the registered app sender.
+There is no local fallback in the connected runtime when authentication or HTTP fails.
+
+Both surfaces expose a separate human-message composer, shared thread selection,
+explicit refresh/accept/decline and external identity approval/rejection/revocation.
+Butler prompts still use `prompt.submit`. Reads of state/threads/messages and
+explicit refresh obtain server state; push selection hydrates before selecting.
+There is no background polling or websocket subscription in this candidate.
+
+The transport uses the already completed person-link ceremony, not notification
+registration as authority. It requires a saved active receipt with
+`personEvidenceReference`, the matching private identity in its actual home vault,
+and one unambiguous person/origin context. Renewals for that same context use the
+latest saved receipt. A DeviceIngress-only receipt is insufficient; use the existing
+person-link flow. No synthetic chat identity is created and no web password is needed
+in the app. Server-side owner resolution still requires the existing person account
+that approved the link. See the server candidate's `Documentation/NativeChatAuthentication.md`.
+
+Known verification boundary: Binding build-for-testing stopped before compilation
+with exit 74 (SwiftPM manifest diagnostics cache permission). Syntax parsing and
+`git diff --check` pass. The 19 inv10 tests are retained; the six shared-chat tests
+now inject a per-test server through the real cell transport boundary and compare
+all participants' messages. `Inv11ChatTransportTests` adds wire shape, signing
+resource, decode/runtime and offline failure tests. GUI and real two-device delivery
+are not yet measured. Full host test commands and commit IDs belong in the inv11
+handoff result; do not call this release-ready on syntax evidence.
+
+Reusable lessons from this change:
+
+- Independent UI-entry tests need independent recipients/InvitationCell fixtures.
+  Reusing the same address tests duplicate-invitation denial on the second pass.
+- Bind native proofs to the evidence reference and link ID as well as origin,
+  method, path, body digest and one-shot server nonce. One key can have more than
+  one approved person context; signing only the HTTP operation does not select it.
+- Account migration must include persisted coding names; changing only the factory
+  leaves existing decoded cells on their previous runtime behavior.
+- A local contract suite and a shared transport suite prove different paths. Keep
+  both explicit and use server-shaped JSON at the injected transport boundary.
+
+The following inv10 audit is historical and describes the pre-inv11 implementation.
+
+## Invitation/chat audit (inv10, 2026-10-13)
+
+Source audit of `47cbd937` found two different paths: Butler and the embedded
+`ComponentPaletteCatalog.embeddedChatCard` both use the identity-local
+`BindingPersonalChatHubCell`. `prompt.submit` talks to Butler;
+`sendComposedMessage` appends to local state. A local “accepted” status or a
+signed ContactEndpoint receipt is **not proof of a shared conversation**.
+`ContentView.openChatNotificationThread` selects a cached thread and does not
+hydrate a remote conversation. The staging REST smoke tests exercise another
+implementation, `/personal-copilot-v1/chat/api/`, and cannot certify these native
+surfaces. The older `/i` InvitationCell link is an onboarding/contact ticket,
+not evidence of membership in the collaboration API's shared thread.
+
+The inv10 working change routes the visible invitation action through the
+selected Butler relation, performs candidate-query lookups, invalidates stale
+recipient endpoints and prepared links, exposes invitation controls/receipts in
+the component, and makes surface accept/decline buttons require a real ticket.
+Legacy direct empty `acceptInvite` calls remain for the existing local contract;
+new user surfaces pass `requireTicket: true`. No shared message transport or
+remote thread hydration has been added. `chat.started` is no longer recorded
+when only an undelivered bootstrap draft was produced.
+
+Verification status: syntax parse and diff checks passed; build and XCTest
+attempts stopped at SwiftPM manifest-cache permission denial (exit 74), before
+compilation/tests. The new `Inv10InvitationChatTests` cover the local fixes.
+`Inv10ChatEndToEndTests` are ordinary, unskipped acceptance tests for two/three
+participants and push before the first local message; source inspection predicts
+failures until shared transport is wired. The contact fixtures use distinct
+signing vaults/UUIDs and explicit owner grants with access validation enabled;
+they do not prove first-contact grant acquisition, bridge delivery or UI rendering.
+The new embedded layout still requires native GUI verification.
+
+For future audits: derive actions from the actual skeleton, use separate
+participant identities, assert messages at every participant, and test push
+before any local send. Do not replace these checks with local counters or a
+server-only smoke run. Never run default InvitationCell preparation in a
+no-production test: configure `autoPublish: false` and a synthetic/staging landing
+base before preparing any ticket.
+
 ## Contract
 
 - Default Porthole-flate i Personal Co-Pilot mode er `Co-Pilot Chat`.

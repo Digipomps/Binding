@@ -4583,7 +4583,7 @@ final class BindingGraphIndexCell: BindingRuntimeBindingCell {
     }
 }
 
-final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
+class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     private enum CodingKeys: String, CodingKey {
         case cachedState
         case registeredProviders
@@ -4594,6 +4594,9 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     nonisolated(unsafe) private var voiceTranscriber = BindingVoiceInputTranscriber()
     nonisolated(unsafe) private var historyPolicyLoaded = false
     nonisolated(unsafe) private var latestAnalysisID = UUID()
+    nonisolated(unsafe) private var latestInviteLookupID = UUID()
+    nonisolated(unsafe) var chatTransport: (any BindingChatTransport)?
+    nonisolated(unsafe) private(set) var sharedRefreshID = UUID()
     // Injected only by local contract tests; no wire action can replace the model.
     nonisolated(unsafe) var localLanguageResponder: (@Sendable (ButlerLanguageSupport.Request) async -> ButlerLanguageSupport.Reply)?
 
@@ -4626,9 +4629,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             await registerGet(key: key, owner: owner, returns: .object([:])) { [weak self] requester in
                 guard let self else { return .string("failure") }
                 guard await self.validateAccess("r---", at: key, for: requester) else { return .string("denied") }
-                if Self.shouldHydrateHistoryPolicy(for: key) {
-                    await self.hydrateHistoryPolicyIfNeeded(requester: requester)
-                }
+                await self.prepareForRead(key: key, requester: requester)
                 return self.readValue(for: key)
             }
         }
@@ -4657,6 +4658,21 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
                 return await self.handleSet(key: key, value: value, requester: requester)
             }
         }
+    }
+
+    // The connected runtime overrides this hook to keep all I/O off its read path.
+    func prepareForRead(key: String, requester: Identity) async {
+        if Self.shouldHydrateHistoryPolicy(for: key) {
+            await hydrateHistoryPolicyIfNeeded(requester: requester)
+        }
+        if chatTransport != nil, Self.shouldRefreshSharedChat(for: key) {
+            _ = await refreshSharedChat()
+        }
+    }
+
+    static func shouldRefreshSharedChat(for key: String) -> Bool {
+        ["state", "threads", "messages", "state.threads", "state.messages", "state.contactInbox.incomingInvites"]
+            .contains(canonicalChatHubKey(key))
     }
 
     private var readableKeys: [String] {
@@ -4701,6 +4717,11 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     private var writableKeys: [String] {
         let canonicalKeys = [
             "setComposer",
+            "message.setComposer",
+            "collaboration.select",
+            "collaboration.approve",
+            "collaboration.reject",
+            "collaboration.revokeGrant",
             "sendComposedMessage",
             "clearComposer",
             "assistant.analyzeDraft",
@@ -4901,11 +4922,19 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         "state.butler.support.summary",
         "state.butler.privacy.summary",
         "state.inviteDraft.title",
+        "state.collaborationInvites",
+        "state.collaboration.selectedID",
+        "state.messageComposer.body",
+        "state.assistant.lastPreparedInvite.link",
+        "state.assistant.lastPreparedInvite.body",
+        "state.status",
         "state.invites",
         "state.contactInbox",
         "state.contactInbox.incomingInvites",
         "state.contactInbox.selectedTicketID",
         "state.messages",
+        "state.threads",
+        "state.currentThread.id",
         "state.pollDraft.optionsText",
         "state.pollDraft.question",
         "state.polls",
@@ -4965,7 +4994,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         return key
     }
 
-    private static func shouldHydrateHistoryPolicy(for key: String) -> Bool {
+    static func shouldHydrateHistoryPolicy(for key: String) -> Bool {
         let key = canonicalChatHubKey(key)
         return key == "state" || key == "history" || key == "state.history"
     }
@@ -5025,7 +5054,20 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             BindingChatValue.set(.bool(false), for: "ui.hasActionableSuggestion", in: &cachedState)
             BindingChatValue.set(.string(Self.defaultPrimaryActionHint), for: "ui.primaryActionHint", in: &cachedState)
             return response(status: "ok", message: "Composer cleared.")
+        case "message.setComposer":
+            BindingChatValue.set(.string(text(from: value)), for: "messageComposer.body", in: &cachedState)
+            return response(status: "ok", message: "Meldingsutkast oppdatert.")
+        case "collaboration.select":
+            BindingChatValue.set(.string(text(from: value)), for: "collaboration.selectedID", in: &cachedState)
+            return response(status: "ok", message: "Ekstern invitasjon valgt.")
+        case "collaboration.approve", "collaboration.reject", "collaboration.revokeGrant":
+            let path = key == "collaboration.approve" ? "collaboration/identity-binding/approve"
+                : key == "collaboration.reject" ? "collaboration/identity-binding/reject" : "collaboration/grant/revoke"
+            var payload = BindingChatValue.object(value) ?? [:]
+            payload["invitationID"] = payload["invitationID"] ?? BindingChatValue.nested("collaboration.selectedID", in: cachedState) ?? .null
+            return await sharedChatAction(path, payload: payload)
         case "sendComposedMessage":
+            if chatTransport != nil { return await sharedChatAction("send", payload: ["body": BindingChatValue.nested("messageComposer.body", in: cachedState) ?? BindingChatValue.nested("composer.body", in: cachedState) ?? .string("")]) }
             return sendComposedMessage()
         case "prompt.submit":
             return await submitPrompt(value: value, requester: requester)
@@ -5046,6 +5088,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         case "ui.pinComponentSurface":
             return pinSurface(value)
         case "ui.setCurrentThread":
+            if chatTransport != nil { _ = await refreshSharedChat() }
             return setCurrentThread(value)
         case "ui.openMatchedResourceLibrary":
             return openMatchedResourceLibrary(value)
@@ -5136,9 +5179,10 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         case "butler.sync.push":
             return await pushButlerPreferences(requester: requester)
         case "assistant.setCandidateQuery":
-            BindingChatValue.set(.string(text(from: value)), for: "assistant.candidateQuery", in: &cachedState)
-            return response(status: "ok", message: "Candidate query updated.")
+            return await updateInviteCandidateQuery(text(from: value), requester: requester)
         case "assistant.selectCandidate":
+            latestInviteLookupID = UUID()
+            BindingChatValue.set(.null, for: "assistant.lastPreparedInvite", in: &cachedState)
             BindingChatValue.set(.string(text(from: value)), for: "assistant.latestSuggestion.selectedCandidateProfileID", in: &cachedState)
             return response(status: "ok", message: "Candidate selected.")
         case "entityExtension.scan":
@@ -5160,27 +5204,40 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         case "inviteDraft.title":
             BindingChatValue.set(.string(text(from: value)), for: "inviteDraft.title", in: &cachedState)
             return response(status: "ok", message: "Invite title updated.")
-        case "inviteDraft.profileID":
-            BindingChatValue.set(.string(text(from: value)), for: "inviteDraft.profileID", in: &cachedState)
-            return response(status: "ok", message: "Invite profile updated.")
-        case "inviteDraft.userUUID":
-            BindingChatValue.set(.string(text(from: value)), for: "inviteDraft.userUUID", in: &cachedState)
-            return response(status: "ok", message: "Invite user updated.")
+        case "inviteDraft.profileID", "inviteDraft.userUUID":
+            let field = key == "inviteDraft.profileID" ? "profileID" : "userUUID"
+            latestInviteLookupID = UUID()
+            updateInviteRecipient([field: .string(text(from: value))])
+            BindingChatValue.set(.null, for: "assistant.latestSuggestion.helperID", in: &cachedState)
+            BindingChatValue.set(.list([]), for: "assistant.latestSuggestion.candidates", in: &cachedState)
+            return response(status: "ok", message: "Invite recipient updated.")
         case "invite":
+            let submitted = BindingChatValue.object(value) ?? [:]
+            let hasExplicitRecipient = ["profileID", "userUUID", "contactEndpoint", "contactEndpointDescriptor", "contactEndpointID", "contactEndpointId"]
+                .contains { submitted[$0] != nil }
+            if !hasExplicitRecipient,
+               let suggestion = BindingChatValue.object(BindingChatValue.nested("assistant.latestSuggestion", in: cachedState)),
+               BindingChatValue.string(suggestion["helperID"]) == "invite" {
+                return await acceptInviteSuggestion(suggestion, requester: requester)
+            }
             return await createInvite(value: value, requester: requester)
         case "invite.refreshStatuses":
+            if chatTransport != nil { return await refreshSharedChat() }
             return await refreshOutgoingInviteStatuses(value: value, requester: requester)
         case "contactInbox.refresh":
+            if chatTransport != nil { return await refreshSharedChat() }
             return await refreshContactInbox(value: value, requester: requester)
         case "contactInbox.select":
             return selectIncomingInvite(value)
         case "acceptInvite":
+            if chatTransport != nil { return await sharedChatAction("accept", payload: sharedInvitePayload(value)) }
             if shouldUseLegacyLocalInviteGate(value) {
                 BindingChatValue.set(.string("accepted"), for: "inviteStatus", in: &cachedState)
                 return response(status: "ok", message: "Lokal chat-tilgang er godtatt.")
             }
             return await respondToIncomingInvite(value: value, status: "accepted", requester: requester)
         case "declineInvite":
+            if chatTransport != nil { return await sharedChatAction("decline", payload: sharedInvitePayload(value)) }
             if shouldUseLegacyLocalInviteGate(value) {
                 BindingChatValue.set(.string("declined"), for: "inviteStatus", in: &cachedState)
                 return response(status: "ok", message: "Lokal chat-tilgang er avslått.")
@@ -5316,6 +5373,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             BindingChatValue.set(.string("Latest message reported for review."), for: "moderationStatus", in: &cachedState)
             return response(status: "ok", message: "Report recorded.")
         case "blockUser":
+            if chatTransport != nil { return await sharedChatAction("block", payload: BindingChatValue.object(value) ?? ["userUUID": value]) }
             let payload = BindingChatValue.object(value)
             let blockedID = BindingChatValue.string(payload?["profileID"])
                 ?? BindingChatValue.string(payload?["userUUID"])
@@ -5325,6 +5383,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             BindingChatValue.set(.list([.string(blockedID)]), for: "blockedUsers", in: &cachedState)
             return response(status: "ok", message: "Participant blocked.")
         case "unblockUser":
+            if chatTransport != nil { return await sharedChatAction("unblock", payload: BindingChatValue.object(value) ?? ["userUUID": value]) }
             BindingChatValue.set(.list([]), for: "blockedUsers", in: &cachedState)
             return response(status: "ok", message: "Participant unblocked.")
         default:
@@ -5332,7 +5391,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         }
     }
 
-    private func hydrateHistoryPolicyIfNeeded(requester: Identity, force: Bool = false) async {
+    func hydrateHistoryPolicyIfNeeded(requester: Identity, force: Bool = false) async {
         guard force || historyPolicyLoaded == false else { return }
         historyPolicyLoaded = true
         do {
@@ -5558,6 +5617,7 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         let originatingMessages = BindingChatValue.list(BindingChatValue.nested("ui.promptMessages", in: cachedState)) ?? []
         let analysisID = UUID()
         latestAnalysisID = analysisID
+        latestInviteLookupID = UUID()
         let capabilityDiscoveryEnabled = BindingChatValue.bool(BindingChatValue.nested("ui.capabilityDiscoveryEnabled", in: cachedState)) ?? false
         let perspective = await perspectiveSummary(requester: requester)
         let perspectiveContext = BindingChatPurposeContext
@@ -6644,6 +6704,14 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         let drop = chatDropObject(validationState: "valid", deniedReason: "")
         BindingChatValue.set(.object(inviteDraft), for: "inviteDraft", in: &cachedState)
         BindingChatValue.set(.string(profileID), for: "assistant.latestSuggestion.selectedCandidateProfileID", in: &cachedState)
+        latestInviteLookupID = UUID()
+        // A direct person drop replaces the previous Butler invite proposal.
+        // Its candidate list must not intercept the draft's explicit send.
+        if BindingChatValue.string(BindingChatValue.nested("assistant.latestSuggestion.helperID", in: cachedState)) == "invite" {
+            BindingChatValue.set(.null, for: "assistant.latestSuggestion.helperID", in: &cachedState)
+            BindingChatValue.set(.list([]), for: "assistant.latestSuggestion.candidates", in: &cachedState)
+        }
+        BindingChatValue.set(.null, for: "assistant.lastPreparedInvite", in: &cachedState)
         BindingChatValue.set(.object(drop), for: "drop", in: &cachedState)
         BindingChatValue.set(.string("mer"), for: "ui.activeTab", in: &cachedState)
         BindingChatValue.set(.string("verktoy"), for: "ui.activeMoreTab", in: &cachedState)
@@ -7264,6 +7332,10 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         }) else {
             return response(status: "blocked", message: "Fant ikke den tråden i chat-scope.")
         }
+        if chatTransport != nil {
+            cachedState["messages"] = selected["messages"] ?? .list([])
+            cachedState["currentThread"] = .object(selected)
+        }
         var currentThread = BindingChatValue.object(BindingChatValue.nested("currentThread", in: cachedState)) ?? [:]
         for key in ["id", "title", "kind", "lastMessagePreview", "messageCount", "statusText", "updatedAt"] {
             if let value = selected[key] {
@@ -7796,6 +7868,104 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         ]
     }
 
+    func discardLocalChatProjection() {
+        for key in ["threads", "messages", "invites", "collaborationInvites"] { cachedState[key] = .list([]) }
+        cachedState["currentThread"] = .null
+        cachedState["threadCount"] = .integer(0)
+        cachedState["messageCount"] = .integer(0)
+        BindingChatValue.set(.list([]), for: "contactInbox.incomingInvites", in: &cachedState)
+    }
+
+    // Only server-owned conversation fields are projected. Butler state and
+    // unsent drafts remain local, and no successful send is fabricated locally.
+    func refreshSharedChat() async -> ValueType {
+        guard let chatTransport else { return sharedChatFailure("Chattransport mangler.") }
+        let refreshID = UUID()
+        sharedRefreshID = refreshID
+        do {
+            let state = try await chatTransport.request("state", payload: nil)
+            guard sharedRefreshID == refreshID else { return .object(["ok": .bool(true), "state": .object(cachedState)]) }
+            applySharedState(state)
+            return .object(["ok": .bool(true), "status": .string("ready"), "state": .object(cachedState)])
+        } catch {
+            guard sharedRefreshID == refreshID else { return sharedChatFailure("En nyere oppdatering pågår.") }
+            // A stale authorized snapshot must not remain selectable after an
+            // expired link or a failed membership refresh.
+            discardLocalChatProjection()
+            return sharedChatFailure("Kunne ikke hente delt chat. Kontroller personkoblingen og forbindelsen.")
+        }
+    }
+
+    private func applySharedState(_ state: Object) {
+        let selectedID = BindingChatValue.string(BindingChatValue.nested("currentThread.id", in: cachedState))
+        for key in ["threads", "invites", "blockedUsers", "collaborationInvites"] {
+            cachedState[key] = state[key] ?? .list([])
+        }
+        let threads = BindingChatValue.list(state["threads"]) ?? []
+        let selected = threads.compactMap(BindingChatValue.object).first { BindingChatValue.string($0["id"]) == selectedID }
+            ?? BindingChatValue.object(state["currentThread"])
+        cachedState["currentThread"] = selected.map(ValueType.object) ?? .null
+        cachedState["messages"] = selected?["messages"] ?? .list([])
+        cachedState["threadCount"] = .integer(threads.count)
+        cachedState["messageCount"] = .integer(BindingChatValue.list(cachedState["messages"])?.count ?? 0)
+        let incoming = (BindingChatValue.list(state["invites"]) ?? []).compactMap { value -> ValueType? in
+            guard var row = BindingChatValue.object(value), let id = BindingChatValue.string(row["id"]) else { return nil }
+            row["ticketID"] = .string(id)
+            row["statusSummary"] = row["statusText"] ?? .string("Invitasjon til delt chat")
+            return .object(row)
+        }
+        BindingChatValue.set(.list(incoming), for: "contactInbox.incomingInvites", in: &cachedState)
+        let oldSelection = BindingChatValue.string(BindingChatValue.nested("contactInbox.selectedTicketID", in: cachedState))
+        if !incoming.contains(where: { BindingChatValue.string(BindingChatValue.object($0)?["ticketID"]) == oldSelection }) {
+            BindingChatValue.set(incoming.first.flatMap { BindingChatValue.object($0)?["ticketID"] } ?? .null,
+                                 for: "contactInbox.selectedTicketID", in: &cachedState)
+        }
+    }
+
+    private func sharedInvitePayload(_ value: ValueType) -> Object {
+        var payload = BindingChatValue.object(value) ?? [:]
+        payload["threadID"] = payload["threadID"] ?? BindingChatValue.nested("contactInbox.selectedTicketID", in: cachedState) ?? .null
+        return payload
+    }
+
+    private func sharedChatFailure(_ message: String) -> ValueType {
+        var result = BindingChatValue.object(response(status: "blocked", message: message)) ?? [:]
+        result["ok"] = .bool(false)
+        return .object(result)
+    }
+
+    private func sharedChatAction(_ path: String, payload: Object) async -> ValueType {
+        guard let chatTransport else { return sharedChatFailure("Chattransport mangler.") }
+        var payload = payload
+        if !["accept", "decline"].contains(path), payload["threadID"] == nil,
+           let id = BindingChatValue.string(BindingChatValue.nested("currentThread.id", in: cachedState)),
+           (BindingChatValue.list(cachedState["threads"]) ?? []).contains(where: { BindingChatValue.string(BindingChatValue.object($0)?["id"]) == id }) {
+            payload["threadID"] = .string(id)
+        }
+        if ["send", "accept", "decline"].contains(path), BindingChatValue.string(payload["threadID"]) == nil {
+            return sharedChatFailure("Velg en delt tråd eller invitasjon først.")
+        }
+        do {
+            var result = try await chatTransport.request(path, payload: payload)
+            guard BindingChatValue.bool(result["ok"]) == true else {
+                _ = await refreshSharedChat()
+                cachedState["status"] = .string("Serveren avviste handlingen.")
+                result["ok"] = .bool(false)
+                return .object(result)
+            }
+            if path == "send",
+               BindingChatValue.string(BindingChatValue.nested("messageComposer.body", in: cachedState)) == BindingChatValue.string(payload["body"]) {
+                BindingChatValue.set(.string(""), for: "messageComposer.body", in: &cachedState)
+            }
+            if let thread = BindingChatValue.object(result["thread"]) { cachedState["currentThread"] = .object(thread) }
+            _ = await refreshSharedChat()
+            cachedState["status"] = .string(path == "send" ? "Meldingen er sendt." : "Delt chat er oppdatert.")
+            return .object(result)
+        } catch {
+            return sharedChatFailure("Handlingen kunne ikke bekreftes. Hent chatten før du prøver igjen.")
+        }
+    }
+
     private func setComposer(_ value: ValueType) -> ValueType {
         let body: String
         if let object = BindingChatValue.object(value) {
@@ -7919,18 +8089,50 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     /// chat if he has an entity, otherwise hand the invitation cell his
     /// relation so it prepares a link on the channel we hold. Either way the
     /// relation's chronicle learns that something started.
+    private func updateInviteCandidateQuery(_ query: String, requester: Identity) async -> ValueType {
+        let lookupID = UUID()
+        latestInviteLookupID = lookupID
+        latestAnalysisID = UUID()
+        BindingChatValue.set(.string(query), for: "assistant.candidateQuery", in: &cachedState)
+        BindingChatValue.set(.object([
+            "helperID": .string("invite"), "status": .string("low_confidence"),
+            "candidates": .list([]), "selectedCandidateProfileID": .null
+        ]), for: "assistant.latestSuggestion", in: &cachedState)
+        BindingChatValue.set(.null, for: "assistant.lastPreparedInvite", in: &cachedState)
+        let draft = "inviter " + query
+        let classification = BindingChatIntentClassifier.classify(prompt: draft)
+        let lookup = await relationCandidates(for: classification, draft: draft, requester: requester)
+        // A slower previous lookup cannot replace the user's newer selection.
+        guard latestInviteLookupID == lookupID else {
+            return response(status: "superseded", message: "Et nyere personsøk er aktivt.")
+        }
+        var suggestion = classification.objectValue()
+        suggestion["candidates"] = .list(lookup.rows)
+        suggestion["candidateSource"] = .string(lookup.source)
+        suggestion["status"] = .string(lookup.status)
+        suggestion["explanation"] = lookup.reason.map(ValueType.string) ?? .string("")
+        suggestion["selectedCandidateProfileID"] = lookup.rows.count == 1
+            ? (BindingChatValue.object(lookup.rows[0])?["id"] ?? .null) : .null
+        BindingChatValue.set(.object(suggestion), for: "assistant.latestSuggestion", in: &cachedState)
+        return response(status: "ok", message: lookup.reason ?? "Personsøk oppdatert.")
+    }
+
     private func acceptInviteSuggestion(_ suggestion: Object, requester: Identity) async -> ValueType {
+        BindingChatValue.set(.null, for: "assistant.lastPreparedInvite", in: &cachedState)
+        guard BindingChatValue.string(suggestion["status"]) != "low_confidence" else {
+            return response(status: "blocked", message: "Velg hvem du vil invitere fra relasjonene først.")
+        }
         let candidates = (BindingChatValue.list(suggestion["candidates"]) ?? []).compactMap { BindingChatValue.object($0) }
         let selectedID = BindingChatValue.string(suggestion["selectedCandidateProfileID"])
-        let chosen = candidates.first { BindingChatValue.string($0["id"]) == selectedID }
-            ?? (candidates.count == 1 ? candidates.first : nil)
+        let chosen: Object?
+        if let selectedID {
+            chosen = candidates.first { BindingChatValue.string($0["id"]) == selectedID }
+        } else {
+            chosen = candidates.count == 1 ? candidates.first : nil
+        }
 
         guard let chosen, let relationID = BindingChatValue.string(chosen["relationID"]) else {
-            if candidates.count > 1 {
-                return response(status: "blocked", message: "Flere passer — velg hvem du mener først.")
-            }
-            // No relation behind the suggestion: the old contact-endpoint flow.
-            return await createInvite(value: .object([:]), requester: requester)
+            return response(status: "blocked", message: "Velg hvem du vil invitere fra relasjonene først.")
         }
 
         let displayName = BindingChatValue.string(chosen["displayName"]) ?? relationID
@@ -7945,13 +8147,27 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
                 value: .object(["title": .string("Chat med \(displayName)"), "profileID": .string(relationID), "userUUID": .string(entityRef)]),
                 requester: requester
             )
-            await recordRelationInteraction(
-                relationID: relationID, kind: "chat.started", channel: "haven-chat",
-                resolver: resolver, requester: requester
-            )
+            // A contact request is not a started conversation. In particular,
+            // bootstrap_required must not advance the relation's last-contact history.
             return result
         }
 
+        if chatTransport != nil {
+            var result = BindingChatValue.object(await sharedChatAction("collaboration/prepare-external", payload: [
+                "title": .string("Chat med \(displayName)"), "purposeText": .string("Invitasjon til en felles samtale")
+            ])) ?? [:]
+            if let id = BindingChatValue.nested("invitation.id", in: result) {
+                BindingChatValue.set(id, for: "collaboration.selectedID", in: &cachedState)
+            }
+            if BindingChatValue.bool(result["ok"]) == true,
+               let link = BindingChatValue.string(BindingChatValue.nested("portholeUI.openURL", in: result)) {
+                let prepared: Object = ["link": .string(link), "body": .string("Bli med i samtalen: " + link),
+                    "requiresUserToPressSend": .bool(true)]
+                BindingChatValue.set(.object(prepared), for: "assistant.lastPreparedInvite", in: &cachedState)
+                result["preparedInvite"] = .object(prepared)
+            }
+            return .object(result)
+        }
         guard let invitation = try? await resolver.cellAtEndpoint(endpoint: "cell:///Invitation", requester: requester) as? Meddle,
               let prepared = try? await invitation.set(
                 keypath: "invite.prepare",
@@ -7965,7 +8181,8 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         let message = BindingChatValue.string(preparedObject["message"])
             ?? BindingChatValue.string(preparedObject["summaryText"])
             ?? "Invitasjonen til \(displayName) er klar — du trykker send."
-        var reply = response(status: BindingChatValue.string(preparedObject["status"]) == "error" ? "blocked" : "ok", message: message)
+        // InvitationCell uses HavenValue's status contract, not the HTTP ok flag.
+        var reply = response(status: BindingChatValue.string(preparedObject["status"]) == "ok" ? "ok" : "blocked", message: message)
         if case var .object(object) = reply {
             object["preparedInvite"] = prepared
             object["relationID"] = .string(relationID)
@@ -7995,20 +8212,40 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         )
     }
 
-    private func createInvite(value: ValueType, requester: Identity) async -> ValueType {
-        let submitted = BindingChatValue.object(value) ?? [:]
+    /// Recipient identity and delivery endpoint form one draft. Changing either
+    /// identity field invalidates the previous endpoint and the other identity.
+    private func updateInviteRecipient(_ submitted: Object) {
         var draft = BindingChatValue.object(BindingChatValue.nested("inviteDraft", in: cachedState)) ?? [:]
-        for key in ["title", "profileID", "userUUID"] {
-            if let submittedValue = submitted[key] {
-                draft[key] = submittedValue
-            }
+        let recipientChanged = ["profileID", "userUUID"].contains { key in
+            guard let next = submitted[key] else { return false }
+            return BindingChatValue.string(next) != BindingChatValue.string(draft[key])
         }
-        if let submittedEndpoint = normalizedContactEndpoint(from: submitted) {
-            draft["contactEndpoint"] = .object(submittedEndpoint)
+        if recipientChanged {
+            BindingChatValue.set(.null, for: "assistant.lastPreparedInvite", in: &cachedState)
+            draft["profileID"] = .string("")
+            draft["userUUID"] = .string("")
+            draft["contactEndpoint"] = .null
+        }
+        for key in ["title", "profileID", "userUUID"] {
+            if let value = submitted[key] { draft[key] = value }
+        }
+        let hasEndpoint = ["contactEndpoint", "contactEndpointDescriptor", "contactEndpointID", "contactEndpointId"]
+            .contains { submitted[$0] != nil }
+        if hasEndpoint {
+            draft["contactEndpoint"] = normalizedContactEndpoint(from: submitted).map(ValueType.object) ?? .null
         }
         BindingChatValue.set(.object(draft), for: "inviteDraft", in: &cachedState)
+    }
 
-        var invites = BindingChatValue.list(BindingChatValue.nested("invites", in: cachedState)) ?? []
+    private func createInvite(value: ValueType, requester: Identity) async -> ValueType {
+        updateInviteRecipient(BindingChatValue.object(value) ?? [:])
+        let draft = BindingChatValue.object(BindingChatValue.nested("inviteDraft", in: cachedState)) ?? [:]
+
+        if chatTransport != nil {
+            var payload = draft
+            if let thread = BindingChatValue.object(value)?["threadID"] { payload["threadID"] = thread }
+            return await sharedChatAction("invite", payload: payload)
+        }
         let inviteID = UUID().uuidString.lowercased()
         let title = BindingChatValue.string(draft["title"])?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
             ?? "Ny invitasjon"
@@ -8062,9 +8299,11 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         invite["deliveryFailureReason"] = delivery["deliveryFailureReason"] ?? .null
         invite["bootstrapDraft"] = delivery["bootstrapDraft"] ?? .null
         invite["updatedAt"] = .float(Date().timeIntervalSince1970)
+        var invites = BindingChatValue.list(BindingChatValue.nested("invites", in: cachedState)) ?? []
         invites.append(.object(invite))
         BindingChatValue.set(.list(invites), for: "invites", in: &cachedState)
         BindingChatValue.set(.string(status), for: "inviteStatus", in: &cachedState)
+        cachedState["status"] = .string(message)
         cachedState["updatedAt"] = .float(Date().timeIntervalSince1970)
 
         var response: Object = [
@@ -8236,7 +8475,8 @@ final class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     }
 
     private func shouldUseLegacyLocalInviteGate(_ value: ValueType) -> Bool {
-        guard selectedTicketID(from: value) == nil,
+        guard BindingChatValue.bool(BindingChatValue.object(value)?["requireTicket"]) != true,
+              selectedTicketID(from: value) == nil,
               BindingChatValue.string(BindingChatValue.nested("contactInbox.selectedTicketID", in: cachedState)) == nil else {
             return false
         }
