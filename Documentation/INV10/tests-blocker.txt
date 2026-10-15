@@ -1,0 +1,2 @@
+exit: 74
+  <unknown>:0: error: cannot open file '$HOME/Library/Caches/org.swift.swiftpm/manifests/ManifestLoading/cellprotocol.dia' for diagnostics emission (Operation not permitted)

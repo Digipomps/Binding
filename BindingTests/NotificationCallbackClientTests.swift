@@ -5,6 +5,94 @@ import Foundation
 
 @MainActor
 struct NotificationCallbackClientTests {
+    @Test func chatPushRoutesThreadAndDeepLinkWithoutCallbackTicket() throws {
+        let id = "thread-123"
+        for payload: [AnyHashable: Any] in [
+            ["threadID": id],
+            ["deepLink": "haven://chat?threadID=thread-123"],
+            ["threadID": id, "deepLink": "haven://chat?threadID=thread-123"],
+            ["ticketId": "ticket", "requiredActionKey": "chat.open",
+             "payload": ["threadID": id, "deepLink": "haven://chat?threadID=thread-123"]],
+            ["payloadJSON": "{\"threadID\":\"thread-123\"}"]
+        ] {
+            let url = try #require(BindingChatNotificationRoute.url(userInfo: payload))
+            #expect(BindingChatNotificationRoute.threadID(from: url) == id)
+        }
+        #expect(WorkflowNotificationPreferences.defaultSubscriptionTopics.contains("chat"))
+    }
+
+    @Test func chatPushRejectsAmbiguousAndInvalidNavigationHints() {
+        for payload: [AnyHashable: Any] in [
+            [:], ["threadID": "a", "payload": ["threadID": "b"]],
+            ["threadID": ""], ["threadID": "../other"],
+            ["threadID": "a", "deepLink": "haven://chat?threadID=b"],
+            ["deepLink": "https://evil.example/chat?threadID=a"],
+            ["deepLink": "haven://chat?threadID=a&threadID=b"],
+            ["deepLink": "haven://chat?threadID=a&endpoint=evil"],
+            ["deepLink": "haven://user@chat?threadID=a"],
+            ["deepLink": "haven://chat/path?threadID=a"],
+            ["threadID": String(repeating: "a", count: 129)]
+        ] {
+            #expect(BindingChatNotificationRoute.url(userInfo: payload) == nil)
+        }
+    }
+
+    #if os(iOS)
+    @Test func iOSRenderAuditProducesRealSnapshotAndRejectsMissingSkeleton() async throws {
+        var configuration = CellConfiguration(name: "Notification render fixture")
+        configuration.skeleton = .VStack(SkeletonVStack(elements: [
+            .Text(SkeletonText(text: "Notification render fixture"))
+        ]))
+        let report = try await CellConfigurationVerifier.renderReport(
+            for: configuration, expectedVisibleStrings: []
+        )
+        #expect(report.snapshotByteCount > 100)
+        // SwiftUI can draw into one hosting view without UILabel children.
+        #expect(report.subviewCount >= 1)
+        #expect(report.nonUniformSnapshot == true)
+        var missingSkeleton = CellConfiguration(name: "Missing skeleton")
+        missingSkeleton.skeleton = nil
+        await #expect(throws: (any Error).self) {
+            _ = try await CellConfigurationVerifier.renderReport(
+                for: missingSkeleton, expectedVisibleStrings: []
+            )
+        }
+    }
+
+    @Test func notificationTapQueuesChatURLBeforeCallbackIdentityIsAvailable() async throws {
+        let deliveryCenter = NotificationCenter()
+        let sceneID = UUID()
+        var deliveredURL: URL?
+        let callbackOperator = RecordingCallbackOperator()
+        let client = NotificationCallbackClient.testing(
+            rolloutEnabled: false, callbackOperator: callbackOperator,
+            chatURLDelivery: { url in
+                // A private center keeps the running app's URL consumer out
+                // of this test while exercising the actual bridge post.
+                BindingIncomingURLBridge.post(
+                    url: url, targetSceneID: sceneID, notificationCenter: deliveryCenter
+                )
+                deliveredURL = url
+            }
+        )
+        await client.handleNotificationResponse(userInfo: [
+            "ticketId": "ticket", "requiredActionKey": "chat.open",
+            "payload": ["threadID": "thread-123", "deepLink": "haven://chat?threadID=thread-123"]
+        ])
+        let consumerID = UUID()
+        #expect(BindingIncomingURLBridge.leaseNextPending(
+            consumerID: consumerID, hostingWindowNumber: nil, hostingSceneID: UUID()
+        ) == nil)
+        let lease = try #require(BindingIncomingURLBridge.leaseNextPending(
+            consumerID: consumerID, hostingWindowNumber: nil, hostingSceneID: sceneID
+        ))
+        #expect(BindingChatNotificationRoute.threadID(from: lease.event.url) == "thread-123")
+        #expect(deliveredURL == lease.event.url)
+        BindingIncomingURLBridge.acknowledge(lease, consumerID: consumerID)
+        #expect(await callbackOperator.operations().isEmpty)
+    }
+    #endif
+
     @Test
     func disabledRolloutRejectsBeforeCallbackComposition() async {
         let callbackOperator = RecordingCallbackOperator()

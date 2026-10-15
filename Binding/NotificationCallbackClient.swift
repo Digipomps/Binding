@@ -526,6 +526,7 @@ final class NotificationCallbackClient {
 
     private let rolloutEnabled: @Sendable () -> Bool
     private let callbackClientProvider: CallbackClientProvider
+    private let chatURLDelivery: @MainActor @Sendable (URL) -> Void
 
     private init(
         rolloutEnabled: @escaping @Sendable () -> Bool = {
@@ -533,20 +534,28 @@ final class NotificationCallbackClient {
         },
         callbackClientProvider: @escaping CallbackClientProvider = {
             try await BindingDeviceIngressCallbackComposition.makeClient()
+        },
+        chatURLDelivery: @escaping @MainActor @Sendable (URL) -> Void = {
+            BindingChatNotificationRoute.deliverToAppScene($0)
         }
     ) {
         self.rolloutEnabled = rolloutEnabled
         self.callbackClientProvider = callbackClientProvider
+        self.chatURLDelivery = chatURLDelivery
     }
 
     #if DEBUG
     static func testing(
         rolloutEnabled: Bool,
-        callbackOperator: any DeviceIngressCallbackOperating
+        callbackOperator: any DeviceIngressCallbackOperating,
+        chatURLDelivery: @escaping @MainActor @Sendable (URL) -> Void = {
+            BindingChatNotificationRoute.deliverToAppScene($0)
+        }
     ) -> NotificationCallbackClient {
         NotificationCallbackClient(
             rolloutEnabled: { rolloutEnabled },
-            callbackClientProvider: { callbackOperator }
+            callbackClientProvider: { callbackOperator },
+            chatURLDelivery: chatURLDelivery
         )
     }
     #endif
@@ -574,6 +583,10 @@ final class NotificationCallbackClient {
     }
 
     func handleNotificationResponse(userInfo: [AnyHashable: Any]) async {
+        if let url = BindingChatNotificationRoute.url(userInfo: userInfo) {
+            chatURLDelivery(url)
+            return
+        }
         guard let participantId = NotificationEnrollmentManager.shared.currentParticipantID(),
               let deviceId = NotificationEnrollmentManager.shared.currentDeviceID() else {
             return
@@ -882,5 +895,73 @@ struct NotificationCallbackHTTPError: LocalizedError, CustomStringConvertible {
 
     var description: String {
         errorDescription ?? "Staging returned an unexpected HTTP response."
+    }
+}
+
+/// Navigation hints carry no authority. Thread access is checked by the chat cell.
+nonisolated enum BindingChatNotificationRoute {
+    @MainActor
+    static func deliverToAppScene(_ url: URL) {
+        #if os(iOS)
+        // RootView.onOpenURL adds its concrete scene ID. An untargeted
+        // bridge event cannot be leased by an iOS scene.
+        UIApplication.shared.open(url)
+        #else
+        BindingIncomingURLBridge.submit(url: url)
+        #endif
+    }
+
+    static func threadID(from url: URL) -> String? {
+        guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              parts.scheme?.lowercased() == "haven",
+              parts.host?.lowercased() == "chat",
+              parts.user == nil, parts.password == nil, parts.port == nil,
+              parts.path.isEmpty, parts.fragment == nil,
+              let items = parts.queryItems, items.count == 1,
+              items[0].name == "threadID",
+              let id = items[0].value, validThreadID(id) else { return nil }
+        return id
+    }
+
+    static func url(userInfo: [AnyHashable: Any]) -> URL? {
+        // APNs carries routing fields under payload; accept flat hints for
+        // direct URL delivery, but reject conflicting carriers.
+        let payload = NotificationCallbackClient.notificationPayloadObject(from: userInfo)
+        func nestedString(_ key: String) -> String? {
+            guard case let .string(value)? = payload?[key] else { return nil }
+            return value
+        }
+        let topID = userInfo["threadID"] as? String
+        let topLink = userInfo["deepLink"] as? String
+        let nestedID = nestedString("threadID")
+        let nestedLink = nestedString("deepLink")
+        guard topID == nil || nestedID == nil || topID == nestedID,
+              topLink == nil || nestedLink == nil || topLink == nestedLink else { return nil }
+        let rawID = topID ?? nestedID
+        let rawLink = topLink ?? nestedLink
+        let linkID: String?
+        if let rawLink {
+            guard let link = URL(string: rawLink), let id = threadID(from: link) else {
+                return nil
+            }
+            linkID = id
+        } else {
+            linkID = nil
+        }
+        if let rawID {
+            guard validThreadID(rawID), linkID == nil || linkID == rawID else { return nil }
+        }
+        guard let id = rawID ?? linkID else { return nil }
+        var parts = URLComponents()
+        parts.scheme = "haven"
+        parts.host = "chat"
+        parts.queryItems = [URLQueryItem(name: "threadID", value: id)]
+        return parts.url
+    }
+
+    private static func validThreadID(_ id: String) -> Bool {
+        !id.isEmpty && id.utf8.count <= 128 && id.unicodeScalars.allSatisfy {
+            CharacterSet.alphanumerics.contains($0) || $0 == "-" || $0 == "_"
+        }
     }
 }

@@ -23,7 +23,7 @@
 //
 
 import Foundation
-import CellBase
+@_spi(HAVENRuntime) import CellBase
 
 final class BindingInvitationCell: GeneralCell {
     static let endpoint = "cell:///Invitation"
@@ -443,7 +443,11 @@ final class BindingInvitationCell: GeneralCell {
             ))
         }
 
-        guard let descriptor = IdentityPublicKeySignatureVerifier.descriptor(for: storedOwnerIdentity) else {
+        // storedOwnerIdentity is a public snapshot and deliberately has no vault.
+        // Resolve the proven runtime owner before signing; never acquire a signer
+        // from the global default vault or infer authority from a matching UUID.
+        guard let signingIdentity = await verifiedRuntimeOwnerIdentity(),
+              let descriptor = IdentityPublicKeySignatureVerifier.descriptor(for: signingIdentity) else {
             return fail(HavenValue.error(
                 code: "no_signing_identity",
                 message: "Identiteten din har ingen signeringsnøkkel i denne kjøringen, så jeg kan ikke signere invitasjonen."
@@ -478,7 +482,7 @@ final class BindingInvitationCell: GeneralCell {
         )
 
         guard let payloadData = try? ticket.canonicalPayloadData(),
-              let signature = try? await storedOwnerIdentity.sign(data: payloadData),
+              let signature = try? await signingIdentity.sign(data: payloadData),
               !signature.isEmpty else {
             return fail(HavenValue.error(
                 code: "signing_failed",
@@ -504,7 +508,7 @@ final class BindingInvitationCell: GeneralCell {
             let outcome = await Self.publishTicket(
                 ticket,
                 landingBases: current.landingBaseCandidates,
-                identity: storedOwnerIdentity,
+                identity: signingIdentity,
                 descriptor: descriptor
             )
             switch outcome {

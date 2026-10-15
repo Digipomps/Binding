@@ -7,6 +7,19 @@ import Foundation
 @Suite(.serialized)
 struct NotificationEnrollmentManagerTests {
 
+    @Test func legacyParticipantIsNotAnAuthenticatedChatIdentity() throws {
+        let name = "NotificationEnrollmentManagerTests.legacy.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set("binding-participant", forKey: "binding.notifications.participantId")
+        let manager = NotificationEnrollmentManager.testing(
+            defaults: defaults,
+            evidenceInspector: EnrollmentEvidenceStore(containsEvidence: false)
+        )
+        #expect(manager.currentParticipantID() == nil)
+        #expect(defaults.string(forKey: "binding.notifications.participantId") == nil)
+    }
+
     @Test func pushFailureShowsSafeTextWithoutLosingTheFailureState() throws {
         let suiteName = "NotificationEnrollmentManagerTests.safe-error.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))

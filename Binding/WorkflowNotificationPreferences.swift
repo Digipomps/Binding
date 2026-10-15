@@ -4,6 +4,7 @@ enum WorkflowNotificationPreferences {
     static let contactRequestReceivedTopic = "contact.request.received"
 
     static let defaultSubscriptionTopics: [String] = [
+        "chat",
         "conference.broadcast",
         "conference.organizer",
         "workflow.run",
