@@ -320,6 +320,8 @@ nonisolated struct ToolLinkAgentEndpoint: Sendable, Equatable {
 nonisolated final class BindingToolLinkController: @unchecked Sendable {
     typealias Transport = @Sendable (URLRequest) async throws -> (Data, URLResponse)
     typealias EndpointProvider = @Sendable () -> ToolLinkAgentEndpoint?
+    /// Kontrakten «Ber om tilgang» skal markere, når HAVEN ble åpnet fra HAVEN Agent.
+    typealias FocusProvider = @Sendable () -> String?
 
     /// Hvor en melding vises: under «Ber om tilgang», under «Gi tilgang», under «Koblede
     /// steder», eller under paringen.
@@ -362,6 +364,7 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
 
     private let endpointProvider: EndpointProvider
     private let transport: Transport
+    private let focusProvider: FocusProvider
     private let lock = NSLock()
 
     private var incoming: [Object] = []
@@ -388,10 +391,12 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
 
     init(
         endpoint: @escaping EndpointProvider = { ToolLinkAgentEndpoint.fromAgentConfig() },
-        transport: @escaping Transport = { request in try await URLSession.shared.data(for: request) }
+        transport: @escaping Transport = { request in try await URLSession.shared.data(for: request) },
+        focus: @escaping FocusProvider = { BindingAccessRequestFocus.shared.current() }
     ) {
         self.endpointProvider = endpoint
         self.transport = transport
+        self.focusProvider = focus
     }
 
     private func locked<T>(_ body: () throws -> T) rethrows -> T {
@@ -470,8 +475,21 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
             return rows
         }
         var rows: [Object] = [Self.subheading("Ber om tilgang", withRefresh: true)]
-        rows += incoming.map { Self.row("request", $0) }
-        if incoming.isEmpty {
+        // Åpnet fra «Svar i HAVEN» i HAVEN Agent: marker den forespørselen. Markeringen
+        // velger bare hva som vises; svaret gis fortsatt med knappene i raden.
+        let focused = focusProvider()
+        rows += incoming.map { request in
+            var row = request
+            let isFocused = focused != nil && HavenValue.string(request["contractID"]) == focused
+            row["isFocused"] = .bool(isFocused)
+            row["focusLine"] = .string(isFocused ? "Åpnet fra HAVEN Agent" : "")
+            return Self.row("request", row)
+        }
+        if let focused, incoming.contains(where: { HavenValue.string($0["contractID"]) == focused }) == false {
+            rows.append(Self.row("note", ["text": .string(
+                "Forespørselen du åpnet fra HAVEN Agent venter ikke lenger her. Den kan være besvart, trukket tilbake eller utløpt."
+            )]))
+        } else if incoming.isEmpty {
             rows.append(Self.row("note", ["text": .string("Ingen verktøy ber om tilgang akkurat nå.")]))
         }
         if let note = notes[.answer] { rows.append(Self.noteRow(note)) }

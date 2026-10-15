@@ -152,6 +152,49 @@ private func kinds(_ state: Object, _ key: String) -> [String] {
 }
 
 @Suite struct ToolLinkControllerTests {
+    /// «Svar i HAVEN» i HAVEN Agent åpner «Ber om tilgang» med forespørselen markert.
+    /// Markeringen endrer bare visningen: svarknappene er de samme, og ingenting signeres.
+    @Test func accessRequestOpenedFromTheAgentIsMarked() async throws {
+        let keys = Keys()
+        let asking = try toolRequest(keys, id: "elc_tool_focusrequest01")
+        let other = try toolRequest(keys, id: "elc_tool_otherrequest01")
+        let agent = FakeAgent(tools: toolsResponse(keys), items: [
+            try agentItem(asking.contract, canonical: asking.canonical, state: "awaiting-owner"),
+            try agentItem(other.contract, canonical: other.canonical, state: "awaiting-owner")
+        ])
+        let links = BindingToolLinkController(
+            endpoint: { ToolLinkAgentEndpoint(base: URL(string: "http://127.0.0.1:43110")!, accessToken: "test-token") },
+            transport: { request in try await agent.respond(to: request) },
+            focus: { "elc_tool_focusrequest01" }
+        )
+        _ = await links.refresh(ownerKey: keys.ownerPublic)
+
+        let requests = rows(links.stateFields(), "toolAgentRows").filter { HavenValue.string($0["kind"]) == "request" }
+        #expect(requests.count == 2)
+        let marked = requests.filter { $0["isFocused"] == .bool(true) }
+        #expect(marked.compactMap { HavenValue.string($0["contractID"]) } == ["elc_tool_focusrequest01"])
+        #expect(HavenValue.string(marked.first?["focusLine"]) == "Åpnet fra HAVEN Agent")
+        #expect(marked.first?["canAnswer"] == .bool(true))
+        #expect(await agent.postedBodies().isEmpty, "markering alene skal aldri sende et svar")
+    }
+
+    @Test func accessRequestThatIsGoneSaysSoInsteadOfShowingNothing() async throws {
+        let keys = Keys()
+        let agent = FakeAgent(tools: toolsResponse(keys), items: [])
+        let links = BindingToolLinkController(
+            endpoint: { ToolLinkAgentEndpoint(base: URL(string: "http://127.0.0.1:43110")!, accessToken: "test-token") },
+            transport: { request in try await agent.respond(to: request) },
+            focus: { "elc_tool_answeredalready" }
+        )
+        _ = await links.refresh(ownerKey: keys.ownerPublic)
+
+        let notes = rows(links.stateFields(), "toolAgentRows")
+            .filter { HavenValue.string($0["kind"]) == "note" }
+            .compactMap { HavenValue.string($0["text"]) }
+        #expect(notes.contains { $0.hasPrefix("Forespørselen du åpnet fra HAVEN Agent venter ikke lenger her.") })
+        #expect(notes.contains("Ingen verktøy ber om tilgang akkurat nå.") == false)
+    }
+
     /// Samme testvektor som agentens `TestFlowContractTests`: samme kanoniske bytes gir
     /// samme fire ord i HAVEN og i HAVEN Agent.
     @Test func securityWordsFollowTheAgentsTestVector() throws {

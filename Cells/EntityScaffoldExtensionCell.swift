@@ -1211,6 +1211,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
         modifiers.borderWidth = 1
         modifiers.borderColor = Style.brandPrimary
         return kind("request", [
+            boundText("focusLine", color: Style.brandPrimary, size: 12, weight: "semibold", visibleWhen: ("isFocused", .bool(true))),
             boundText("headline", color: Style.textPrimary, size: 15, markdown: true),
             boundText("detailLine", color: Style.textTertiary, size: 12),
             inline([chip("securityCode", tone: "words")]),

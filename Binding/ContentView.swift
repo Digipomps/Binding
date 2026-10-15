@@ -1733,6 +1733,32 @@ struct ContentView: View {
         )
     }
 
+    /// «Svar i HAVEN» fra HAVEN Agent: «Utvid entiteten» → «Ber om tilgang», med forespørselen
+    /// markert. Lastes på nytt også når flaten alt er åpen, så markeringen vises. Bare navigasjon:
+    /// ingenting godkjennes herfra.
+    @MainActor
+    private func openAccessRequests(markingContract contractID: String?) {
+        BindingAccessRequestFocus.shared.focus(contractID: contractID)
+        if editorMode == .edit && editorState.isDirty {
+            loadErrorMessage = "En forespørsel venter i «Utvid entiteten» → «Ber om tilgang». Lagre eller forkast editor-draften før HAVEN bytter flate."
+            return
+        }
+        if editorMode == .edit {
+            editorMode = .view
+        }
+        personalCopilotDestination = .extendEntity
+        personalCopilotPhoneTab = BindingPersonalCopilotDestination.extendEntity.phoneTab
+        diagnosticsStore.record(
+            domain: "binding.accessRequestLink",
+            message: "Åpner «Utvid entiteten» → «Ber om tilgang» fra dyplenke."
+        )
+        queueConfigurationLoad(
+            BindingPersonalCopilotDestination.extendEntity.configuration,
+            navigationMode: .reset,
+            provenance: .localTrusted
+        )
+    }
+
     private func selectPersonalCopilotPhoneTab(_ tab: BindingPersonalCopilotPhoneTab) {
         personalCopilotPhoneTab = tab
         guard personalCopilotDestination.phoneTab != tab else { return }
@@ -4576,6 +4602,25 @@ struct ContentView: View {
         _ url: URL,
         execution: BindingRuntimeRouteExecution
     ) async {
+        switch BindingAccessRequestDeepLink.parse(url) {
+        case .accepted(let contractID):
+            execution.commit {
+                openAccessRequests(markingContract: contractID)
+            }
+            return
+        case .rejected(let reason):
+            execution.commit {
+                loadErrorMessage = "Lenken til «Ber om tilgang» var ugyldig og ble ikke åpnet."
+                diagnosticsStore.record(
+                    severity: .warning,
+                    domain: "binding.accessRequestLink",
+                    message: "Avviste dyplenke til «Ber om tilgang»: \(reason)."
+                )
+            }
+            return
+        case .notThisRoute:
+            break
+        }
         if let hook = Self.conferenceAutomationHook(from: url) {
             guard execution.isActive else { return }
             let automationEnabled = conferenceAutomationOptInEnabled
