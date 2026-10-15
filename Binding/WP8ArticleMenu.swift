@@ -29,7 +29,6 @@ import CellBase
         let guest = try await client.bridge("PalazzoGuestShell")
         let entity = try await client.bridge("PalazzoEntity")
         let hash = FlowHasher.sha256Hex(Data("art-arancini".utf8))
-        let reactionKey = "entity.article.reaction." + hash
         // Narrow, app-owned adapters retain the already authorized bridges. They do
         // not re-resolve remote references without pins, or expose the test vault.
         let articleAdapter = await GeneralCell(owner: appIdentity)
@@ -37,25 +36,8 @@ import CellBase
             guard requester.referencesSameSigningIdentity(as: appIdentity) else { throw WP8Failure("Wrong local requester") }
             return try await guest.get(keypath: "guest", requester: client.identity)
         }
-        let entityAdapter = await GeneralCell(owner: appIdentity)
-        await entityAdapter.addInterceptForGet(requester: appIdentity, key: "entity") { _, requester in
-            guard requester.referencesSameSigningIdentity(as: appIdentity) else { throw WP8Failure("Wrong local requester") }
-            let rows = try await entity.get(keypath: reactionKey, requester: client.identity)
-            return .object(["article": .object(["reaction": .object([hash: rows])])])
-        }
-        await entityAdapter.addInterceptForGet(requester: appIdentity, key: reactionKey) { _, requester in
-            guard requester.referencesSameSigningIdentity(as: appIdentity) else { throw WP8Failure("Wrong local requester") }
-            return try await entity.get(keypath: reactionKey, requester: client.identity)
-        }
-        for key in ["entity.article.react", "entity.article.comment." + hash] {
-            await entityAdapter.addInterceptForSet(requester: appIdentity, key: key) { _, value, requester in
-                guard requester.referencesSameSigningIdentity(as: appIdentity) else { throw WP8Failure("Wrong local requester") }
-                if key == "entity.article.react" {
-                    guard case .object(let fields) = value, fields["articleID"] == .string("art-arancini") else { throw WP8Failure("Unprepared article") }
-                }
-                return try await entity.set(keypath: key, value: value, requester: client.identity)
-            }
-        }
+        let entityAdapter = await makeEntityAdapter(appIdentity: appIdentity,
+            entity: entity, remoteIdentity: client.identity, hash: hash)
         let articleName = "WP8Article-" + UUID().uuidString
         let entityName = "WP8Entity-" + UUID().uuidString
         try await resolver.registerNamedEmitCell(name: articleName, emitCell: articleAdapter, scope: .identityUnique, identity: appIdentity)
@@ -71,6 +53,39 @@ import CellBase
         preparedFor = appIdentity.uuid
         prepared = configuration
         return configuration
+    }
+
+    /// Keep the native-probe regression on the same adapter code as Binding.
+    static func makeEntityAdapter(appIdentity: Identity, entity: any Meddle,
+                                  remoteIdentity: Identity, hash: String) async -> GeneralCell {
+        let reactionKey = "entity.article.reaction." + hash
+        let selectionKey = "entity.article.selection." + hash
+        let entityAdapter = await GeneralCell(owner: appIdentity)
+        await entityAdapter.addInterceptForGet(requester: appIdentity, key: "entity") { _, requester in
+            guard requester.referencesSameSigningIdentity(as: appIdentity) else { throw WP8Failure("Wrong local requester") }
+            let rows = try await entity.get(keypath: reactionKey, requester: remoteIdentity)
+            let selection = try await entity.get(keypath: selectionKey, requester: remoteIdentity)
+            return .object(["article": .object([
+                "reaction": .object([hash: rows]),
+                "selection": .object([hash: selection])
+            ])])
+        }
+        for key in [reactionKey, selectionKey] {
+            await entityAdapter.addInterceptForGet(requester: appIdentity, key: key) { _, requester in
+                guard requester.referencesSameSigningIdentity(as: appIdentity) else { throw WP8Failure("Wrong local requester") }
+                return try await entity.get(keypath: key, requester: remoteIdentity)
+            }
+        }
+        for key in ["entity.article.react", "entity.article.comment." + hash] {
+            await entityAdapter.addInterceptForSet(requester: appIdentity, key: key) { _, value, requester in
+                guard requester.referencesSameSigningIdentity(as: appIdentity) else { throw WP8Failure("Wrong local requester") }
+                if key == "entity.article.react" {
+                    guard case .object(let fields) = value, fields["articleID"] == .string("art-arancini") else { throw WP8Failure("Unprepared article") }
+                }
+                return try await entity.set(keypath: key, value: value, requester: remoteIdentity)
+            }
+        }
+        return entityAdapter
     }
 #endif
 }
