@@ -114,6 +114,52 @@ final class Inv10InvitationChatTests: XCTestCase {
         }
     }
 
+    /// `invite.publish` and `invite.revoke` signed with the public owner snapshot,
+    /// which has no vault, so publishing always stopped at "kunne ikke signere
+    /// registreringen". They now use the proven runtime owner, like `prepare`.
+    /// The landing base is unreachable on purpose: the attempt must get past
+    /// signing and fail on transport, never on the signature.
+    func testPublishSignsWithRuntimeOwnerAndFailsOnlyOnTransport() async throws {
+        try await withFixture { fixture in
+            let relations = await BindingRelationsCell(owner: fixture.owner)
+            let invitation = await BindingInvitationCell(owner: fixture.owner)
+            try await fixture.resolver.registerNamedEmitCell(name: "Relations", emitCell: relations,
+                scope: .identityUnique, identity: fixture.owner)
+            try await fixture.resolver.registerNamedEmitCell(name: "Invitation", emitCell: invitation,
+                scope: .identityUnique, identity: fixture.owner)
+            _ = try await invitation.set(keypath: "invite.configure", value: .object([
+                "autoPublish": .bool(false), "landingBase": .string("http://127.0.0.1:9"),
+                "fallbackLandingBase": .string("")
+            ]), requester: fixture.owner)
+            _ = try await relations.set(keypath: "relations.upsert", value: .object([
+                "contacts": .list([.object(["displayName": .string("Synthetic Publish"),
+                    "email": .string("publish@example.invalid")])])
+            ]), requester: fixture.owner)
+            let chat = await BindingPersonalChatHubCell(owner: fixture.owner)
+            chat.localLanguageResponder = { _ in
+                ButlerLanguageSupport.Reply(answer: "Velg invitasjonen.", helper: "invite",
+                    confidence: 0.95, reason: "Eksplisitt invitasjon")
+            }
+            _ = try await chat.set(keypath: "prompt.submit", value: .string("inviter Synthetic Publish"), requester: fixture.owner)
+            _ = try await chat.set(keypath: "assistant.setCandidateQuery", value: .string("Synthetic Publish"), requester: fixture.owner)
+            let result = try object(try await chat.set(keypath: "chatHub.invite", value: .object([:]), requester: fixture.owner))
+            let prepared = try object(result["preparedInvite"])
+            XCTAssertEqual(string(prepared["status"]), "ok", "prepared=\(prepared)")
+            let link = try XCTUnwrap(string(prepared["link"]))
+            let ticket = try HavenInviteLink.decode(HavenInviteLink.token(fromLink: link))
+
+            let published = try object(try await invitation.set(keypath: "invite.publish",
+                value: .object(["ticketID": .string(ticket.ticketID)]), requester: fixture.owner))
+            let diagnostic = "published=\(published)"
+            XCTAssertNotEqual(string(published["code"]), "no_signing_identity", diagnostic)
+            XCTAssertFalse(string(published["message"])?.contains("signere") == true, diagnostic)
+
+            let revoked = try object(try await invitation.set(keypath: "invite.revoke",
+                value: .object(["ticketID": .string(ticket.ticketID)]), requester: fixture.owner))
+            XCTAssertEqual(string(revoked["status"]), "ok", "revoked=\(revoked)")
+        }
+    }
+
     func testChangingCandidateHidesPreviouslyPreparedExternalLink() async throws {
         try await withFixture { fixture in
             var state = BindingPersonalChatHubCell.initialState()

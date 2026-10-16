@@ -779,14 +779,18 @@ final class BindingInvitationCell: GeneralCell {
             return HavenValue.ok("Billetten er allerede registrert.", sideEffect: false)
         }
         let current = stateQueue.sync { settings }
-        guard let descriptor = IdentityPublicKeySignatureVerifier.descriptor(for: storedOwnerIdentity) else {
+        // Same signer as prepare: storedOwnerIdentity is a public snapshot without a
+        // vault, so signing with it always failed (noVaultIdentity). Use the proven
+        // runtime owner, never the default vault or a UUID match.
+        guard let signingIdentity = await verifiedRuntimeOwnerIdentity(),
+              let descriptor = IdentityPublicKeySignatureVerifier.descriptor(for: signingIdentity) else {
             return fail(HavenValue.error(code: "no_signing_identity", message: "Mangler signeringsnøkkel."))
         }
 
         switch await Self.publishTicket(
             entry.ticket,
             landingBases: current.landingBaseCandidates,
-            identity: storedOwnerIdentity,
+            identity: signingIdentity,
             descriptor: descriptor
         ) {
         case .failure(let failure):
@@ -1159,7 +1163,8 @@ final class BindingInvitationCell: GeneralCell {
 
         var remoteNote = "Lenken virker fortsatt for den som allerede har den — den ble aldri registrert hos noe scaffold."
         if let entry, entry.published,
-           let descriptor = IdentityPublicKeySignatureVerifier.descriptor(for: storedOwnerIdentity) {
+           let signingIdentity = await verifiedRuntimeOwnerIdentity(),
+           let descriptor = IdentityPublicKeySignatureVerifier.descriptor(for: signingIdentity) {
             var notice = HavenInviteRevocationNotice(
                 ticketID: ticketID,
                 reason: reason,
@@ -1167,7 +1172,7 @@ final class BindingInvitationCell: GeneralCell {
                 issuerIdentityUUID: descriptor.uuid
             )
             if let canonical = try? notice.canonicalPayloadData(),
-               let signature = try? await storedOwnerIdentity.sign(data: canonical) {
+               let signature = try? await signingIdentity.sign(data: canonical) {
                 notice.proof = HavenSignatureProof(
                     byIdentityUUID: descriptor.uuid,
                     algorithm: descriptor.algorithm,
