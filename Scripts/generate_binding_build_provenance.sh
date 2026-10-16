@@ -9,11 +9,20 @@ fi
 root_dir="${SRCROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 cellprotocol_dir="${root_dir}/../CellProtocol"
 if [[ -n "${BUILD_DIR:-}" ]]; then
-  resolved_cellprotocol_dir="${BUILD_DIR}/../../SourcePackages/checkouts/CellProtocol"
-  if [[ -d "${resolved_cellprotocol_dir}/.git" ||
-        -f "${resolved_cellprotocol_dir}/.git" ]]; then
-    cellprotocol_dir="$resolved_cellprotocol_dir"
-  fi
+  # A normal build has BUILD_DIR = <DerivedData>/Build/Products, two levels below
+  # SourcePackages. An archive puts it deeper
+  # (<DerivedData>/Build/Intermediates.noindex/ArchiveIntermediates/<scheme>/BuildProductsPath),
+  # so look upwards a bounded number of levels for the resolved checkout.
+  search_dir="${BUILD_DIR}"
+  for level in 1 2 3 4 5 6; do
+    search_dir="${search_dir:h}"
+    resolved_cellprotocol_dir="${search_dir}/SourcePackages/checkouts/CellProtocol"
+    if [[ -d "${resolved_cellprotocol_dir}/.git" ||
+          -f "${resolved_cellprotocol_dir}/.git" ]]; then
+      cellprotocol_dir="$resolved_cellprotocol_dir"
+      break
+    fi
+  done
 fi
 output_plist="$1"
 output_manifest="$2"
