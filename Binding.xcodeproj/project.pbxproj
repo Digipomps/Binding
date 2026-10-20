@@ -274,7 +274,7 @@
 			mainGroup = 24D8000C2EF195A000021B5A;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				24FEA0022F4203AB000334E1 /* XCLocalSwiftPackageReference "CellProtocol" */,
+				24FEA0022F4203AB000334E1 /* XCRemoteSwiftPackageReference "CellProtocol" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 24D800162EF195A000021B5A /* Products */;
@@ -805,22 +805,26 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		24FEA0022F4203AB000334E1 /* XCLocalSwiftPackageReference "CellProtocol" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = "../wp8b-protocol/CellProtocol";
+/* Begin XCRemoteSwiftPackageReference section */
+		24FEA0022F4203AB000334E1 /* XCRemoteSwiftPackageReference "CellProtocol" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Digipomps/CellProtocol.git";
+			requirement = {
+				kind = revision;
+				revision = 79497e85ef2f3fb02db0d6df5b601c5f1bc76391;
+			};
 		};
-/* End XCLocalSwiftPackageReference section */
+/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		24FEA0042F421297000334E1 /* CellBase */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 24FEA0022F4203AB000334E1 /* XCLocalSwiftPackageReference "../wp8b-protocol/CellProtocol" */;
+			package = 24FEA0022F4203AB000334E1 /* XCRemoteSwiftPackageReference "CellProtocol" */;
 			productName = CellBase;
 		};
 		24FEA0062F42129D000334E1 /* CellApple */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 24FEA0022F4203AB000334E1 /* XCLocalSwiftPackageReference "../wp8b-protocol/CellProtocol" */;
+			package = 24FEA0022F4203AB000334E1 /* XCRemoteSwiftPackageReference "CellProtocol" */;
 			productName = CellApple;
 		};
 		EC2026091100000000000002 /* CellNearby */ = {isa = XCSwiftPackageProductDependency; package = 24FEA0022F4203AB000334E1; productName = CellNearby; };

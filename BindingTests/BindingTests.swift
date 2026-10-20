@@ -12,6 +12,8 @@ import SwiftUI
 import CryptoKit
 #if canImport(AppKit)
 import AppKit
+#elseif canImport(UIKit)
+import UIKit
 #endif
 @_spi(Testing) import CellBase
 @_spi(Testing) @testable import CellApple
@@ -1511,7 +1513,8 @@ struct BindingTests {
         #expect(skeletonTextArea(targetKeypath: "teamChat.setComposer", in: mergeResult.rewrittenFragment)?.submitActionKeypath == "teamChat.prompt.submit")
         #expect(skeletonContainsList(keypath: "teamChat.state.ui.promptMessages", topic: nil, in: mergeResult.rewrittenFragment))
         #expect(skeletonContainsButton(keypath: "teamChat.prompt.submit", label: "↑", in: mergeResult.rewrittenFragment))
-        #expect(!skeletonContainsButton(keypath: "teamChat.sendComposedMessage", in: mergeResult.rewrittenFragment))
+        #expect(skeletonContainsButton(keypath: "teamChat.sendComposedMessage", label: "Send til samtalen", in: mergeResult.rewrittenFragment))
+        #expect(skeletonTextArea(targetKeypath: "teamChat.message.setComposer", in: mergeResult.rewrittenFragment)?.submitActionKeypath == "teamChat.sendComposedMessage")
     }
 
     @Test func componentMergeRewritesListSelectionKeypathsForAssistantComponent() {
@@ -1759,7 +1762,8 @@ struct BindingTests {
         #expect(skeletonContainsTextArea(targetKeypath: "chatHub.setComposer", in: workingSkeleton))
         #expect(skeletonContainsList(keypath: "chatHub.state.ui.promptMessages", topic: nil, in: workingSkeleton))
         #expect(skeletonContainsButton(keypath: "chatHub.prompt.submit", label: "↑", in: workingSkeleton))
-        #expect(!skeletonContainsButton(keypath: "chatHub.sendComposedMessage", in: workingSkeleton))
+        #expect(skeletonContainsButton(keypath: "chatHub.sendComposedMessage", label: "Send til samtalen", in: workingSkeleton))
+        #expect(skeletonTextArea(targetKeypath: "chatHub.message.setComposer", in: workingSkeleton)?.submitActionKeypath == "chatHub.sendComposedMessage")
     }
 
     @Test func localOnlyCellsAreNotRetargetedToStaging() {
@@ -10782,7 +10786,7 @@ enum CellConfigurationVerifier {
         var stopSucceeded: Bool { stopOutcome == "ok" }
     }
 
-#if canImport(AppKit)
+#if canImport(AppKit) || canImport(UIKit)
     @MainActor
     struct RenderReport {
         let visibleStrings: Set<String>
@@ -10791,6 +10795,7 @@ enum CellConfigurationVerifier {
         let subviewCount: Int
         let firstMeaningfulContentMilliseconds: Double
         let totalRenderMilliseconds: Double
+        var nonUniformSnapshot: Bool? = nil
 
         var unavailableNowCount: Int {
             visibleStrings.filter { $0.contains("Innholdet er ikke tilgjengelig akkurat nå.") }.count
@@ -11467,6 +11472,122 @@ enum CellConfigurationVerifier {
             subviewCount: countSubviews(in: containerView),
             firstMeaningfulContentMilliseconds: firstMeaningfulContentMilliseconds,
             totalRenderMilliseconds: milliseconds(since: renderStart, clock: clock)
+        )
+    }
+#elseif canImport(UIKit)
+    @MainActor
+    static func renderReport(
+        for configuration: CellConfiguration,
+        expectedVisibleStrings: Set<String>,
+        identityMode: VerifierIdentityMode? = nil
+    ) async throws -> RenderReport {
+        guard configuration.skeleton != nil else {
+            throw NSError(domain: "CellConfigurationVerifier", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "Configuration mangler skeleton"])
+        }
+        let context = try await makeRuntimeContext(for: configuration, identityMode: identityMode)
+        context.porthole.detachAll(requester: context.owner)
+        try await context.porthole.loadCellConfiguration(context.configuration, requester: context.owner)
+        guard let skeleton = context.configuration.skeleton else {
+            throw NSError(domain: "CellConfigurationVerifier", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "Configuration mangler skeleton"])
+        }
+        let viewModel = PortholeViewModel()
+        viewModel.cellReferences = context.configuration.cellReferences ?? []
+        viewModel.applyCellConfiguration(cellConfiguration: context.configuration)
+        viewModel.markLocalMutation()
+        let controller = UIHostingController(rootView:
+            BindingSkeletonView(element: skeleton).environmentObject(viewModel)
+        )
+        let window: UIWindow
+        if let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first {
+            window = UIWindow(windowScene: scene)
+            window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        } else {
+            window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        }
+        window.rootViewController = controller
+        window.isHidden = false
+        defer { window.isHidden = true; window.rootViewController = nil }
+        let clock = ContinuousClock()
+        let start = clock.now
+        var firstContent = 0.0
+        var strings = Set<String>()
+        var buttons = Set<String>()
+        var snapshotBytes = 0
+        var subviews = 0
+        var nonUniform = false
+        // Give SwiftUI an actual display turn before taking the first snapshot.
+        try await Task.sleep(nanoseconds: 50_000_000)
+        for iteration in 0..<16 {
+            window.setNeedsLayout()
+            window.layoutIfNeeded()
+            controller.view.layoutIfNeeded()
+            strings = []
+            buttons = []
+            subviews = 0
+            func collect(_ view: UIView) {
+                guard !view.isHidden, view.alpha > 0 else { return }
+                subviews += 1
+                for value in [view.accessibilityLabel, (view as? UILabel)?.text,
+                              (view as? UITextField)?.text, (view as? UITextView)?.text] {
+                    if let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        strings.insert(value)
+                    }
+                }
+                if let button = view as? UIButton, let title = button.currentTitle { buttons.insert(title) }
+                if view.accessibilityTraits.contains(.button), let title = view.accessibilityLabel {
+                    buttons.insert(title)
+                }
+                // SwiftUI also exposes text/buttons as virtual accessibility
+                // elements rather than UILabel/UIButton children.
+                let elementCount = view.accessibilityElementCount()
+                if elementCount != NSNotFound, elementCount > 0 {
+                    for index in 0..<min(elementCount, 1000) {
+                        if let element = view.accessibilityElement(at: index) as? UIAccessibilityElement,
+                           let label = element.accessibilityLabel, !label.isEmpty {
+                            strings.insert(label)
+                            if element.accessibilityTraits.contains(.button) { buttons.insert(label) }
+                        }
+                    }
+                }
+                for child in view.subviews { collect(child) }
+            }
+            collect(controller.view)
+            let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+            }
+            snapshotBytes = max(snapshotBytes, image.pngData()?.count ?? 0)
+            if let cgImage = image.cgImage, let pixelData = cgImage.dataProvider?.data {
+                let data = pixelData as Data
+                let stride = cgImage.bitsPerPixel / 8
+                if stride > 0, data.count >= cgImage.bytesPerRow * cgImage.height {
+                    nonUniform = data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) -> Bool in
+                        for y in 0..<cgImage.height {
+                            for x in 0..<cgImage.width {
+                                let offset = y * cgImage.bytesPerRow + x * stride
+                                for channel in 0..<stride where bytes[offset + channel] != bytes[channel] {
+                                    return true
+                                }
+                            }
+                        }
+                        return false
+                    }
+                }
+            }
+            if nonUniform && expectedVisibleStrings.isSubset(of: strings.union(buttons)) {
+                firstContent = milliseconds(since: start, clock: clock)
+                break
+            }
+            if iteration < 15 { try await Task.sleep(nanoseconds: 50_000_000) }
+        }
+        if firstContent == 0 { firstContent = milliseconds(since: start, clock: clock) }
+        return RenderReport(
+            visibleStrings: strings, buttonTitles: buttons,
+            snapshotByteCount: snapshotBytes, subviewCount: subviews,
+            firstMeaningfulContentMilliseconds: firstContent,
+            totalRenderMilliseconds: milliseconds(since: start, clock: clock),
+            nonUniformSnapshot: nonUniform
         )
     }
 #endif

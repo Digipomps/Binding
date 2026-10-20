@@ -8,10 +8,6 @@ fi
 
 root_dir="${SRCROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 cellprotocol_dir="${root_dir}/../CellProtocol"
-# WP8 local test build: the project references the local CP candidate at ../wp8b-protocol/CellProtocol.
-if [[ ! -d "$cellprotocol_dir" && -d "${root_dir}/../wp8b-protocol/CellProtocol" ]]; then
-  cellprotocol_dir="${root_dir}/../wp8b-protocol/CellProtocol"
-fi
 if [[ -n "${BUILD_DIR:-}" ]]; then
   resolved_cellprotocol_dir="${BUILD_DIR}/../../SourcePackages/checkouts/CellProtocol"
   if [[ -d "${resolved_cellprotocol_dir}/.git" ||
