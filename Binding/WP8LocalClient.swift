@@ -2,6 +2,7 @@
 import Foundation
 @_spi(Testing) import CellBase
 import CellVapor
+import NIOHTTP1
 
 nonisolated struct WP8Failure: Error, CustomStringConvertible {
     let description: String
