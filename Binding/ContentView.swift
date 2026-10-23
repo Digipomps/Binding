@@ -1723,18 +1723,23 @@ struct ContentView: View {
     }
 
     private var personalCopilotPlatformCanvasColor: Color {
-#if os(iOS)
+        // PDD haven-visionos steg 2: API-gate med canImport og nøytral #else (auditen §4.1).
+#if canImport(UIKit)
         Color(uiColor: .systemGroupedBackground)
-#else
+#elseif canImport(AppKit)
         Color(nsColor: .windowBackgroundColor)
+#else
+        Color.clear
 #endif
     }
 
     private var personalCopilotPlatformSurfaceColor: Color {
-#if os(iOS)
+#if canImport(UIKit)
         Color(uiColor: .systemBackground)
-#else
+#elseif canImport(AppKit)
         Color(nsColor: .controlBackgroundColor)
+#else
+        Color.clear
 #endif
     }
 
@@ -1752,6 +1757,32 @@ struct ContentView: View {
         guard activeConfiguration?.name != destination.title else { return }
         queueConfigurationLoad(
             destination.configuration,
+            navigationMode: .reset,
+            provenance: .localTrusted
+        )
+    }
+
+    /// «Svar i HAVEN» fra HAVEN Agent: «Utvid entiteten» → «Ber om tilgang», med forespørselen
+    /// markert. Lastes på nytt også når flaten alt er åpen, så markeringen vises. Bare navigasjon:
+    /// ingenting godkjennes herfra.
+    @MainActor
+    private func openAccessRequests(markingContract contractID: String?) {
+        BindingAccessRequestFocus.shared.focus(contractID: contractID)
+        if editorMode == .edit && editorState.isDirty {
+            loadErrorMessage = "En forespørsel venter i «Utvid entiteten» → «Ber om tilgang». Lagre eller forkast editor-draften før HAVEN bytter flate."
+            return
+        }
+        if editorMode == .edit {
+            editorMode = .view
+        }
+        personalCopilotDestination = .extendEntity
+        personalCopilotPhoneTab = BindingPersonalCopilotDestination.extendEntity.phoneTab
+        diagnosticsStore.record(
+            domain: "binding.accessRequestLink",
+            message: "Åpner «Utvid entiteten» → «Ber om tilgang» fra dyplenke."
+        )
+        queueConfigurationLoad(
+            BindingPersonalCopilotDestination.extendEntity.configuration,
             navigationMode: .reset,
             provenance: .localTrusted
         )
@@ -4614,6 +4645,25 @@ struct ContentView: View {
         if let threadID = BindingChatNotificationRoute.threadID(from: url) {
             await openChatNotificationThread(threadID, execution: execution)
             return
+        }
+        switch BindingAccessRequestDeepLink.parse(url) {
+        case .accepted(let contractID):
+            execution.commit {
+                openAccessRequests(markingContract: contractID)
+            }
+            return
+        case .rejected(let reason):
+            execution.commit {
+                loadErrorMessage = "Lenken til «Ber om tilgang» var ugyldig og ble ikke åpnet."
+                diagnosticsStore.record(
+                    severity: .warning,
+                    domain: "binding.accessRequestLink",
+                    message: "Avviste dyplenke til «Ber om tilgang»: \(reason)."
+                )
+            }
+            return
+        case .notThisRoute:
+            break
         }
         if let hook = Self.conferenceAutomationHook(from: url) {
             guard execution.isActive else { return }

@@ -61,6 +61,21 @@ nonisolated enum AgentLocalControlBridgeEndpointSupport {
         return components.url?.absoluteString
     }
 
+    /// HTTP-roten til agentens kontrollbro — samme config.json, vert, port og token som
+    /// broendepunktene over. Brukes av verktøylenkene i «Utvid entiteten»
+    /// (`BindingToolLinkController`). Bare loopback.
+    static func controlBridgeHTTPEndpoint() -> (base: URL, accessToken: String?)? {
+        guard let configJSON = readDefaultConfigJSON() else { return nil }
+        let configuration = controlBridgeConfiguration(configJSON: configJSON)
+        guard configuration.enabled, isLoopbackHost(configuration.host) else { return nil }
+        var components = URLComponents()
+        components.scheme = "http"
+        components.host = configuration.host
+        components.port = configuration.port
+        guard let url = components.url else { return nil }
+        return (url, configuration.accessToken)
+    }
+
     static func portableEndpoint(_ endpoint: String) -> String? {
         guard let configJSON = readDefaultConfigJSON() else { return nil }
         return portableEndpoint(endpoint, configJSON: configJSON)
