@@ -9468,6 +9468,8 @@ struct BindingTests {
                 append(textArea.modifiers)
             case .Image(let image):
                 append(image.modifiers)
+            case .Audio(let audio):
+                append(audio.modifiers)
             case .Spacer(let spacer):
                 append(spacer.modifiers)
             case .VStack(let stack):
