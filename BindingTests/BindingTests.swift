@@ -94,74 +94,47 @@ private actor AgreementOrderingBridgeTransportScript {
     }
 }
 
-private final class AgreementOrderingBridgeResponseDelivery: @unchecked Sendable {
-    private let delegate: BridgeDelegateProtocol
-    private let response: BridgeCommand
+/// Scripted remote cell behind a real server-side `BridgeChannelTransport`.
+/// The client bridge authenticates the channel exactly as it does against a
+/// scaffold, and the script only answers the bridge commands after that.
+private final class AgreementOrderingScriptedRemote: BridgeDelegateProtocol, @unchecked Sendable {
+    let uuid = "remote-agreement-cell"
+    private weak var transport: BridgeChannelTransport?
 
-    init(delegate: BridgeDelegateProtocol, response: BridgeCommand) {
-        self.delegate = delegate
-        self.response = response
+    init(transport: BridgeChannelTransport) {
+        self.transport = transport
     }
 
-    func deliver() async {
-        do {
-            try await Task.sleep(nanoseconds: 250_000_000)
-            try await delegate.consumeResponse(command: response)
-        } catch {
-            await AgreementOrderingBridgeTransportScript.shared.recordResponseError(error)
-        }
-    }
-}
-
-private final class AgreementOrderingBridgeTransport: BridgeTransportProtocol {
-    private var delegate: BridgeDelegateProtocol?
-
-    static func new() -> BridgeTransportProtocol {
-        AgreementOrderingBridgeTransport()
-    }
-
-    func setDelegate(_ delegate: BridgeDelegateProtocol) {
-        self.delegate = delegate
-    }
-
-    func setup(_ endpointURL: URL, identity: Identity) async throws {
-        try await delegate?.consumeCommand(
-            command: BridgeCommand(
-                cmd: Command.ready.rawValue,
-                identity: identity,
-                payload: nil,
-                cid: 0
-            )
-        )
-    }
-
-    func sendData(_ data: Data) async throws {
-        let command = try JSONDecoder().decode(BridgeCommand.self, from: data)
+    func consumeCommand(command: BridgeCommand) async throws {
         await AgreementOrderingBridgeTransportScript.shared.record(command: command.cmd)
 
         switch command.command {
         case .description:
             let attempt = await AgreementOrderingBridgeTransportScript.shared.nextDescriptionAttempt()
-            let description = attempt == 1 ? initialDescription() : remoteDescription()
-            try await respond(to: command, payload: .description(description))
+            let description = attempt == 1 ? Self.initialDescription() : Self.remoteDescription()
+            try respond(to: command, payload: .description(description))
         case .admit:
-            try await respond(to: command, payload: .connectState(.signContract))
+            try respond(to: command, payload: .connectState(.signContract))
         case .agreement:
             if case let .agreementPayload(agreement)? = command.payload {
                 await AgreementOrderingBridgeTransportScript.shared.recordSignedAgreement(agreement)
             }
-            try await respond(to: command, payload: .contractState(.signed))
+            try respond(to: command, payload: .contractState(.signed))
         default:
-            try await respond(to: command, payload: .string("ok"))
+            try respond(to: command, payload: .string("ok"))
         }
     }
 
-    func identityVault(for: Identity?) async -> IdentityVaultProtocol {
-        CellBase.defaultIdentityVault!
-    }
+    func consumeResponse(command: BridgeCommand) async throws {}
+    func sendCommand(command: Command, identity: Identity, payload: ValueType?) async {}
+    func sendSetValueState(for requestedKey: String, setValueState: SetValueState) async {}
+    func pushError(errorMessage: String?, error: Error?) async {}
+    func ready() async throws {}
 
-    private func respond(to command: BridgeCommand, payload: ValueType) async throws {
-        guard let delegate else {
+    /// Responses leave after the request has returned, the way a remote host
+    /// answers, so the client has registered its pending command first.
+    private func respond(to command: BridgeCommand, payload: ValueType) throws {
+        guard let transport else {
             throw AgreementOrderingBridgeTransportError.missingDelegate
         }
         let response = BridgeCommand(
@@ -170,13 +143,14 @@ private final class AgreementOrderingBridgeTransport: BridgeTransportProtocol {
             payload: payload,
             cid: command.cid
         )
-        let delivery = AgreementOrderingBridgeResponseDelivery(delegate: delegate, response: response)
+        let data = try JSONEncoder().encode(response)
+        let delivery = AgreementOrderingBridgeResponseDelivery(transport: transport, data: data)
         Task.detached {
             await delivery.deliver()
         }
     }
 
-    private func initialDescription() -> AnyCell {
+    private static func initialDescription() -> AnyCell {
         let remoteOwner = Identity(
             "remote-agreement-owner",
             displayName: "Remote Agreement Owner",
@@ -195,7 +169,7 @@ private final class AgreementOrderingBridgeTransport: BridgeTransportProtocol {
         )
     }
 
-    private func remoteDescription() -> AnyCell {
+    private static func remoteDescription() -> AnyCell {
         let remoteOwner = Identity(
             "remote-agreement-owner",
             displayName: "Remote Agreement Owner",
@@ -217,6 +191,131 @@ private final class AgreementOrderingBridgeTransport: BridgeTransportProtocol {
     }
 }
 
+private final class AgreementOrderingBridgeResponseDelivery: @unchecked Sendable {
+    private let transport: BridgeChannelTransport
+    private let data: Data
+
+    init(transport: BridgeChannelTransport, data: Data) {
+        self.transport = transport
+        self.data = data
+    }
+
+    func deliver() async {
+        do {
+            try await Task.sleep(nanoseconds: 250_000_000)
+            try await transport.sendData(data)
+        } catch {
+            await AgreementOrderingBridgeTransportScript.shared.recordResponseError(error)
+        }
+    }
+}
+
+/// Server half of the in-memory wire: hands what the server gate sends to the
+/// client gate.
+private final class AgreementOrderingServerWire: BridgeTransportProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var delegate: BridgeDelegateProtocol?
+    private weak var client: AgreementOrderingBridgeTransport?
+
+    init(client: AgreementOrderingBridgeTransport?) {
+        self.client = client
+    }
+
+    static func new() -> BridgeTransportProtocol {
+        AgreementOrderingServerWire(client: nil)
+    }
+
+    func setDelegate(_ delegate: BridgeDelegateProtocol) {
+        lock.withLock { self.delegate = delegate }
+    }
+
+    var gate: BridgeDelegateProtocol? {
+        lock.withLock { delegate }
+    }
+
+    func setup(_ endpointURL: URL, identity: Identity) async throws {}
+
+    func sendData(_ data: Data) async throws {
+        guard let client else {
+            throw AgreementOrderingBridgeTransportError.missingDelegate
+        }
+        try await client.receive(data)
+    }
+
+    func identityVault(for: Identity?) async -> IdentityVaultProtocol {
+        CellBase.defaultIdentityVault!
+    }
+}
+
+/// Client half of the in-memory wire, registered for `wss`. `setup` stands up
+/// the server gate for the exact audience the client gate authenticates to.
+private final class AgreementOrderingBridgeTransport: BridgeTransportProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var delegate: BridgeDelegateProtocol?
+    private var serverWire: AgreementOrderingServerWire?
+    private var serverGate: BridgeChannelTransport?
+
+    static func new() -> BridgeTransportProtocol {
+        AgreementOrderingBridgeTransport()
+    }
+
+    func setDelegate(_ delegate: BridgeDelegateProtocol) {
+        lock.withLock { self.delegate = delegate }
+    }
+
+    func setup(_ endpointURL: URL, identity: Identity) async throws {
+        let wire = AgreementOrderingServerWire(client: self)
+        let gate = try BridgeChannelTransport(
+            underlying: wire,
+            endpoint: .init(url: endpointURL, domain: "bridge"),
+            limits: BridgeChannelLimits(),
+            source: "binding-agreement-order"
+        ) { transport, _ in
+            AgreementOrderingScriptedRemote(transport: transport)
+        }
+        lock.withLock {
+            serverWire = wire
+            serverGate = gate
+        }
+    }
+
+    func sendData(_ data: Data) async throws {
+        guard let gate = lock.withLock({ serverWire?.gate }) else {
+            throw AgreementOrderingBridgeTransportError.missingDelegate
+        }
+        try await Self.deliver(data, to: gate)
+    }
+
+    func receive(_ data: Data) async throws {
+        guard let delegate = lock.withLock({ delegate }) else {
+            throw AgreementOrderingBridgeTransportError.missingDelegate
+        }
+        try await Self.deliver(data, to: delegate)
+    }
+
+    func close() async {
+        let gate = lock.withLock { () -> BridgeChannelTransport? in
+            defer { serverGate = nil; serverWire = nil }
+            return serverGate
+        }
+        await gate?.close()
+    }
+
+    func identityVault(for: Identity?) async -> IdentityVaultProtocol {
+        CellBase.defaultIdentityVault!
+    }
+
+    private static func deliver(_ data: Data, to destination: BridgeDelegateProtocol) async throws {
+        try destination.validateInboundPayload(data)
+        let command = try JSONDecoder().decode(BridgeCommand.self, from: data)
+        if command.command == .response {
+            try await destination.consumeResponse(command: command)
+        } else {
+            try await destination.consumeCommand(command: command)
+        }
+    }
+}
+
 private func remoteEndpointAccessAgreementOrderingSnapshot() async throws -> (commands: [String], signedAgreementGrantKeypaths: [String], responseErrors: [String]) {
     let vault = BindingStartupIdentityVault.shared
     _ = await vault.initialize()
@@ -226,10 +325,11 @@ private func remoteEndpointAccessAgreementOrderingSnapshot() async throws -> (co
     let resolver = CellResolver.sharedInstance
     try await resolver.registerTransport(
         AgreementOrderingBridgeTransport.self,
-        for: "ws"
+        for: "wss"
     )
 
-    let endpoint = "ws://agreement-order-\(UUID().uuidString).test/RemoteAgreementCell"
+    // A bridge only authenticates to a secure origin with a canonical (lower-case) host.
+    let endpoint = "wss://agreement-order-\(UUID().uuidString.lowercased()).test/RemoteAgreementCell"
     let requester = await vault.identity(
         for: "binding-test-remote-agreement-order",
         makeNewIfNotFound: true
@@ -244,11 +344,11 @@ private func remoteEndpointAccessAgreementOrderingSnapshot() async throws -> (co
             accessLabel: "agreement-order"
         )
     } catch {
-        try? await resolver.registerTransport(LightweightBridgeTransport.self, for: "ws")
+        try? await resolver.registerTransport(LightweightBridgeTransport.self, for: "wss")
         throw error
     }
 
-    try await resolver.registerTransport(LightweightBridgeTransport.self, for: "ws")
+    try await resolver.registerTransport(LightweightBridgeTransport.self, for: "wss")
     return await AgreementOrderingBridgeTransportScript.shared.snapshot()
 }
 

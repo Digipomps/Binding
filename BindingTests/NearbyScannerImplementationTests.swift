@@ -189,7 +189,15 @@ final class NearbyScannerImplementationTests: XCTestCase {
         let expected = try JSONDecoder().decode(NearbyAdvertisement.self, from: JSONEncoder().encode(value))
         XCTAssertEqual(published, expected)
         // Exercise the action contract through the same discovery event and GET used by the UI.
-        cell.foundDevicesChanged(manager: service, foundDevice: MCPeerID(displayName: "Synthetic peer"), remoteUUID: "peer-fixture", discoveryInfo: nil)
+        // The Cell keeps peer state only for a peer the service has admitted, so the
+        // synthetic peer is found through the service's own browser callback first.
+        let syntheticPeer = MCPeerID(displayName: "Synthetic peer")
+        service.browser(
+            MCNearbyServiceBrowser(peer: MCPeerID(displayName: "local"), serviceType: "haven-radar"),
+            foundPeer: syntheticPeer,
+            withDiscoveryInfo: ["uuid": "peer-fixture"]
+        )
+        cell.foundDevicesChanged(manager: service, foundDevice: syntheticPeer, remoteUUID: "peer-fixture", discoveryInfo: nil)
         for selection: ValueType in [.string("peer-fixture"), .object(["remoteUUID": .string("peer-fixture")]),
             .object(["selected": .object(["payload": .string("peer-fixture")])])] {
             _ = try await cell.set(keypath: "select", value: selection, requester: owner)
