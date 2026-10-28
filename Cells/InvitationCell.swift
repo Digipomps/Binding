@@ -228,7 +228,8 @@ final class BindingInvitationCell: GeneralCell {
             "invite.recordDeclined",
             "invite.revoke",
             "invite.verify",
-            "invite.clearOutbox"
+            "invite.clearOutbox",
+            "invite.respond"
         ]
     }
 
@@ -292,7 +293,9 @@ final class BindingInvitationCell: GeneralCell {
         case "invite.revoke":
             return .object(await revoke(value))
         case "invite.verify":
-            return .object(verify(value))
+            return .object(await verify(value))
+        case "invite.respond":
+            return .object(await respond(value))
         case "invite.clearOutbox":
             return .object(clearOutbox(value))
         default:
@@ -1167,7 +1170,7 @@ final class BindingInvitationCell: GeneralCell {
                 issuerIdentityUUID: descriptor.uuid
             )
             if let canonical = try? notice.canonicalPayloadData(),
-               let signature = try? await storedOwnerIdentity.sign(data: canonical) {
+               let signature = try? await (verifiedRuntimeOwnerIdentity() ?? storedOwnerIdentity).sign(data: canonical) {
                 notice.proof = HavenSignatureProof(
                     byIdentityUUID: descriptor.uuid,
                     algorithm: descriptor.algorithm,
@@ -1198,12 +1201,14 @@ final class BindingInvitationCell: GeneralCell {
 
     // MARK: - Verify
 
-    private func verify(_ value: ValueType) -> Object {
+    private func verify(_ value: ValueType) async -> Object {
         let payload = HavenValue.object(value) ?? [:]
         let ticket: HavenInviteTicket
         do {
             if let link = HavenValue.string(payload["link"]) ?? HavenValue.string(value) {
-                ticket = try HavenInviteLink.decode(try HavenInviteLink.token(fromLink: link))
+                let (token, problem) = await resolveToken(link: link, payload: payload)
+                if let problem { return problem }
+                ticket = try HavenInviteLink.decode(token ?? "")
             } else if let embedded = payload["ticket"],
                       let decoded = HavenValue.decode(HavenInviteTicket.self, from: embedded) {
                 ticket = decoded
@@ -1223,6 +1228,138 @@ final class BindingInvitationCell: GeneralCell {
         )
         // The one serialisation the landing page uses too.
         return HavenInviteVerifier.payload(for: verdict, ticket: ticket)
+    }
+
+    /// The landing a link points at, else the one in the payload or settings.
+    private func landingBase(of link: String, payload: Object) -> String? {
+        if let url = URL(string: link.trimmingCharacters(in: .whitespacesAndNewlines)),
+           let scheme = url.scheme, scheme == "http" || scheme == "https", let host = url.host {
+            return "\(scheme)://\(host)" + (url.port.map { ":\($0)" } ?? "")
+        }
+        return HavenValue.string(payload["landingBase"]) ?? stateQueue.sync { settings }.landingBaseCandidates.first
+    }
+
+    /// The ticket token behind a link. A short code is looked up at the landing that holds it.
+    private func resolveToken(link: String, payload: Object) async -> (String?, Object?) {
+        let token: String
+        do {
+            token = try HavenInviteLink.token(fromLink: link)
+        } catch let error as HavenInviteLink.Failure {
+            return (nil, HavenValue.error(code: error.code, message: error.description))
+        } catch {
+            return (nil, HavenValue.error(code: "bad_link", message: "Invitasjonen kunne ikke leses."))
+        }
+        guard HavenInviteLink.looksLikeHumanCode(token) else { return (token, nil) }
+        guard let base = landingBase(of: link, payload: payload) else {
+            return (nil, HavenValue.error(code: "not_configured", message: "En kort kode trenger adressen til scaffoldet som holder invitasjonen."))
+        }
+        let trimmed = base.trimmingCharacters(in: CharacterSet(charactersIn: " /"))
+        let (status, body) = await BindingInviteScaffoldClient.exchange(method: "GET", url: "\(trimmed)/\(HavenInviteLink.pathSegment)/\(token)")
+        guard (200...299).contains(status), let ticketToken = HavenValue.string(body?["ticketToken"]) else {
+            let message = HavenValue.string(body?["message"]) ?? (status == 0 ? "Fikk ikke kontakt med scaffoldet." : "Scaffoldet kjenner ikke denne koden.")
+            return (nil, HavenValue.error(code: "not_available", message: message))
+        }
+        return (ticketToken, nil)
+    }
+
+    // MARK: - Respond (the invitee's side)
+
+    /// Answer an invitation: verify the ticket, sign a contact request with
+    /// this identity's own key, and post it to the landing that holds the ticket.
+    private func respond(_ value: ValueType) async -> Object {
+        var payload = HavenValue.object(value) ?? [:]
+        if payload.isEmpty, let link = HavenValue.string(value) { payload["link"] = .string(link) }
+        guard let link = HavenValue.string(payload["link"]) else {
+            return fail(HavenValue.error(code: "bad_request", message: "Send `link`: invitasjonslenken du fikk."))
+        }
+        let (resolved, problem) = await resolveToken(link: link, payload: payload)
+        if let problem { return fail(problem) }
+        guard let token = resolved else {
+            return fail(HavenValue.error(code: "bad_link", message: "Invitasjonen kunne ikke leses."))
+        }
+        let ticket: HavenInviteTicket
+        do {
+            ticket = try HavenInviteLink.decode(token)
+        } catch let error as HavenInviteLink.Failure {
+            return fail(HavenValue.error(code: error.code, message: error.description))
+        } catch {
+            return fail(HavenValue.error(code: "bad_link", message: "Invitasjonen kunne ikke leses."))
+        }
+
+        let verdict = HavenInviteVerifier.verify(ticket: ticket, revokedTicketIDs: [], expectedAudienceToken: nil)
+        guard verdict.isValid else {
+            return fail(HavenValue.error(
+                code: verdict.code,
+                message: verdict.reason,
+                extra: ["verdict": .object(HavenInviteVerifier.payload(for: verdict, ticket: ticket))]
+            ))
+        }
+        guard let endpoint = ticket.issuerContactEndpoint, !endpoint.isEmpty else {
+            return fail(HavenValue.error(code: "no_reply_channel", message: "\(ticket.issuerDisplayName) har ikke åpnet for svar på denne invitasjonen."))
+        }
+        guard let base = landingBase(of: link, payload: payload) else {
+            return fail(HavenValue.error(code: "not_configured", message: "Vet ikke hvilket scaffold som holder invitasjonen. Send `landingBase`."))
+        }
+        guard let signingIdentity = await verifiedRuntimeOwnerIdentity(),
+              let sender = IdentityPublicKeySignatureVerifier.descriptor(for: signingIdentity) else {
+            return fail(HavenValue.error(code: "no_signing_identity", message: "Identiteten din har ingen signeringsnøkkel i denne kjøringen, så jeg kan ikke signere svaret."))
+        }
+
+        let current = stateQueue.sync { settings }
+        let now = Int(Date().timeIntervalSince1970)
+        var request = HavenInviteContactRequest(
+            requestID: "icr-\(UUID().uuidString.lowercased())",
+            ticketID: ticket.ticketID,
+            issuerEndpointID: endpoint,
+            sender: sender,
+            senderDisplayName: HavenValue.string(payload["displayName"])
+                ?? (current.issuerDisplayName.isEmpty ? signingIdentity.displayName : current.issuerDisplayName),
+            // The scaffold reads a reply without an entity ref as "declined".
+            senderEntityRef: HavenValue.string(payload["senderEntityRef"]) ?? current.issuerEntityRef ?? "cell:///EntityAnchor",
+            senderEndpoint: HavenValue.string(payload["senderEndpoint"]) ?? current.contactEndpointID,
+            message: HavenValue.string(payload["message"]),
+            createdAt: now,
+            expiresAt: min(now + 7 * 86_400, ticket.expiresAt),
+            nonce: Self.randomBytes(16)
+        )
+        guard let canonical = try? request.canonicalPayloadData(),
+              let signature = try? await signingIdentity.sign(data: canonical), !signature.isEmpty else {
+            return fail(HavenValue.error(code: "signing_failed", message: "Kunne ikke signere svaret."))
+        }
+        request.proof = HavenSignatureProof(
+            byIdentityUUID: sender.uuid,
+            algorithm: sender.algorithm,
+            curveType: sender.curveType,
+            signature: signature
+        )
+        guard let body = try? JSONEncoder().encode(request) else {
+            return fail(HavenValue.error(code: "bad_request", message: "Svaret kunne ikke kodes."))
+        }
+        let trimmed = base.trimmingCharacters(in: CharacterSet(charactersIn: " /"))
+        let (status, answer) = await BindingInviteScaffoldClient.exchange(
+            method: "POST",
+            url: "\(trimmed)/\(HavenInviteLink.pathSegment)/\(token)/reply",
+            body: body
+        )
+        guard (200...299).contains(status) else {
+            return fail(HavenValue.error(
+                code: HavenValue.string(answer?["code"]) ?? (status == 0 ? "transport" : "rejected"),
+                message: HavenValue.string(answer?["message"]) ?? "Scaffoldet avviste svaret.",
+                extra: ["httpStatus": .integer(status)]
+            ))
+        }
+        let result = HavenValue.ok(
+            HavenValue.string(answer?["message"]) ?? "Svaret er levert.",
+            sideEffect: true,
+            extra: [
+                "requestID": .string(request.requestID),
+                "ticketID": .string(ticket.ticketID),
+                "issuerDisplayName": .string(ticket.issuerDisplayName),
+                "issuerIdentityUUID": .string(ticket.issuer.uuid)
+            ]
+        )
+        stateQueue.sync { lastResult = result }
+        return result
     }
 
     private func clearOutbox(_ value: ValueType) -> Object {
