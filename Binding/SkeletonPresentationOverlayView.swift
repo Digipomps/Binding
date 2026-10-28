@@ -203,6 +203,12 @@ enum BindingSkeletonPresentationSupport {
             return value.modifiers
         case .Visualization(let value):
             return value.modifiers
+        case .Tree(let value):
+            return value.modifiers
+        case .ComponentSurface(let value):
+            return value.modifiers
+        case .Audio(let value):
+            return value.modifiers
         case .Unsupported(let value):
             return value.modifiers
         @unknown default:
@@ -703,6 +709,15 @@ enum BindingSkeletonPresentationSupport {
         case .Visualization(var value):
             value.modifiers = modifiers
             return .Visualization(value)
+        case .Tree(var value):
+            value.modifiers = modifiers
+            return .Tree(value)
+        case .ComponentSurface(var value):
+            value.modifiers = modifiers
+            return .ComponentSurface(value)
+        case .Audio(var value):
+            value.modifiers = modifiers
+            return .Audio(value)
         case .Unsupported(var value):
             value.modifiers = modifiers
             return .Unsupported(value)
