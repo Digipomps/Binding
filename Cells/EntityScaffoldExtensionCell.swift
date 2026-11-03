@@ -146,7 +146,8 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
             "extension.toolLinks.selectScope",
             "extension.toolLinks.selection",
             "extension.toolLinks.scopeSelection",
-            "extension.toolLinks.pairAgent"
+            "extension.toolLinks.pairAgent",
+            "extension.toolLinks.grantAgentAccess"
         ]
     }
 
@@ -215,6 +216,8 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
             return .object(toolLinks.selectScope(value))
         case "extension.toolLinks.pairAgent":
             return .object(await pairAgentHere(requester: requester))
+        case "extension.toolLinks.grantAgentAccess":
+            return .object(await grantAgentAccess(requester: requester))
         default:
             return .object(HavenValue.error(code: "unsupported_keypath", message: "Ukjent utvidelses-handling."))
         }
@@ -282,6 +285,19 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
             "Agenten er paret med denne HAVEN-en (nøkkel \(key)). Den bruker den nye paringen etter neste omstart; trykk Oppdater etterpå.",
             sideEffect: true
         ), in: .pairing)
+    }
+
+    /// Én gangs lov til å lese HAVEN Agents oppsett fra sandkassen (`agentAccess`-raden).
+    private func grantAgentAccess(requester: Identity) async -> Object {
+        let granted = await MainActor.run { AgentLocalControlBridgeEndpointSupport.requestAgentRuntimeAccessFromOwner() }
+        guard granted else {
+            return toolLinks.note(HavenValue.error(
+                code: "agent_access_not_granted",
+                message: "HAVEN fikk ikke lese agentens oppsett. Velg nøyaktig mappen «Application Support» i hjemmemappen din, og sjekk at HAVEN Agent er installert."
+            ), in: .pairing)
+        }
+        _ = toolLinks.note(HavenValue.ok("HAVEN ser nå HAVEN Agent.", sideEffect: false), in: .pairing)
+        return await toolLinks.refresh(ownerKey: ToolLinkSigner.publicKey(of: toolLinkIdentity(requester)))
     }
 
     // MARK: - Scopes
@@ -1118,6 +1134,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
     nonisolated private static func agentCard() -> SkeletonVStack {
         card("HAVEN Agent på denne maskinen", [
             rowList("entityExtension.state.toolAgentRows", [
+                agentAccessRow(),
                 pairingRow(),
                 problemRow(),
                 subheadingRow(),
@@ -1167,6 +1184,23 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
     }
 
     // MARK: Radene
+
+    nonisolated private static func agentAccessRow() -> SkeletonElement {
+        var modifiers = SkeletonModifiers()
+        modifiers.padding = 12
+        modifiers.background = Style.warningSoft
+        modifiers.cornerRadius = 14
+        modifiers.borderWidth = 1
+        modifiers.borderColor = Style.warning
+        return kind("agentAccess", [
+            boundText("title", color: Style.textPrimary, size: 15, weight: "semibold"),
+            boundText("body"),
+            buttonRow([
+                button("Gi HAVEN tilgang til HAVEN Agent", "entityExtension.extension.toolLinks.grantAgentAccess", primary: true),
+                button("Oppdater", "entityExtension.extension.toolLinks.refresh", primary: false)
+            ])
+        ], spacing: 8, modifiers: modifiers)
+    }
 
     nonisolated private static func pairingRow() -> SkeletonElement {
         var modifiers = SkeletonModifiers()

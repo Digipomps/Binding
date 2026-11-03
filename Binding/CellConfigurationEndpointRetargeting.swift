@@ -3,6 +3,9 @@ import Foundation
 import Darwin
 #endif
 import CellBase
+#if os(macOS)
+import AppKit
+#endif
 
 nonisolated enum AgentLocalControlBridgeEndpointSupport {
     private struct ControlBridgeConfiguration {
@@ -200,6 +203,52 @@ nonisolated enum AgentLocalControlBridgeEndpointSupport {
         runtimeAccessStarted = resolvedURL.startAccessingSecurityScopedResource()
 #else
         _ = runtimeAccessDirectory
+#endif
+    }
+
+    /// Om agentens config.json kan leses nå (sandkassen slipper den bare gjennom med bokmerket).
+    static func agentConfigReadable() -> Bool {
+        readDefaultConfigJSON() != nil
+    }
+
+    /// HAVEN er i en sandkasse og ser ikke `~/Library/Application Support/HAVENAgent` før eieren
+    /// har valgt mappen én gang. Uten dette sa «Utvid entiteten» bare «HAVEN Agent er ikke satt opp»
+    /// og ga ingen vei videre. Lagrer samme bokmerke som `readDefaultConfigJSON` bruker.
+    @MainActor
+    static func requestAgentRuntimeAccessFromOwner() -> Bool {
+#if os(macOS)
+        let applicationSupportDirectory = userHomeDirectory()
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+        NSApp.activate(ignoringOtherApps: true)
+        let panel = NSOpenPanel()
+        panel.title = "Gi HAVEN tilgang til HAVEN Agent"
+        panel.message = "Velg mappen «Application Support» og trykk «Gi tilgang». HAVEN leser bare agentens oppsett (HAVENAgent/config.json) for å finne kontrollbroen."
+        panel.prompt = "Gi tilgang"
+        panel.directoryURL = applicationSupportDirectory
+        panel.showsHiddenFiles = true
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = false
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK,
+              let selected = panel.url,
+              selected.standardizedFileURL == applicationSupportDirectory.standardizedFileURL,
+              let bookmark = try? selected.bookmarkData(
+                options: .withSecurityScope,
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+              ) else {
+            return false
+        }
+        UserDefaults.standard.set(bookmark, forKey: runtimeAccessBookmarkKey)
+        runtimeAccessLock.lock()
+        runtimeAccessStarted = false
+        runtimeAccessURL = nil
+        runtimeAccessLock.unlock()
+        return agentConfigReadable()
+#else
+        return false
 #endif
     }
 

@@ -477,14 +477,22 @@ private func kinds(_ state: Object, _ key: String) -> [String] {
         #expect(HavenValue.string(card["headline"])?.hasPrefix("**Losen — verktøycelle i agenten din**") == true)
     }
 
-    /// Uten agent på maskinen sier kortet det med én linje, ikke som en feil.
-    @Test func withoutAgentTheCardSaysSoInOneLine() async throws {
+    /// Uten lesbart agentoppsett er ikke kortet en blindvei: på Mac tilbyr det å gi HAVEN
+    /// tilgang (sandkassen), og svaret på det vises rett under.
+    @Test func withoutAgentTheCardOffersAccessNotADeadEnd() async throws {
         let links = BindingToolLinkController(endpoint: { nil }, transport: { _ in throw URLError(.cannotConnectToHost) })
         #expect(kinds(links.stateFields(), "toolAgentRows") == ["note"])
         await links.refresh(ownerKey: Keys().ownerPublic)
         let state = links.stateFields()
+        #if os(macOS)
+        #expect(kinds(state, "toolAgentRows") == ["agentAccess"])
+        #expect(HavenValue.string(rows(state, "toolAgentRows").first?["title"]) == "HAVEN ser ikke HAVEN Agent ennå")
+        _ = links.note(HavenValue.error(code: "agent_access_not_granted", message: "Ikke gitt."), in: .pairing)
+        #expect(kinds(links.stateFields(), "toolAgentRows") == ["agentAccess", "failure"])
+        #else
         #expect(kinds(state, "toolAgentRows") == ["note"])
         #expect(HavenValue.string(rows(state, "toolAgentRows").first?["text"]) == "HAVEN Agent er ikke satt opp på denne maskinen.")
+        #endif
 
         let unreachable = BindingToolLinkController(
             endpoint: { ToolLinkAgentEndpoint(base: URL(string: "http://127.0.0.1:43110")!, accessToken: nil) },

@@ -456,7 +456,18 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
             return [Self.row("note", ["text": .string("Henter status fra HAVEN Agent …")])]
         }
         if agentMissing {
+            #if os(macOS)
+            // Sandkassen skjuler agentens config.json til eieren har gitt lov én gang. Uten en
+            // knapp her var dette en blindvei: «Svar i HAVEN» landet på en setning og ingenting mer.
+            var rows = [Self.row("agentAccess", [
+                "title": .string("HAVEN ser ikke HAVEN Agent ennå"),
+                "body": .string("HAVEN kjører i en sandkasse og får ikke lese agentens oppsett før du gir lov én gang. Trykk knappen, velg mappen «Application Support» og trykk «Gi tilgang». Er agenten ikke installert, hjelper ikke dette."),
+            ])]
+            if let note = notes[.pairing] { rows.append(Self.noteRow(note)) }
+            return rows
+            #else
             return [Self.row("note", ["text": .string("HAVEN Agent er ikke satt opp på denne maskinen.")])]
+            #endif
         }
         if let agentProblem {
             return [Self.row("problem", ["text": .string(agentProblem)])]
