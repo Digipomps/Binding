@@ -113,8 +113,35 @@ enum BindingPersonalCopilotV1Policy {
         "chat-helper-tabs-compact"
     ]
 
+    /// Release har alltid App Store-gaten. Et Debug-bygg har den bare når noen ber om
+    /// den (`--app-store-gate` eller `BINDING_ENABLE_APP_STORE_GATE=1`): Debug er bygget
+    /// eieren bruker selv, og der skjulte gaten «Utvid entiteten» → «Ber om tilgang»,
+    /// så «Svar i HAVEN» fra HAVEN Agent landet på en flate uten forespørselen.
     nonisolated static var appStoreCatalogGateEnabled: Bool {
-        !conferenceDemoMenusEnabled
+        appStoreCatalogGateEnabled(
+            environment: ProcessInfo.processInfo.environment,
+            launchArguments: ProcessInfo.processInfo.arguments,
+            conferenceDemoMenusEnabled: conferenceDemoMenusEnabled
+        )
+    }
+
+    nonisolated static let appStoreGateLaunchArgument = "--app-store-gate"
+
+    nonisolated static func appStoreCatalogGateEnabled(
+        environment: [String: String],
+        launchArguments: [String],
+        conferenceDemoMenusEnabled: Bool
+    ) -> Bool {
+        #if DEBUG
+        guard !conferenceDemoMenusEnabled else { return false }
+        return launchArguments.contains(appStoreGateLaunchArgument)
+            || isTruthyFlag(environment["BINDING_ENABLE_APP_STORE_GATE"])
+        #else
+        _ = environment
+        _ = launchArguments
+        _ = conferenceDemoMenusEnabled
+        return true
+        #endif
     }
 
     nonisolated static var stagingSurfaceTestingEnabled: Bool {
