@@ -3,8 +3,14 @@ import Foundation
 #if os(macOS)
 import AppKit
 
+/// Når prosessen startet (systemUptime), så en lenke kan se om HAVEN nettopp ble startet av den.
+enum BindingProcessStart {
+    nonisolated(unsafe) static var uptimeAtLaunch: TimeInterval = ProcessInfo.processInfo.systemUptime
+}
+
 final class BindingMacAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
+        BindingProcessStart.uptimeAtLaunch = ProcessInfo.processInfo.systemUptime
         guard !IdentityLinkUIFixture.enabled else { return }
         let defaults = UserDefaults.standard
         defaults.set(false, forKey: "NSQuitAlwaysKeepsWindows")

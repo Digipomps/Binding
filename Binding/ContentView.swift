@@ -1777,6 +1777,9 @@ struct ContentView: View {
         }
         personalCopilotDestination = .extendEntity
         personalCopilotPhoneTab = BindingPersonalCopilotDestination.extendEntity.phoneTab
+#if os(macOS)
+        bringLinkWindowToFront()
+#endif
         diagnosticsStore.record(
             domain: "binding.accessRequestLink",
             message: "Åpner «Utvid entiteten» → «Ber om tilgang» fra dyplenke."
@@ -1811,6 +1814,35 @@ struct ContentView: View {
         }
 #endif
     }
+
+#if os(macOS)
+    /// «Svar i HAVEN» skal ende i ett vindu, foran. Startet HAVEN fra lukket (4.11 22:15Z),
+    /// laget SwiftUI ett vindu for oppstarten og ett for lenken, og det første lå øverst med
+    /// en annen flate. Vinduet som tok lenken legges nå foran. De andre lukkes bare når appen
+    /// nettopp startet, for da kan ingen ha arbeid i dem.
+    @MainActor
+    private func bringLinkWindowToFront() {
+        let launchedAt = ProcessInfo.processInfo.systemUptime - BindingProcessStart.uptimeAtLaunch
+        func run() {
+            guard let windowNumber = hostingWindowNumber,
+                  let mine = NSApp.window(withWindowNumber: windowNumber) else { return }
+            NSApp.activate(ignoringOtherApps: true)
+            mine.makeKeyAndOrderFront(nil)
+            guard launchedAt < 30 else { return }
+            for window in NSApp.windows where window !== mine
+                && window.isVisible
+                && window.styleMask.contains(.titled)
+                && window.sheetParent == nil
+                && window.contentViewController != nil
+                && window.title == mine.title {
+                window.close()
+            }
+        }
+        // Vinduet kan være nytt og ikke ferdig lagt ut; gjør det etter at SwiftUI har tegnet.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { run() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { run() }
+    }
+#endif
 
     private func selectPersonalCopilotPhoneTab(_ tab: BindingPersonalCopilotPhoneTab) {
         personalCopilotPhoneTab = tab
