@@ -928,6 +928,16 @@ actor BindingLocalCellRegistration {
                 type: AgentProvisioningCell.self,
                 resolver: resolver
             )
+        }
+        // «Par agenten med denne HAVEN-en» i «Utvid entiteten» bruker AgentEnrollment. Uten
+        // cellen svarte knappen «Paring med agenten er ikke slått på». Debug-bygget er eierens
+        // eget, så paringen er med der uten egen opt-in; Release følger fortsatt opt-in.
+        #if DEBUG && os(macOS)
+        let enrollmentEnabled = true
+        #else
+        let enrollmentEnabled = BindingPersonalCopilotV1Policy.agentSetupWorkbenchEnabled
+        #endif
+        if enrollmentEnabled {
             await register(
                 name: "AgentEnrollment",
                 cellScope: .identityUnique,

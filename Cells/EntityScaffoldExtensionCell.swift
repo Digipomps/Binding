@@ -1440,6 +1440,9 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
         visibleWhen: (String, ValueType)? = nil
     ) -> SkeletonElement {
         var button = SkeletonButton(keypath: keypath, label: label, payloadKeypath: payload)
+        // Uten payload gjør knappen GET, og handlingene her er bare skrivbare: «Oppdater»,
+        // «Par agenten» og «Gi HAVEN tilgang» feilet derfor alltid med varseltrekant.
+        if payload == nil { button.payload = .bool(true) }
         var modifiers = primary ? Style.primaryButton() : Style.secondaryButton()
         modifiers.padding = 8
         modifiers.fontSize = 14
