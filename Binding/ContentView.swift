@@ -718,6 +718,9 @@ struct ContentView: View {
     private var menusHidden: Bool = false
     @State private var rotationAccumulator: Angle = .zero
     @State private var didApplyStoredDemoStart = false
+    /// En lenke («Svar i HAVEN») har bedt om en flate. Da skal ikke oppstartens demo-start
+    /// legge seg over den etterpå (kaldstart 4.11 22:48Z: lenken kom, startflaten vant).
+    @State private var linkRequestedSurface = false
     @State private var didRepairPersistedConferenceLauncher = false
     @State private var didRepairPersistedConferencePortal = false
     @State private var didRepairPersistedConferenceControlTower = false
@@ -1775,6 +1778,8 @@ struct ContentView: View {
         if editorMode == .edit {
             editorMode = .view
         }
+        linkRequestedSurface = true
+        didApplyStoredDemoStart = true
         personalCopilotDestination = .extendEntity
         personalCopilotPhoneTab = BindingPersonalCopilotDestination.extendEntity.phoneTab
 #if os(macOS)
@@ -4228,7 +4233,7 @@ struct ContentView: View {
 
     @MainActor
     private func applyStoredDemoStartConfigurationIfNeeded() {
-        guard !didApplyStoredDemoStart else { return }
+        guard !didApplyStoredDemoStart, !linkRequestedSurface else { return }
         didApplyStoredDemoStart = true
         let decodedSelection = decodeStoredDemoStartConfiguration()
         let storedConfiguration = Self.effectiveDemoStartConfiguration(
@@ -4283,7 +4288,7 @@ struct ContentView: View {
 
     @MainActor
     private func ensureDefaultDemoStartVisibleIfNeeded(reason: String) {
-        guard activeConfiguration == nil else { return }
+        guard activeConfiguration == nil, !linkRequestedSurface else { return }
         let decodedSelection = decodeStoredDemoStartConfiguration()
         let storedConfiguration = Self.effectiveDemoStartConfiguration(
             storedConfiguration: decodedSelection?.configuration
