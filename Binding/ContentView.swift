@@ -3233,6 +3233,14 @@ struct ContentView: View {
 
     @ViewBuilder
     private var convenienceToolsMenuContent: some View {
+#if DEBUG
+        if !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled, WP8ArticleMenu.enabled {
+            Button(WP8ArticleMenu.title) {
+                queueConfigurationLoad(WP8ArticleMenu.placeholder, provenance: .localTrusted)
+            }
+            Divider()
+        }
+#endif
         Button(menusHidden ? "Vis kantmenyer" : "Skjul kantmenyer") {
             withOptionalAnimation(.easeInOut(duration: 0.18)) {
                 menusHidden.toggle()
@@ -5592,7 +5600,24 @@ struct ContentView: View {
         _ configuration: CellConfiguration?,
         provenance: ConfigurationProvenance
     ) async {
-        guard let configuration else { return }
+        guard var configuration else { return }
+#if DEBUG
+        if configuration.name == WP8ArticleMenu.title {
+            guard !BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled,
+                  provenance.mayUseLocalControlPlane, !provenance.isUntrustedImport,
+                  WP8ArticleMenu.enabled else {
+                loadErrorMessage = "Palazzo-testoppsettet krever lokal Debug-demomodus og eksplisitt miljø."
+                return
+            }
+            do {
+                guard let identity = await startupRequesterIdentity() else { throw WP8Failure("No app identity") }
+                configuration = try await WP8ArticleMenu.configuration(appIdentity: identity)
+            } catch {
+                loadErrorMessage = "Palazzo-testoppsettet kunne ikke åpnes. Kontroller server, pin-liste og testidentitet."
+                return
+            }
+        }
+#endif
         let requestID = UUID()
         activeLoadingRequestID = requestID
         isLoadingConfiguration = true

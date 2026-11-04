@@ -12,6 +12,7 @@
 		24FEA0052F421297000334E1 /* CellBase in Frameworks */ = {isa = PBXBuildFile; productRef = 24FEA0042F421297000334E1 /* CellBase */; };
 		24FEA0072F42129D000334E1 /* CellApple in Frameworks */ = {isa = PBXBuildFile; productRef = 24FEA0062F42129D000334E1 /* CellApple */; };
 		EC2026091100000000000001 /* CellNearby in Frameworks */ = {isa = PBXBuildFile; productRef = EC2026091100000000000002 /* CellNearby */; };
+		A8D000000000000000000001 = {isa = PBXBuildFile; productRef = A8D000000000000000000002; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -99,6 +100,7 @@
 				2430C8F52F18FB57008F5B80 /* NearbyInteraction.framework in Frameworks */,
 				2430C8F32F18FB4B008F5B80 /* MultipeerConnectivity.framework in Frameworks */,
 				24FEA0072F42129D000334E1 /* CellApple in Frameworks */,
+				A8D000000000000000000001 /* CellVapor in Frameworks */,
 				EC2026091100000000000001 /* CellNearby in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -178,6 +180,7 @@
 			packageProductDependencies = (
 				24FEA0042F421297000334E1 /* CellBase */,
 				24FEA0062F42129D000334E1 /* CellApple */,
+				A8D000000000000000000002 /* CellVapor */,
 				EC2026091100000000000002 /* CellNearby */,
 			);
 			productName = HAVEN;
@@ -816,15 +819,16 @@
 /* Begin XCSwiftPackageProductDependency section */
 		24FEA0042F421297000334E1 /* CellBase */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 24FEA0022F4203AB000334E1 /* XCLocalSwiftPackageReference "../CellProtocol" */;
+			package = 24FEA0022F4203AB000334E1 /* XCRemoteSwiftPackageReference "CellProtocol" */;
 			productName = CellBase;
 		};
 		24FEA0062F42129D000334E1 /* CellApple */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 24FEA0022F4203AB000334E1 /* XCLocalSwiftPackageReference "../CellProtocol" */;
+			package = 24FEA0022F4203AB000334E1 /* XCRemoteSwiftPackageReference "CellProtocol" */;
 			productName = CellApple;
 		};
 		EC2026091100000000000002 /* CellNearby */ = {isa = XCSwiftPackageProductDependency; package = 24FEA0022F4203AB000334E1; productName = CellNearby; };
+		A8D000000000000000000002 = {isa = XCSwiftPackageProductDependency; package = 24FEA0022F4203AB000334E1; productName = CellVapor; };
 /* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 24D8000D2EF195A000021B5A /* Project object */;
