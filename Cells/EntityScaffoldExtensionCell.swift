@@ -289,15 +289,29 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
 
     /// Én gangs lov til å lese HAVEN Agents oppsett fra sandkassen (`agentAccess`-raden).
     private func grantAgentAccess(requester: Identity) async -> Object {
-        let granted = await MainActor.run { AgentLocalControlBridgeEndpointSupport.requestAgentRuntimeAccessFromOwner() }
-        guard granted else {
-            return toolLinks.note(HavenValue.error(
-                code: "agent_access_not_granted",
-                message: "HAVEN fikk ikke lese agentens oppsett. Velg nøyaktig mappen «Application Support» i hjemmemappen din, og sjekk at HAVEN Agent er installert."
-            ), in: .pairing)
+        // Mappevalget venter på et menneske. Venter knappen på det, går handlingen ut på tid
+        // og knappen viser feil (07:54 4.11). Derfor åpnes valget for seg, og knappen svarer
+        // med en gang. Når valget er gjort, hentes agentens status på nytt.
+        let ownerKey = ToolLinkSigner.publicKey(of: toolLinkIdentity(requester))
+        let links = toolLinks
+        DispatchQueue.main.async {
+            let granted = AgentLocalControlBridgeEndpointSupport.requestAgentRuntimeAccessFromOwner()
+            Task {
+                if granted {
+                    _ = links.note(HavenValue.ok("HAVEN ser nå HAVEN Agent. Trykk Oppdater om listen ikke kommer av seg selv.", sideEffect: false), in: .pairing)
+                    _ = await links.refresh(ownerKey: ownerKey)
+                } else {
+                    _ = links.note(HavenValue.error(
+                        code: "agent_access_not_granted",
+                        message: "HAVEN fikk ikke lese agentens oppsett. Velg nøyaktig mappen «Application Support» i hjemmemappen din, og sjekk at HAVEN Agent er installert."
+                    ), in: .pairing)
+                }
+            }
         }
-        _ = toolLinks.note(HavenValue.ok("HAVEN ser nå HAVEN Agent.", sideEffect: false), in: .pairing)
-        return await toolLinks.refresh(ownerKey: ToolLinkSigner.publicKey(of: toolLinkIdentity(requester)))
+        return toolLinks.note(HavenValue.ok(
+            "Velg mappen «Application Support» i vinduet som åpnes, og trykk «Gi tilgang».",
+            sideEffect: false
+        ), in: .pairing)
     }
 
     // MARK: - Scopes
