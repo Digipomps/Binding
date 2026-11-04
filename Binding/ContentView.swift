@@ -1786,6 +1786,30 @@ struct ContentView: View {
             navigationMode: .reset,
             provenance: .localTrusted
         )
+#if os(macOS)
+        // Lenken kommer fra HAVEN Agent, så agenten finnes. Ser sandkassen ikke oppsettet,
+        // ber HAVEN om lov med en gang, her i appen og ikke via cellen: da avhenger ikke
+        // tilgangen av at eierbeviset til flaten er gyldig akkurat nå.
+        if AgentLocalControlBridgeEndpointSupport.agentConfigReadable() == false {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 600_000_000)
+                let granted = AgentLocalControlBridgeEndpointSupport.requestAgentRuntimeAccessFromOwner()
+                diagnosticsStore.record(
+                    domain: "binding.accessRequestLink",
+                    message: granted
+                        ? "HAVEN fikk lese HAVEN Agents oppsett."
+                        : "HAVEN fikk ikke lese HAVEN Agents oppsett (mappevalget ble avbrutt eller feil mappe)."
+                )
+                if granted {
+                    queueConfigurationLoad(
+                        BindingPersonalCopilotDestination.extendEntity.configuration,
+                        navigationMode: .reset,
+                        provenance: .localTrusted
+                    )
+                }
+            }
+        }
+#endif
     }
 
     private func selectPersonalCopilotPhoneTab(_ tab: BindingPersonalCopilotPhoneTab) {
