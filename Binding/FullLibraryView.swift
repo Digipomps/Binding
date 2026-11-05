@@ -33,6 +33,9 @@ nonisolated enum LibraryPreviewSkeletonSupport {
             return placeholderCollection(title: "Tree", detail: "Statisk forhåndsvisning av tredata.", modifiers: tree.modifiers)
         case .ComponentSurface(let surface):
             return placeholderCollection(title: "Component surface", detail: "Komponenten åpnes med autorisert runtime-data.", modifiers: surface.modifiers)
+        case .Audio(let audio):
+            // Static preview: never load or play the audio source.
+            return placeholderCollection(title: audio.title ?? "Audio", detail: "Lydspilleren åpnes med runtime-data.", modifiers: audio.modifiers)
         case .Text(var text):
             var usedPlaceholder = false
             if text.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
