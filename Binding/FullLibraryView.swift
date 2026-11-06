@@ -36,6 +36,9 @@ nonisolated enum LibraryPreviewSkeletonSupport {
         case .Audio(let audio):
             // Static preview: never load or play the audio source.
             return placeholderCollection(title: audio.title ?? "Audio", detail: "Lydspilleren åpnes med runtime-data.", modifiers: audio.modifiers)
+        case .AudioQueue(let queue):
+            // Static preview: never load or play the queued tracks.
+            return placeholderCollection(title: queue.label ?? "Audio queue", detail: "Lydkøen åpnes med runtime-data.", modifiers: queue.modifiers)
         case .Text(var text):
             var usedPlaceholder = false
             if text.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
