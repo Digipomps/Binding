@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2026 Stiftelsen Digipomps and HAVEN contributors
 
-import CellBase
+@_spi(Testing) import CellBase
+import enum CellBase.IdentityVaultError
+import CellApple
 import Foundation
 import XCTest
 @testable import Binding
@@ -116,19 +118,19 @@ final class PersonEntityReadClientTests: XCTestCase {
         do { try await client.connect(entry: entry); XCTFail("different key must not connect") }
         catch { XCTAssertEqual(error as? C.Failure, .denied) }
         await client.close()
-        let disconnected = BindingPersonEntityReadTransport()
+        let disconnected = AppleBridgeTransport()
         let fallback = await disconnected.identityVault(for: other)
         let fallbackIdentity = await fallback.identity(for: "private", makeNewIfNotFound: true)
         XCTAssertNil(fallbackIdentity, "a disconnected transport must never provision an app key")
         let nonce = await otherVault.randomBytes64()
         let challenge = try IdentitySigningChallenge.signingData(for: other, trustedIdentity: other,
-            domain: C.domain, resource: "synthetic-disconnected-resource", action: C.discoveryAction,
-            audience: "https://synthetic-person.example", nonce: try XCTUnwrap(nonce))
+            domain: C.domain, resource: "synthetic-disconnected-resource", action: "checkIdentityOrigin",
+            audience: "GeneralCell", nonce: try XCTUnwrap(nonce))
         do {
             _ = try await fallback.signMessageForIdentity(messageData: challenge, identity: other)
             XCTFail("the disconnected fallback has no signing authority")
         } catch { XCTAssertTrue(error is IdentityVaultError) }
-        let bound = BindingPersonEntityReadTransport(identity: other)
+        let bound = AppleBridgeTransport()
         await bound.close()
         let closedVault = await bound.identityVault(for: other)
         let closedIdentity = await closedVault.identity(for: "private", makeNewIfNotFound: true)
@@ -147,42 +149,138 @@ final class PersonEntityReadClientTests: XCTestCase {
         catch { XCTAssertEqual(error as? C.Failure, .denied) }
     }
 
-    func testDescriptorRequiresExactOriginReceiptKeyAndThreeApprovedScopes() async throws {
+    func testDescriptorRequiresExactOriginReceiptKeyGatewayAndThreeApprovedScopes() async throws {
         let (entry, phone) = try await fixture()
-        let now = Date(), reference = try XCTUnwrap(entry.personEvidenceReference)
-        let nonce = await phone.identityVault?.randomBytes64()
-        let challenge = try IdentitySigningChallenge.signingData(for: phone, trustedIdentity: phone,
-            domain: C.domain, resource: C.discoveryResource(reference: reference, linkID: entry.record.linkID),
-            action: C.discoveryAction, audience: entry.origin, nonce: try XCTUnwrap(nonce), issuedAt: now)
-        let signature = try await phone.sign(data: challenge)
-        let proof = C.Proof(evidenceReference: reference, linkID: entry.record.linkID, challenge: challenge, signature: try XCTUnwrap(signature))
-        let descriptor = C.Descriptor(origin: entry.origin, websocketURL: try C.websocketURL(origin: entry.origin),
-            evidenceReference: reference, linkID: entry.record.linkID, linkedIdentityUUID: phone.uuid,
-            linkedKeyFingerprint: try XCTUnwrap(phone.signingPublicKeyFingerprint), requestDigest: C.digest(try C.encode(proof)),
-            instanceNonce: String(repeating: "a", count: 64), setupExpiresAt: now.addingTimeInterval(60).timeIntervalSince1970,
-            connectionLifetimeSeconds: C.connectionLifetime, scopes: [
-                .init(role: .gateway, domain: C.domain, cellUUID: UUID().uuidString),
+        let now = Date(), reference = try XCTUnwrap(entry.personEvidenceReference), gateway = UUID().uuidString
+        let descriptor = C.Descriptor(origin: entry.origin, evidenceReference: reference, linkID: entry.record.linkID,
+            linkedIdentityUUID: phone.uuid, linkedKeyFingerprint: try XCTUnwrap(phone.signingPublicKeyFingerprint),
+            expiresAt: now.addingTimeInterval(60).timeIntervalSince1970, scopes: [
+                .init(role: .gateway, domain: C.domain, cellUUID: gateway),
                 .init(role: .query, domain: C.domain, cellUUID: UUID().uuidString),
                 .init(role: .anchor, domain: C.domain, cellUUID: UUID().uuidString)
             ])
-        try C.validateDescriptor(descriptor, proof: proof, identity: phone, origin: entry.origin,
-                                 approvedDomains: entry.record.approvedDomains, now: now)
+        func validate(_ candidate: C.Descriptor, domains: [String]? = nil, gatewayUUID: String? = nil) throws {
+            try C.validateDescriptor(candidate, reference: reference, linkID: entry.record.linkID, identity: phone,
+                origin: entry.origin, gatewayUUID: gatewayUUID ?? gateway,
+                approvedDomains: domains ?? entry.record.approvedDomains, now: now)
+        }
+        try validate(descriptor)
         let original = try XCTUnwrap(JSONSerialization.jsonObject(with: C.encode(descriptor)) as? [String: Any])
         let changes: [(String, Any)] = [
-            ("origin", "https://other.example"), ("websocketURL", "wss://other.example/entity-data/read/bridge"),
-            ("evidenceReference", String(repeating: "0", count: 64)), ("linkID", UUID().uuidString),
-            ("linkedIdentityUUID", UUID().uuidString), ("linkedKeyFingerprint", "other-key"),
-            ("requestDigest", String(repeating: "0", count: 64)), ("setupExpiresAt", now.timeIntervalSince1970 - 1),
-            ("connectionLifetimeSeconds", 3600), ("scopes", [["role": "gateway", "domain": "private", "cellUUID": UUID().uuidString]])
+            ("schema", "future-schema"), ("status", "ready-with-any-scope"),
+            ("origin", "https://other.example"), ("evidenceReference", String(repeating: "0", count: 64)),
+            ("linkID", UUID().uuidString), ("linkedIdentityUUID", UUID().uuidString),
+            ("linkedKeyFingerprint", "other-key"), ("expiresAt", now.timeIntervalSince1970 - 1),
+            ("expiresAt", now.timeIntervalSince1970 + 3600),
+            ("scopes", [["role": "gateway", "domain": "private", "cellUUID": gateway]])
         ]
         for (key, value) in changes {
             var changed = original; changed[key] = value
             let decoded = try JSONDecoder().decode(C.Descriptor.self, from: JSONSerialization.data(withJSONObject: changed))
-            XCTAssertThrowsError(try C.validateDescriptor(decoded, proof: proof, identity: phone,
-                origin: entry.origin, approvedDomains: entry.record.approvedDomains, now: now), key)
+            XCTAssertThrowsError(try validate(decoded), key)
         }
-        XCTAssertThrowsError(try C.validateDescriptor(descriptor, proof: proof, identity: phone,
-            origin: entry.origin, approvedDomains: ["scaffold"], now: now))
+        XCTAssertThrowsError(try validate(descriptor, domains: ["scaffold"]))
+        XCTAssertThrowsError(try validate(descriptor, gatewayUUID: UUID().uuidString))
+        for scopes in [
+            [descriptor.scopes[0], descriptor.scopes[0], descriptor.scopes[2]],
+            [descriptor.scopes[0], .init(role: .query, domain: C.domain, cellUUID: gateway), descriptor.scopes[2]],
+            [descriptor.scopes[0], .init(role: .query, domain: "scaffold", cellUUID: UUID().uuidString), descriptor.scopes[2]]
+        ] {
+            var copy = original
+            copy["scopes"] = try JSONSerialization.jsonObject(with: C.encode(scopes))
+            XCTAssertThrowsError(try validate(JSONDecoder().decode(C.Descriptor.self, from: JSONSerialization.data(withJSONObject: copy))))
+        }
+        let value = try JSONDecoder().decode(ValueType.self, from: C.encode(descriptor))
+        let decoded = try C.decodeDescriptor(value, reference: reference, linkID: entry.record.linkID, identity: phone,
+            origin: entry.origin, gatewayUUID: gateway, approvedDomains: entry.record.approvedDomains, now: now)
+        XCTAssertEqual(decoded, descriptor)
+        guard case var .object(extra) = value else { return XCTFail("Missing object") }
+        extra["extraAuthority"] = .string("any-cell")
+        XCTAssertThrowsError(try C.decodeDescriptor(.object(extra), reference: reference, linkID: entry.record.linkID,
+            identity: phone, origin: entry.origin, gatewayUUID: gateway, approvedDomains: entry.record.approvedDomains, now: now))
+    }
+
+    func testCancellationRetiresSuspendedScopeAttemptWithoutClosingItsReplacement() async throws {
+        try await exerciseCancellation(duringRead: false)
+    }
+
+    func testCancellationRetiresSuspendedReadWithoutClosingItsReplacement() async throws {
+        try await exerciseCancellation(duringRead: true)
+    }
+
+    private func exerciseCancellation(duringRead: Bool) async throws {
+        let (entry, phone) = try await fixture()
+        let previous = CellBase.defaultCellResolver
+        let resolver = CellResolver.makeIsolatedForTesting()
+        CellBase.defaultCellResolver = resolver
+        defer { CellBase.defaultCellResolver = previous }
+        let serverVault = EphemeralIdentityVault()
+        var server = Identity(UUID().uuidString, displayName: "synthetic-bridge", identityVault: serverVault)
+        await serverVault.addIdentity(identity: &server, for: "private")
+        let publisher = await PersonScopeTestCell(owner: server)
+        let descriptor = C.Descriptor(origin: entry.origin, evidenceReference: try XCTUnwrap(entry.personEvidenceReference),
+            linkID: entry.record.linkID, linkedIdentityUUID: phone.uuid,
+            linkedKeyFingerprint: try XCTUnwrap(phone.signingPublicKeyFingerprint),
+            expiresAt: Date().addingTimeInterval(60).timeIntervalSince1970, scopes: [
+                .init(role: .gateway, domain: "private", cellUUID: publisher.uuid),
+                .init(role: .query, domain: "private", cellUUID: UUID().uuidString),
+                .init(role: .anchor, domain: "private", cellUUID: UUID().uuidString)
+            ])
+        publisher.reply = try JSONDecoder().decode(ValueType.self, from: C.encode(descriptor))
+        publisher.queryReply = .object([
+            "schema": .string("haven.entity-data-query-result.v1"), "status": .string("complete"),
+            "consistency": .string("independent-reads"), "revisionVerified": .bool(false), "retained": .bool(false),
+            "fragments": .list([.object([
+                "requestID": .string("0"), "keypath": .string("entityRepresentation.name"),
+                "status": .string("available"), "sourceOrigin": .string(entry.origin),
+                "sourceReference": .string("cell:///" + descriptor.scopes[2].cellUUID),
+                "revision": .null, "value": .string("synthetic-after-cancellation")
+            ])])
+        ])
+        try await resolver.registerNamedEmitCell(name: "EntityDataGateway", emitCell: publisher, scope: .template, identity: server)
+        let entered = expectation(description: "scope response suspended")
+        let closed = expectation(description: "cancelled exact physical attempt closed")
+        let barrier = PersonScopeBarrier()
+        let heldIndex = duringRead ? 1 : 0
+        let rig = PersonBridgeTestRig(owner: server, entered: entered, closed: closed, barrier: barrier, heldIndex: heldIndex)
+        let client = PersonEntityReadClient(resolveIdentity: { uuid in uuid == phone.uuid ? phone : nil },
+            makeTransport: { endpoint, _ in try await rig.transport(endpoint) })
+        if duringRead { try await client.connect(entry: entry) }
+        let old = Task {
+            if duringRead { _ = try await client.read(keypaths: ["entityRepresentation.name"]) }
+            else { try await client.connect(entry: entry) }
+        }
+        await fulfillment(of: [entered], timeout: 3)
+        old.cancel()
+        await fulfillment(of: [closed], timeout: 3)
+        let retired = await rig.isRetired(heldIndex)
+        XCTAssertTrue(retired, "cancellation must close the authenticated gate before the response resumes")
+        await client.close()
+        try await client.connect(entry: entry)
+        let replacementIndex = duringRead ? 3 : 2
+        let replacementBefore = await rig.isRetired(replacementIndex)
+        XCTAssertFalse(replacementBefore)
+        await barrier.resume()
+        do { try await old.value; XCTFail("cancelled scope attempt succeeded") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        let replacementAfter = await rig.isRetired(replacementIndex)
+        XCTAssertFalse(replacementAfter, "old cancellation cleanup must not close the later connection")
+        let freshRead = try await client.read(keypaths: ["entityRepresentation.name"])
+        XCTAssertEqual(freshRead.status, .complete)
+        XCTAssertEqual(freshRead.fragments.first?.value, .string("synthetic-after-cancellation"))
+        await client.close()
+        await rig.close()
+        await resolver.unregisterEmitCell(uuid: publisher.uuid)
+    }
+
+    func testSharedEndpointUsesExistingBridgePathAndRejectsAlternateOrigins() throws {
+        let id = UUID().uuidString
+        XCTAssertEqual(try C.endpoint(origin: "https://synthetic-person.example", bridgeID: id).absoluteString,
+            "wss://synthetic-person.example/bridgehead/EntityDataGateway/" + id)
+        for origin in ["http://synthetic-person.example", "https://user@synthetic-person.example",
+                       "https://synthetic-person.example/?token=secret", "https://synthetic-person.example/#fragment"] {
+            XCTAssertThrowsError(try C.endpoint(origin: origin))
+        }
     }
 
     /// Real local request/approval/VC/VP signatures. This fixture does not
@@ -219,4 +317,96 @@ final class PersonEntityReadClientTests: XCTestCase {
         return (.init(origin: origin, record: verified.record, envelope: envelope,
                       storedAt: IdentityLinkProtocolService.iso8601(now), personEvidenceReference: C.digest(verified.requestHash)), phone)
     }
+}
+
+private final class PersonScopeTestCell: GeneralCell {
+    var reply: ValueType = .null
+    var queryReply: ValueType = .null
+    override func set(keypath: String, value: ValueType, requester: Identity) async throws -> ValueType? {
+        keypath == "entityData.query" ? queryReply : reply
+    }
+}
+
+private actor PersonScopeBarrier {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var released = false
+    func wait() async {
+        guard !released else { return }
+        await withCheckedContinuation { continuation = $0 }
+    }
+    func resume() { released = true; continuation?.resume(); continuation = nil }
+}
+
+private actor PersonBridgeTestRig {
+    let owner: Identity
+    let entered: XCTestExpectation
+    let closed: XCTestExpectation
+    let barrier: PersonScopeBarrier
+    let heldIndex: Int
+    var clients: [PersonScopeWire] = []
+    var servers: [BridgeChannelTransport] = []
+    var serverWires: [PersonScopeWire] = []
+    init(owner: Identity, entered: XCTestExpectation, closed: XCTestExpectation, barrier: PersonScopeBarrier, heldIndex: Int) {
+        self.owner = owner; self.entered = entered; self.closed = closed; self.barrier = barrier
+        self.heldIndex = heldIndex
+    }
+    func transport(_ url: URL) async throws -> BridgeTransportProtocol {
+        let first = clients.count == heldIndex, client = PersonScopeWire(), wire = PersonScopeWire()
+        client.peer = wire; wire.peer = client
+        if first {
+            let entered = entered, barrier = barrier, closed = closed
+            wire.beforeSend = { command in
+                if case .setValueResponse = command.payload { entered.fulfill(); await barrier.wait() }
+            }
+            client.onClose = { closed.fulfill() }
+        }
+        let owner = owner
+        let server = try BridgeChannelTransport(underlying: wire, endpoint: .init(url: url, domain: "bridge"),
+            limits: BridgeChannelLimits(), source: "synthetic-cancellation") { transport, _ in
+            let bridge = try await BridgeBase(.init(owner: owner.publicIdentitySnapshot(), transport: transport,
+                connection: .inbound(publisherUuid: "EntityDataGateway"), inboundPublisherLookupIdentity: owner))
+            try await bridge.setTransport(transport, connection: .inbound(publisherUuid: "EntityDataGateway"))
+            return bridge
+        }
+        clients.append(client); servers.append(server); serverWires.append(wire)
+        return client
+    }
+    func isRetired(_ index: Int) -> Bool {
+        guard clients.indices.contains(index) else { return true }
+        return clients[index].isClosed && clients[index].sessionClosed
+    }
+    func close() async { for server in servers { await server.close() } }
+}
+
+private final class PersonScopeWire: BridgeTransportProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var delegate: BridgeDelegateProtocol?
+    private var closed = false
+    weak var peer: PersonScopeWire?
+    var beforeSend: (@Sendable (BridgeCommand) async -> Void)?
+    var onClose: (@Sendable () -> Void)?
+    var isClosed: Bool { lock.withLock { closed } }
+    var sessionClosed: Bool { lock.withLock { (delegate as? BridgeChannelTransport)?.session.state == .closed } }
+    static func new() -> BridgeTransportProtocol { PersonScopeWire() }
+    func setDelegate(_ value: BridgeDelegateProtocol) { lock.withLock { delegate = value } }
+    func setup(_ endpointURL: URL, identity: Identity) async throws {}
+    func sendData(_ data: Data) async throws {
+        guard !isClosed else { throw BridgeChannelAuthentication.Failure.closed }
+        let command = try JSONDecoder().decode(BridgeCommand.self, from: data)
+        await beforeSend?(command)
+        guard !isClosed else { throw BridgeChannelAuthentication.Failure.closed }
+        guard let peer, let destination = peer.lock.withLock({ peer.delegate }) else {
+            throw BridgeChannelAuthentication.Failure.unavailable
+        }
+        try destination.validateInboundPayload(data)
+        if command.command == .response { try await destination.consumeResponse(command: command) }
+        else { try await destination.consumeCommand(command: command) }
+    }
+    func close() async {
+        let changed = lock.withLock { () -> Bool in
+            guard !closed else { return false }; closed = true; return true
+        }
+        if changed { onClose?() }
+    }
+    func identityVault(for identity: Identity?) async -> IdentityVaultProtocol { BridgeIdentityVault() }
 }

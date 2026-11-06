@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 Stiftelsen Digipomps and HAVEN contributors
 
 import CellBase
+import CellApple
 import CryptoKit
 import Foundation
 
@@ -10,19 +11,24 @@ import Foundation
 actor PersonEntityReadClient {
     private typealias C = BindingPersonEntityReadRouteContract
     typealias ExistingIdentityResolver = @Sendable (String) async -> Identity?
+    typealias TransportFactory = @Sendable (URL, Identity) async throws -> BridgeTransportProtocol
+    private let makeTransport: TransportFactory
     private let resolveIdentity: ExistingIdentityResolver
     private var bridge: BridgeBase?
-    private var transport: BindingPersonEntityReadTransport?
+    private var transport: BridgeChannelTransport?
     private var linked: Identity?
     private var descriptor: C.Descriptor?
     private var expiresAt: Date?
     private var connectionAttempt: UUID?
-    private var pendingTransport: BindingPersonEntityReadTransport?
+    private var pendingTransport: BridgeChannelTransport?
     private var queryAttempt: UUID?
 
     init(resolveIdentity: @escaping ExistingIdentityResolver = { uuid in
         await BindingStartupIdentityVault.shared.identity(forUUID: uuid)
-    }) { self.resolveIdentity = resolveIdentity }
+    }, makeTransport: @escaping TransportFactory = { _, _ in AppleBridgeTransport() }) {
+        self.resolveIdentity = resolveIdentity
+        self.makeTransport = makeTransport
+    }
 
     /// The caller supplies the explicitly selected saved receipt. Merely
     /// loading all receipts must never start network activity or sign proofs.
@@ -57,55 +63,71 @@ actor PersonEntityReadClient {
               await vault.identityExistInVault(identity) else { throw C.Failure.denied }
         try Task.checkCancellation()
         guard connectionAttempt == attempt else { throw CancellationError() }
-        let discovery = try await Self.proof(identity: identity, reference: reference, linkID: recorded.linkID,
-            origin: entry.origin, action: C.discoveryAction,
-            resource: C.discoveryResource(reference: reference, linkID: recorded.linkID))
-        try Task.checkCancellation()
-        guard connectionAttempt == attempt else { throw CancellationError() }
-        let descriptor = try await Self.discover(discovery, origin: entry.origin)
-        try C.validateDescriptor(descriptor, proof: discovery, identity: identity, origin: entry.origin,
-            approvedDomains: recorded.approvedDomains, now: Date())
-        try Task.checkCancellation()
-        guard connectionAttempt == attempt else { throw CancellationError() }
-        let opening = try await Self.proof(identity: identity, reference: reference, linkID: recorded.linkID,
-            origin: entry.origin, action: C.openAction, resource: C.openResource(descriptor: descriptor))
-        let open = C.OpenRequest(descriptorDigest: C.digest(try C.encode(descriptor)), proof: opening)
-        let header = try C.encode(open).base64EncodedString()
-        _ = try C.decodeOpenHeader(header)
-        guard let url = URL(string: descriptor.websocketURL), Date().timeIntervalSince1970 < descriptor.setupExpiresAt else {
-            throw C.Failure.expired
+        var opened: (bridge: BridgeBase, gate: BridgeChannelTransport)?
+        do {
+            let bootstrap = try await openSharedBridge(identity: identity, origin: entry.origin, scopes: nil, attempt: attempt)
+            opened = bootstrap
+            let result = try await withBridgeCancellation(bootstrap.bridge, gate: bootstrap.gate, identity: identity) {
+                try await bootstrap.bridge.set(keypath: C.scopeKey,
+                    value: C.scopeRequest(reference: reference, linkID: recorded.linkID), requester: identity)
+            }
+            try Task.checkCancellation()
+            guard connectionAttempt == attempt, bootstrap.bridge.identityDomain == C.domain else { throw C.Failure.denied }
+            let descriptor = try C.decodeDescriptor(result, reference: reference, linkID: recorded.linkID,
+                identity: identity, origin: entry.origin, gatewayUUID: bootstrap.bridge.uuid,
+                approvedDomains: recorded.approvedDomains, now: Date())
+            bootstrap.bridge.close(requester: identity)
+            await bootstrap.gate.close()
+            opened = nil
+            guard connectionAttempt == attempt else { throw CancellationError() }
+            let scopes = descriptor.scopes.map { BridgeIdentityProofScope(domain: $0.domain, resource: $0.cellUUID) }
+            let query = try await openSharedBridge(identity: identity, origin: entry.origin, scopes: scopes, attempt: attempt)
+            opened = query
+            guard connectionAttempt == attempt, Date().timeIntervalSince1970 < descriptor.expiresAt,
+                  query.bridge.uuid == descriptor.scopes.first(where: { $0.role == .gateway })?.cellUUID,
+                  query.bridge.identityDomain == C.domain else { throw C.Failure.denied }
+            self.bridge = query.bridge; self.transport = query.gate; linked = identity
+            self.descriptor = descriptor
+            expiresAt = Date().addingTimeInterval(C.connectionLifetime)
+            opened = nil
+        } catch {
+            opened?.bridge.close(requester: identity)
+            await opened?.gate.close()
+            throw error
         }
-        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
-        request.setValue(header, forHTTPHeaderField: C.proofHeader)
-        let transport = BindingPersonEntityReadTransport(request: request, identity: identity)
-        let bridge = try await BridgeBase(.init(owner: identity, transport: transport, connection: .outbound,
-            identityProofScopes: descriptor.scopes.map { BridgeIdentityProofScope(domain: $0.domain, resource: $0.cellUUID) }))
+    }
+
+    private func openSharedBridge(identity: Identity, origin: String, scopes: [BridgeIdentityProofScope]?,
+                                  attempt: UUID) async throws -> (bridge: BridgeBase, gate: BridgeChannelTransport) {
+        try Task.checkCancellation()
+        guard connectionAttempt == attempt else { throw CancellationError() }
+        let endpoint = try C.endpoint(origin: origin)
+        let gate = try await BridgeChannelTransport(underlying: makeTransport(endpoint, identity),
+            endpoint: .init(url: endpoint, domain: "bridge"))
+        let bridge = try await BridgeBase(.init(owner: identity, transport: gate, connection: .outbound,
+            identityProofScopes: scopes))
         do {
             guard connectionAttempt == attempt else { throw CancellationError() }
-            pendingTransport = transport
-            try await bridge.setTransport(transport, connection: .outbound)
-            let connectionExpiry = Date().addingTimeInterval(C.connectionLifetime)
-            try await transport.setup(url, identity: identity)
+            pendingTransport = gate
+            try await withBridgeCancellation(bridge, gate: gate, identity: identity) {
+                try await bridge.setTransport(gate, connection: .outbound)
+                try await gate.setup(endpoint, identity: identity)
+                try Task.checkCancellation()
+                try await bridge.retrieveProxyRepresentation(for: identity)
+            }
             try Task.checkCancellation()
-            try await bridge.retrieveProxyRepresentation(for: identity)
             guard connectionAttempt == attempt else { throw CancellationError() }
-            guard Date() < connectionExpiry else { throw C.Failure.expired }
-            self.bridge = bridge; self.transport = transport; linked = identity
-            self.descriptor = descriptor
-            expiresAt = connectionExpiry
+            return (bridge, gate)
         } catch {
-            bridge.close(requester: identity)
-            await transport.close()
-            throw error
+            bridge.close(requester: identity); await gate.close(); throw error
         }
     }
 
     func read(keypaths: [String]) async throws -> PersonEntityReadResult {
         try Task.checkCancellation()
-        // The pinned BridgeBase correlates SET replies by keypath. Concurrent
-        // entityData.query calls on one bridge would overwrite its callback.
+        // Keep this explicitly selected UI read bounded to one operation.
         guard queryAttempt == nil else { throw C.Failure.capacity }
-        guard let bridge, let linked, let descriptor, let expiresAt, Date() < expiresAt,
+        guard let bridge, let transport, let linked, let descriptor, let expiresAt, Date() < expiresAt,
               !keypaths.isEmpty, keypaths.count <= 16,
               keypaths.allSatisfy({ !$0.isEmpty && $0.utf8.count <= 1024 }) else { throw C.Failure.unavailable }
         let attempt = UUID()
@@ -119,14 +141,41 @@ actor PersonEntityReadClient {
             "personEntityEvidenceRef": .string(descriptor.evidenceReference),
             "personEntityLinkID": .string(descriptor.linkID), "requests": .list(requests)
         ])
-        guard let result = try await bridge.set(keypath: "entityData.query", value: payload, requester: linked) else {
-            throw C.Failure.unavailable
+        let result: ValueType
+        do {
+            guard let value = try await withBridgeCancellation(bridge, gate: transport, identity: linked, operation: {
+                try await bridge.set(keypath: "entityData.query", value: payload, requester: linked)
+            }) else { throw C.Failure.unavailable }
+            result = value
+        } catch {
+            if Task.isCancelled, self.bridge === bridge { await close() }
+            throw error
         }
         try Task.checkCancellation()
         guard queryAttempt == attempt, self.bridge === bridge, Date() < expiresAt else { throw C.Failure.unavailable }
         guard let anchor = descriptor.scopes.first(where: { $0.role == .anchor }) else { throw C.Failure.malformed }
         return try PersonEntityReadResult.decode(result, keypaths: keypaths,
             origin: descriptor.origin, anchorUUID: anchor.cellUUID)
+    }
+
+    private func withBridgeCancellation<T>(_ bridge: BridgeBase, gate: BridgeChannelTransport,
+                                           identity: Identity, operation: () async throws -> T) async throws -> T {
+        try await withTaskCancellationHandler {
+            do {
+                try Task.checkCancellation()
+                let result = try await operation()
+                try Task.checkCancellation()
+                return result
+            } catch {
+                if Task.isCancelled { throw CancellationError() }
+                throw error
+            }
+        } onCancel: {
+            // Close the exact captured attempt synchronously: retire pending
+            // replies and origin-signing permits even if its peer is suspended.
+            bridge.close(requester: identity)
+            Task { await gate.close() }
+        }
     }
 
     func close() async {
@@ -139,43 +188,4 @@ actor PersonEntityReadClient {
         await pending?.close()
     }
 
-    private static func proof(identity: Identity, reference: String, linkID: String, origin: String,
-                              action: String, resource: String) async throws -> C.Proof {
-        guard let nonce = await identity.identityVault?.randomBytes64() else { throw C.Failure.unavailable }
-        let challenge = try IdentitySigningChallenge.signingData(for: identity, trustedIdentity: identity,
-            domain: C.domain, resource: resource, action: action, audience: origin, nonce: nonce)
-        guard let signature = try await identity.sign(data: challenge) else { throw C.Failure.denied }
-        let proof = C.Proof(evidenceReference: reference, linkID: linkID, challenge: challenge, signature: signature)
-        try C.verify(proof, identity: identity, origin: origin, action: action, resource: resource, now: Date())
-        return proof
-    }
-
-    private static func discover(_ proof: C.Proof, origin: String) async throws -> C.Descriptor {
-        guard let url = URL(string: origin + C.discoveryPath) else { throw C.Failure.malformed }
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.httpShouldSetCookies = false; configuration.httpCookieStorage = nil; configuration.urlCache = nil
-        configuration.timeoutIntervalForRequest = 10; configuration.timeoutIntervalForResource = 15
-        let session = URLSession(configuration: configuration, delegate: PersonReadNoRedirects(), delegateQueue: nil)
-        defer { session.invalidateAndCancel() }
-        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
-        request.httpMethod = "POST"; request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try C.encode(proof)
-        let (stream, response) = try await session.bytes(for: request)
-        guard let http = response as? HTTPURLResponse, http.url == url,
-              http.statusCode == 200, http.mimeType == "application/json",
-              http.expectedContentLength <= C.maximumDescriptorBytes else { throw C.Failure.unavailable }
-        var bytes = Data()
-        for try await byte in stream {
-            guard bytes.count < C.maximumDescriptorBytes else { throw C.Failure.malformed }
-            bytes.append(byte)
-        }
-        let descriptor = try JSONDecoder().decode(C.Descriptor.self, from: bytes)
-        guard try C.encode(descriptor) == bytes else { throw C.Failure.malformed }
-        return descriptor
-    }
-}
-
-private nonisolated final class PersonReadNoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
-    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
-                    newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
 }
