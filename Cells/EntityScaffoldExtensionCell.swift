@@ -25,7 +25,7 @@
 //
 
 import Foundation
-import CellBase
+@_spi(HAVENRuntime) import CellBase
 
 final class BindingEntityScaffoldExtensionCell: GeneralCell {
     static let endpoint = "cell:///EntityScaffoldExtension"
@@ -262,7 +262,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
         )
 
         guard let canonical = try? request.canonicalPayloadData(),
-              let signature = try? await storedOwnerIdentity.sign(data: canonical) else {
+              let signature = try? await (verifiedRuntimeOwnerIdentity() ?? storedOwnerIdentity).sign(data: canonical) else {
             return fail(HavenValue.error(
                 code: "signing_failed",
                 message: "Kunne ikke signere forespørselen."
@@ -462,7 +462,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
         )
 
         guard let canonicalApproval = try? approval.canonicalPayloadData(),
-              let signature = try? await storedOwnerIdentity.sign(data: canonicalApproval) else {
+              let signature = try? await (verifiedRuntimeOwnerIdentity() ?? storedOwnerIdentity).sign(data: canonicalApproval) else {
             return fail(HavenValue.error(code: "signing_failed", message: "Kunne ikke signere godkjenningen."))
         }
         approval.proof = IdentityEnrollmentApprovalProof(
@@ -504,6 +504,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
                 "approvalID": .string(approval.approvalID),
                 "linkID": .string(record.linkID),
                 "payload": .string(Self.encode(approval) ?? ""),
+                "issuerIdentity": Self.encodeValue(issuerDescriptor) ?? .null,
                 "approvedScopes": .list(granted.map(ValueType.string)),
                 "refusedScopes": .list(refused.map(ValueType.string)),
                 "expiresAt": .string(approval.expiresAt),
@@ -552,10 +553,25 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
             ))
         }
 
-        // We can only check the issuer's signature when the approval carries a
-        // descriptor we can use. It does not, by design — so say so plainly
-        // rather than implying a check we did not perform.
+        // Check the approver's signature when the caller hands over the
+        // approver's public key (`issuerIdentity`), and refuse a bad one.
         let signaturePresent = approval.proof?.signature != nil
+        var signatureVerified = false
+        if let issuer = Self.decodeIssuerDescriptor(from: value) {
+            if let proof = approval.proof,
+               let signature = proof.signature,
+               issuer.uuid == approval.issuerIdentityUUID,
+               proof.issuerIdentityUUID == approval.issuerIdentityUUID,
+               let canonicalApproval = try? approval.canonicalPayloadData(),
+               IdentityPublicKeySignatureVerifier.verify(signature: signature, messageData: canonicalApproval, descriptor: issuer) {
+                signatureVerified = true
+            } else {
+                return fail(HavenValue.error(
+                    code: "bad_signature",
+                    message: "Signaturen på godkjenningen stemmer ikke med godkjennerens nøkkel. Jeg kobler ingenting."
+                ))
+            }
+        }
 
         let record = IdentityLinkRecord(
             linkID: "lnk-\(UUID().uuidString.lowercased())",
@@ -586,9 +602,10 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
                 "approvedScopes": .list(approval.approvedScopes.map(ValueType.string)),
                 "issuerIdentityUUID": .string(approval.issuerIdentityUUID),
                 "signaturePresent": .bool(signaturePresent),
-                "signatureVerified": .bool(false),
-                "verificationNote": .string(
-                    "Forespørselens hash stemmer, og godkjenningen er signert, men denne enheten har ikke godkjennerens offentlige nøkkel og kan derfor ikke sjekke signaturen selv. Bekreft koden muntlig, eller hent nøkkelen fra scaffoldet."
+                "signatureVerified": .bool(signatureVerified),
+                "verificationNote": .string(signatureVerified
+                    ? "Forespørselens hash og godkjennerens signatur stemmer."
+                    : "Forespørselens hash stemmer, og godkjenningen er signert, men denne enheten har ikke godkjennerens offentlige nøkkel og kan derfor ikke sjekke signaturen selv. Bekreft koden muntlig, eller hent nøkkelen fra scaffoldet."
                 ),
                 "links": .list(linkRows().map(ValueType.object))
             ]
@@ -619,7 +636,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
         )
         if let descriptor = IdentityPublicKeySignatureVerifier.descriptor(for: storedOwnerIdentity),
            let canonical = try? revocation.canonicalPayloadData(),
-           let signature = try? await storedOwnerIdentity.sign(data: canonical) {
+           let signature = try? await (verifiedRuntimeOwnerIdentity() ?? storedOwnerIdentity).sign(data: canonical) {
             revocation.proof = IdentityEnrollmentApprovalProof(
                 issuerIdentityUUID: descriptor.uuid,
                 issuerType: .existingDevice,
@@ -781,6 +798,18 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
 
     private static func decodeRequest(from value: ValueType) -> IdentityEnrollmentRequest? {
         decodeTransport(IdentityEnrollmentRequest.self, from: value, key: "request")
+    }
+
+    /// The approver's public key, when the caller hands it over next to the packet.
+    private static func decodeIssuerDescriptor(from value: ValueType) -> IdentityPublicKeyDescriptor? {
+        guard let issuer = HavenValue.object(value)?["issuerIdentity"],
+              let data = try? JSONEncoder().encode(issuer) else { return nil }
+        return try? JSONDecoder().decode(IdentityPublicKeyDescriptor.self, from: data)
+    }
+
+    private static func encodeValue<T: Encodable>(_ value: T) -> ValueType? {
+        guard let data = try? JSONEncoder().encode(value) else { return nil }
+        return try? JSONDecoder().decode(ValueType.self, from: data)
     }
 
     private static func decodeApproval(from value: ValueType) -> IdentityEnrollmentApproval? {

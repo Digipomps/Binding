@@ -458,6 +458,8 @@ nonisolated public enum HavenRelationNormalizer {
               let scheme = components.scheme?.lowercased(),
               scheme == "http" || scheme == "https" else { return nil }
         var normalized = "\(scheme)://\(host.lowercased())"
+        // Keep an explicit port: a landing such as http://127.0.0.1:8080 must stay on its port.
+        if let port = components.port { normalized += ":\(port)" }
         let path = components.path
         if !path.isEmpty, path != "/" {
             normalized += path.hasSuffix("/") ? String(path.dropLast()) : path

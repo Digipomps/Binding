@@ -41,6 +41,7 @@ enum SkeletonTreeQueries {
         case .Tabs(let tabs): return tabs.modifiers
         case .NavigationBar(let navigationBar): return navigationBar.modifiers
         case .Visualization(let visualization): return visualization.modifiers
+        case .Audio(let audio): return audio.modifiers
         case .Unsupported(let unsupported): return unsupported.modifiers
         }
     }
@@ -78,6 +79,7 @@ enum SkeletonTreeQueries {
         case .Tabs: return "Tabs"
         case .NavigationBar: return "NavigationBar"
         case .Visualization: return "Visualization"
+        case .Audio: return "Audio"
         case .Unsupported(let unsupported):
             return "Unsupported(\(unsupported.elementType))"
         }

@@ -19,6 +19,9 @@
 //
 
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import CellBase
 
 enum HavenInviteTransportFailure: Error, Sendable {
@@ -95,6 +98,27 @@ enum BindingInviteScaffoldClient {
             return .success(data)
         } catch {
             return .failure(.transport(error.localizedDescription))
+        }
+    }
+
+    /// The invitee's side: one JSON request, answered with the HTTP status and
+    /// the parsed body, so a refusal's `code` reaches the caller.
+    static func exchange(method: String, url: String, body: Data? = nil) async -> (Int, Object?) {
+        guard let target = URL(string: url) else { return (0, nil) }
+        var request = URLRequest(url: target)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = body
+        }
+        do {
+            let (data, response) = try await session().data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let object = (try? JSONDecoder().decode(ValueType.self, from: data)).flatMap(HavenValue.object)
+            return (status, object)
+        } catch {
+            return (0, ["code": .string("transport"), "message": .string("Fikk ikke kontakt med scaffoldet: \(error.localizedDescription)")])
         }
     }
 

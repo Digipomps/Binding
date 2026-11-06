@@ -189,6 +189,11 @@ enum SkeletonTreeMutations {
             mutate(&modifiers)
             image.modifiers = modifiers
             return .Image(image)
+        case .Audio(var audio):
+            var modifiers = audio.modifiers ?? SkeletonModifiers()
+            mutate(&modifiers)
+            audio.modifiers = modifiers
+            return .Audio(audio)
         case .Text(var text):
             var modifiers = text.modifiers ?? SkeletonModifiers()
             mutate(&modifiers)
