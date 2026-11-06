@@ -836,7 +836,7 @@ final class CellConfigurationVerifierXCTest: XCTestCase {
             }
         case .Unsupported:
             report.issues.append(StaticSkeletonAuditIssue(severity: .error, detail: "\(pathString(path)) contains Unsupported skeleton element"))
-        case .Spacer, .Image, .Audio, .Divider:
+        case .Spacer, .Image, .Audio, .AudioQueue, .Divider:
             break
         }
     }

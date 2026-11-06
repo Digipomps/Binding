@@ -9570,6 +9570,8 @@ struct BindingTests {
                 append(image.modifiers)
             case .Audio(let audio):
                 append(audio.modifiers)
+            case .AudioQueue(let queue):
+                append(queue.modifiers)
             case .Spacer(let spacer):
                 append(spacer.modifiers)
             case .VStack(let stack):
