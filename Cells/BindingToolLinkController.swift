@@ -975,12 +975,17 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
               var components = URLComponents(url: endpoint.base.appendingPathComponent(path), resolvingAgainstBaseURL: false) else {
             throw AgentError.notConfigured
         }
-        if let token = endpoint.accessToken, token.isEmpty == false {
+        let token = endpoint.accessToken.flatMap { $0.isEmpty ? nil : $0 }
+        // Agenten godtar token i query bare på lese-GET; alt annet krever Bearer (401 ellers).
+        if let token, method == "GET" {
             components.queryItems = [URLQueryItem(name: "token", value: token)]
         }
         guard let url = components.url else { throw AgentError.notConfigured }
         var request = URLRequest(url: url)
         request.httpMethod = method
+        if let token {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
         request.timeoutInterval = timeout
         request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         if let body {

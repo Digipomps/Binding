@@ -4415,7 +4415,8 @@ struct ContentView: View {
             activeConfiguration?.name == "Conference Demo Launcher"
             || skeletonText?.contains("Conference Demo Launcher") == true
 
-        guard currentlyLooksLikeLauncher else {
+        // En lenke har bedt om en annen flate; da skal ikke reparasjonen legge launcheren over.
+        guard currentlyLooksLikeLauncher, !linkRequestedSurface else {
             return
         }
 
