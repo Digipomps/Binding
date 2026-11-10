@@ -696,7 +696,8 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
             case "awaiting-owner":
                 var row: Object = [
                     "contractID": .string(contractID),
-                    "label": .string(label),
+                    // Ikke «label»: renderen bruker radens label som knappetekst, så begge svarknappene het «Losen».
+                    "toolLabel": .string(label),
                     // Som i skissen v2: verktøyet og hva det ber om i halvfet.
                     "headline": .string("**\(label) — verktøycelle i agenten din** ber om å **sende testinstruksjoner til agenten din**"),
                     "title": .string("\(label) — verktøycelle i agenten din"),
