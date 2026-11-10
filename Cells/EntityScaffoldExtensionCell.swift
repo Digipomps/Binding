@@ -277,7 +277,9 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
         if response == nil {
             return toolLinks.note(HavenValue.error(code: "pairing_failed", message: "Paringen fikk ikke svar fra agentoppsettet."), in: .pairing)
         }
-        if let lastError = HavenValue.string(status?["lastError"]) {
+        // Vellykket paring setter lastError til "" (AgentEnrollmentCell.performAction). Tom streng
+        // er ingen feil; før viste HAVEN «Paringen feilet: » etter en paring som virket (10.11 11:54Z).
+        if let lastError = HavenValue.string(status?["lastError"]), lastError.isEmpty == false {
             return toolLinks.note(HavenValue.error(code: "pairing_failed", message: "Paringen feilet: \(lastError)"), in: .pairing)
         }
         let key = ToolLinkSigner.publicKey(of: identity).map { ToolLinkCrypto.fingerprint(of: $0) } ?? "?"
