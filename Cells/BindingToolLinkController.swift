@@ -354,8 +354,10 @@ nonisolated final class BindingToolLinkController: @unchecked Sendable {
             switch self {
             case .notConfigured:
                 return "Fant ikke agentens kontrollbro i config.json. Er HAVEN Agent installert og paret med denne HAVEN-en?"
+            case .http(401, _), .http(403, _):
+                return "HAVEN Agent godtok ikke HAVEN her. Trykk «Oppdater». Hjelper ikke det, par agenten med denne HAVEN-en på nytt."
             case .http(let code, let reason):
-                return "Agenten svarte \(code): \(reason)"
+                return "Agenten svarte \(code): \(reason). Trykk «Oppdater» og prøv igjen."
             case .unreadable:
                 return "Agenten svarte med noe som ikke kunne leses."
             }
