@@ -4728,8 +4728,14 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "assistant.acceptSuggestion",
             "assistant.dismissSuggestion",
             "assistant.queryResource",
+            "inviteRecipients.add", "inviteRecipients.clear", "inviteDraft.contactChoice",
+            "contacts.setLabel", "contacts.create", "contacts.refresh", "contacts.select",
+            "contacts.share", "contacts.context", "contacts.retire", "contacts.delete", "contacts.selectSubject", "contacts.revoke",
             "assistant.provider.register",
             "assistant.provider.recommend",
+            "assistant.provider.status",
+            "assistant.provider.select",
+            "assistant.provider.confirm",
             "prompt.submit",
             "docsRAG.setQuery",
             "docsRAG.search",
@@ -4927,6 +4933,14 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         "state.messageComposer.body",
         "state.assistant.lastPreparedInvite.link",
         "state.assistant.lastPreparedInvite.body",
+        "state.assistant.providerChoices",
+        "state.ui.selectedProviderID",
+        "state.assistant.lastGeneratedAnswer.model", "state.assistant.lastGeneratedAnswer.receipt", "state.assistant.lastGeneratedAnswer.message",
+        "state.ui.selectedProviderTitle",
+        "state.ui.selectedProviderReview",
+        "state.inviteRecipients", "state.assistant.contactChoices",
+        "state.contacts.cells", "state.contacts.label", "state.contacts.selectedID",
+        "state.contacts.reference", "state.contacts.status", "state.contacts.access", "state.contacts.selectedSubject",
         "state.status",
         "state.invites",
         "state.contactInbox",
@@ -5002,6 +5016,14 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     private func readValue(for key: String) -> ValueType {
         let key = Self.canonicalChatHubKey(key)
         switch key {
+        case "state.contacts.cells", "state.contacts.access", "state.inviteRecipients", "state.assistant.contactChoices":
+            return BindingChatValue.nested(String(key.dropFirst("state.".count)), in: cachedState) ?? .list([])
+        case "state.contacts.label", "state.contacts.reference", "state.contacts.status",
+             "state.assistant.lastPreparedInvite.link", "state.assistant.lastPreparedInvite.body",
+             "state.assistant.lastGeneratedAnswer.model", "state.assistant.lastGeneratedAnswer.receipt", "state.assistant.lastGeneratedAnswer.message",
+             "state.ui.selectedProviderTitle", "state.ui.selectedProviderReview":
+            let suffix = String(key.dropFirst("state.".count))
+            return .string(BindingChatValue.string(BindingChatValue.nested(suffix, in: cachedState)) ?? "")
         case "state":
             return .object(cachedState)
         case let key where key.hasPrefix("state."):
@@ -5139,10 +5161,48 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             return await acceptSuggestion(requester: requester)
         case "assistant.queryResource":
             return await queryResource(value, requester: requester)
+        case "inviteRecipients.add":
+            guard var draft = BindingChatValue.object(BindingChatValue.nested("inviteDraft", in: cachedState)),
+                  let user = BindingChatValue.string(draft["userUUID"]), !user.isEmpty else { return sharedChatFailure("Velg en bekreftet person først.") }
+            draft["displayName"] = BindingChatValue.nested("assistant.selectedRecipientName", in: cachedState) ?? .string(user)
+            var recipients = BindingChatValue.list(cachedState["inviteRecipients"]) ?? []
+            recipients.removeAll { BindingChatValue.object($0)?["userUUID"] == .string(user) }
+            recipients.append(.object(draft)); cachedState["inviteRecipients"] = .list(recipients)
+            return response(status: "ok", message: "Mottakeren er lagt til. Du kan søke etter flere før du sender.")
+        case "inviteRecipients.clear":
+            cachedState["inviteRecipients"] = .list([]); cachedState.removeValue(forKey: "inviteRetryThreadID")
+            return response(status: "ok", message: "Mottakerlisten er tømt.")
+        case "inviteDraft.contactChoice":
+            let id = text(from: value)
+            guard let choice = (BindingChatValue.list(BindingChatValue.nested("assistant.contactChoices", in: cachedState)) ?? [])
+                .compactMap(BindingChatValue.object).first(where: { BindingChatValue.string($0["id"]) == id }) else { return sharedChatFailure("Velg en delt kontaktcelle i listen.") }
+            if let recipient = BindingChatValue.object(choice["recipient"]) { updateInviteRecipient(recipient) }
+            updateInviteRecipient(choice)
+            if let draft = BindingChatValue.object(cachedState["inviteDraft"]), let user = draft["userUUID"],
+               var recipients = BindingChatValue.list(cachedState["inviteRecipients"]) {
+                if let index = recipients.firstIndex(where: { BindingChatValue.object($0)?["userUUID"] == user }) { recipients[index] = .object(draft) }
+                cachedState["inviteRecipients"] = .list(recipients)
+            }
+            return response(status: "ok", message: "Kontaktcelle valgt. Send når mottakerlisten er riktig.")
+        case "contacts.setLabel":
+            BindingChatValue.set(.string(text(from: value)), for: "contacts.label", in: &cachedState)
+            return .object(["ok": .bool(true)])
+        case "contacts.create", "contacts.refresh", "contacts.select", "contacts.share", "contacts.context", "contacts.retire", "contacts.delete", "contacts.selectSubject", "contacts.revoke":
+            return await manageContactCells(key, value: value)
         case "assistant.provider.register":
             return registerProvider(value)
         case "assistant.provider.recommend":
+            if chatTransport != nil {
+                _ = await sharedProviderAction("status", value: .object([:]))
+                return await sharedProviderAction("recommend", value: value)
+            }
             return recommendProvider(value)
+        case "assistant.provider.status":
+            return await sharedProviderAction("status", value: value)
+        case "assistant.provider.select":
+            return await sharedProviderAction("select", value: value)
+        case "assistant.provider.confirm":
+            return await sharedProviderAction("confirm", value: value)
         case "docsRAG.setQuery":
             BindingChatValue.set(.string(text(from: value)), for: "docsRAG.query", in: &cachedState)
             return response(status: "ok", message: "Docs/RAG query updated.")
@@ -5181,6 +5241,9 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         case "assistant.setCandidateQuery":
             return await updateInviteCandidateQuery(text(from: value), requester: requester)
         case "assistant.selectCandidate":
+            if chatTransport != nil, BindingChatValue.string(BindingChatValue.nested("assistant.latestSuggestion.candidateSource", in: cachedState)) == "shared_people" {
+                return await selectSharedInviteCandidate(text(from: value))
+            }
             latestInviteLookupID = UUID()
             BindingChatValue.set(.null, for: "assistant.lastPreparedInvite", in: &cachedState)
             BindingChatValue.set(.string(text(from: value)), for: "assistant.latestSuggestion.selectedCandidateProfileID", in: &cachedState)
@@ -6219,6 +6282,19 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         requester: Identity
     ) async -> Object? {
         guard draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return nil }
+        if chatTransport != nil {
+            let result = await sharedProviderAction("invoke", value: .object(["prompt": .string(draft)]))
+            let object = BindingChatValue.object(result) ?? [:]
+            // The gateway envelope's ok means the request was handled. Only
+            // success proves a model answered; policy/credential errors aren't AI.
+            guard BindingChatValue.bool(object["success"]) == true else {
+                return ["ok": .bool(false), "message": object["answer"] ?? object["message"]
+                    ?? .string("Ingen språkmodell er klar. Åpne AI for modellvalg og tilgang.")]
+            }
+            return ["ok": .bool(true), "answer": object["answer"] ?? .string(""),
+                    "model": BindingChatValue.nested("provider.modelID", in: object) ?? .string(""),
+                    "receipt": object["providerTitle"] ?? .string("Eierbundet modell")]
+        }
         guard let state = await providerState(endpoint: "cell:///RemoteLLM", keypath: "state", requester: requester),
               let stateObject = BindingChatValue.object(state),
               BindingChatValue.string(stateObject["status"]) == "ready"
@@ -6342,6 +6418,100 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "registeredCount": .integer(registeredProviders.count),
             "providers": .list(registeredProviders.map { .object($0.objectValue()) })
         ])
+    }
+
+    private func manageContactCells(_ action: String, value: ValueType) async -> ValueType {
+        guard let chatTransport else { return sharedChatFailure("Kontaktceller krever tilkobling til personen din.") }
+        let id = BindingChatValue.string(BindingChatValue.nested("contacts.selectedID", in: cachedState)) ?? ""
+        if action == "contacts.select" {
+            let selected = text(from: value)
+            guard let row = (BindingChatValue.list(BindingChatValue.nested("contacts.cells", in: cachedState)) ?? [])
+                .compactMap(BindingChatValue.object).first(where: { BindingChatValue.string($0["id"]) == selected }) else {
+                return sharedChatFailure("Velg en av dine kontaktceller.")
+            }
+            BindingChatValue.set(.string(selected), for: "contacts.selectedID", in: &cachedState)
+            BindingChatValue.set(row["reference"] ?? .string(""), for: "contacts.reference", in: &cachedState)
+            BindingChatValue.set(row["access"] ?? .list([]), for: "contacts.access", in: &cachedState)
+            BindingChatValue.set(.string(""), for: "contacts.selectedSubject", in: &cachedState)
+            return .object(["ok": .bool(true)])
+        }
+        if action == "contacts.selectSubject" {
+            let subject = text(from: value)
+            guard (BindingChatValue.list(BindingChatValue.nested("contacts.access", in: cachedState)) ?? [])
+                .contains(where: { BindingChatValue.object($0)?["id"] == .string(subject) }) else { return sharedChatFailure("Velg en person med tilgang til denne cellen.") }
+            BindingChatValue.set(.string(subject), for: "contacts.selectedSubject", in: &cachedState)
+            return .object(["ok": .bool(true)])
+        }
+        do {
+            let reply: Object
+            switch action {
+            case "contacts.refresh": reply = try await chatTransport.request("contacts/list", payload: [:])
+            case "contacts.create":
+                let label = BindingChatValue.string(BindingChatValue.nested("contacts.label", in: cachedState)) ?? "Kontaktcelle"
+                reply = try await chatTransport.request("contacts/create", payload: ["label": .string(label.isEmpty ? "Kontaktcelle" : label)])
+            case "contacts.share":
+                guard !id.isEmpty, let profile = BindingChatValue.string(BindingChatValue.nested("inviteDraft.profileID", in: cachedState)), !profile.isEmpty else {
+                    return sharedChatFailure("Velg din kontaktcelle og personen i trefflisten før du gir postetilgang.")
+                }
+                reply = try await chatTransport.request("contacts/share", payload: ["id": .string(id), "profileID": .string(profile), "durationSeconds": .integer(30 * 24 * 3600)])
+            case "contacts.revoke":
+                guard !id.isEmpty, let subject = BindingChatValue.string(BindingChatValue.nested("contacts.selectedSubject", in: cachedState)), !subject.isEmpty else { return sharedChatFailure("Velg cellen og personen først.") }
+                reply = try await chatTransport.request("contacts/perform", payload: ["id": .string(id), "key": .string("access.revoke"), "payload": .object(["subjectUUID": .string(subject)])])
+            case "contacts.delete":
+                guard !id.isEmpty else { return sharedChatFailure("Velg kontaktcellen først.") }
+                reply = try await chatTransport.request("contacts/delete", payload: ["id": .string(id)])
+            default:
+                guard !id.isEmpty else { return sharedChatFailure("Velg kontaktcellen først.") }
+                let key = action == "contacts.retire" ? "retire" : "settings.update"
+                let payload: Object = action == "contacts.retire" ? [:] : ["context": .string(text(from: value))]
+                reply = try await chatTransport.request("contacts/perform", payload: ["id": .string(id), "key": .string(key), "payload": .object(payload)])
+            }
+            guard BindingChatValue.bool(reply["ok"]) == true else {
+                return sharedChatFailure(BindingChatValue.string(reply["message"]) ?? "Kontaktendringen ble avvist.")
+            }
+            let listing = action == "contacts.refresh" ? reply : try await chatTransport.request("contacts/list", payload: [:])
+            BindingChatValue.set(listing["cells"] ?? .list([]), for: "contacts.cells", in: &cachedState)
+            let selected = (BindingChatValue.list(listing["cells"]) ?? []).compactMap(BindingChatValue.object).first { BindingChatValue.string($0["id"]) == id }
+            BindingChatValue.set(selected?["access"] ?? .list([]), for: "contacts.access", in: &cachedState)
+            if selected == nil {
+                BindingChatValue.set(.string(""), for: "contacts.selectedID", in: &cachedState)
+                BindingChatValue.set(.string(""), for: "contacts.reference", in: &cachedState)
+            }
+            BindingChatValue.set(reply["message"] ?? .string("Kontaktcellene er oppdatert."), for: "contacts.status", in: &cachedState)
+            return .object(reply)
+        } catch {
+            return sharedChatFailure((error as? BindingNativeChatConnectionError)?.message ?? "Kontaktendringen kunne ikke bekreftes. Hent listen før du prøver igjen.")
+        }
+    }
+
+    private func sharedProviderAction(_ action: String, value: ValueType) async -> ValueType {
+        guard let chatTransport else { return sharedChatFailure("Koble personen din før du bruker denne modellruten.") }
+        var payload = BindingChatValue.object(value) ?? [:]
+        if action == "select", let id = BindingChatValue.string(value) { payload["providerID"] = .string(id) }
+        if let id = BindingChatValue.string(BindingChatValue.nested("currentThread.id", in: cachedState)) {
+            payload["threadID"] = .string(id)
+        }
+        do {
+            let result = try await chatTransport.request("assistant/provider/" + action, payload: payload)
+            if let assistant = BindingChatValue.object(result["assistantState"]) {
+                for key in ["providerChoices", "providerRecommendation", "providerUsageStatus"] {
+                    if let value = assistant[key] { BindingChatValue.set(value, for: "assistant." + key, in: &cachedState) }
+                }
+            }
+            if let ui = BindingChatValue.object(result["ui"]) {
+                for key in ["selectedProviderID", "selectedProviderTitle", "selectedProviderReview", "selectedProviderConsentID"] {
+                    BindingChatValue.set(ui[key] ?? .null, for: "ui." + key, in: &cachedState)
+                }
+            }
+            if let recommendation = result["providerRecommendation"] {
+                BindingChatValue.set(recommendation, for: "assistant.providerRecommendation", in: &cachedState)
+            }
+            return .object(result)
+        } catch {
+            let message = (error as? BindingNativeChatConnectionError)?.message
+                ?? "Modellruten kunne ikke bekreftes. Ingen automatisk omsending ble gjort."
+            return .object(["ok": .bool(false), "success": .bool(false), "message": .string(message)])
+        }
     }
 
     private func recommendProvider(_ value: ValueType) -> ValueType {
@@ -6743,12 +6913,14 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             ?? BindingChatValue.string(dragPayload["contactEndpointID"])
             ?? BindingChatValue.string(dragPayload["contactEndpointId"])
         guard let endpointID, !endpointID.isEmpty else { return nil }
+        let reference = BindingChatValue.string(embedded?["endpointCell"])
+            ?? BindingChatValue.string(embedded?["cell"])
+            ?? BindingChatValue.string(dragPayload["contactEndpointCell"])
+            ?? "cell:///ContactEndpoint"
         return [
             "endpointID": .string(endpointID),
-            "cell": BindingChatValue.string(embedded?["cell"])
-                .map(ValueType.string)
-                ?? BindingChatValue.string(dragPayload["contactEndpointCell"]).map(ValueType.string)
-                ?? .string("cell:///ContactEndpoint"),
+            "endpointCell": .string(reference),
+            "cell": .string(reference),
             "purposes": embedded?["purposes"]
                 ?? dragPayload["contactEndpointPurposes"]
                 ?? .list([.string("personal.chat.invite.receive")]),
@@ -7876,6 +8048,11 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         BindingChatValue.set(.list([]), for: "contactInbox.incomingInvites", in: &cachedState)
     }
 
+    func markSharedChatConnectionRequired() {
+        cachedState["status"] = .string(BindingNativeChatConnectionError.personLinkRequired.message)
+        cachedState["sharedChatReady"] = .bool(false)
+    }
+
     // Only server-owned conversation fields are projected. Butler state and
     // unsent drafts remain local, and no successful send is fabricated locally.
     func refreshSharedChat() async -> ValueType {
@@ -7886,12 +8063,17 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             let state = try await chatTransport.request("state", payload: nil)
             guard sharedRefreshID == refreshID else { return .object(["ok": .bool(true), "state": .object(cachedState)]) }
             applySharedState(state)
+            cachedState["sharedChatReady"] = .bool(true)
             return .object(["ok": .bool(true), "status": .string("ready"), "state": .object(cachedState)])
         } catch {
             guard sharedRefreshID == refreshID else { return sharedChatFailure("En nyere oppdatering pågår.") }
             // A stale authorized snapshot must not remain selectable after an
             // expired link or a failed membership refresh.
             discardLocalChatProjection()
+            cachedState["sharedChatReady"] = .bool(false)
+            if let connectionError = error as? BindingNativeChatConnectionError {
+                return sharedChatFailure(connectionError.message)
+            }
             return sharedChatFailure("Kunne ikke hente delt chat. Kontroller personkoblingen og forbindelsen.")
         }
     }
@@ -7949,7 +8131,13 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             var result = try await chatTransport.request(path, payload: payload)
             guard BindingChatValue.bool(result["ok"]) == true else {
                 _ = await refreshSharedChat()
-                cachedState["status"] = .string("Serveren avviste handlingen.")
+                if let choices = result["contactChoices"] { BindingChatValue.set(choices, for: "assistant.contactChoices", in: &cachedState) }
+                if path == "invite", let remaining = result["remainingRecipients"] {
+                    cachedState["inviteRecipients"] = remaining
+                    cachedState["inviteRetryThreadID"] = result["threadID"]
+                    updateInviteRecipient(["userUUID": .string(""), "profileID": .string("")])
+                }
+                cachedState["status"] = result["message"] ?? result["reason"] ?? .string("Serveren avviste handlingen.")
                 result["ok"] = .bool(false)
                 return .object(result)
             }
@@ -7962,6 +8150,11 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             cachedState["status"] = .string(path == "send" ? "Meldingen er sendt." : "Delt chat er oppdatert.")
             return .object(result)
         } catch {
+            if let connectionError = error as? BindingNativeChatConnectionError {
+                discardLocalChatProjection()
+                cachedState["sharedChatReady"] = .bool(false)
+                return sharedChatFailure(connectionError.message)
+            }
             return sharedChatFailure("Handlingen kunne ikke bekreftes. Hent chatten før du prøver igjen.")
         }
     }
@@ -8099,9 +8292,28 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             "candidates": .list([]), "selectedCandidateProfileID": .null
         ]), for: "assistant.latestSuggestion", in: &cachedState)
         BindingChatValue.set(.null, for: "assistant.lastPreparedInvite", in: &cachedState)
+        if let chatTransport {
+            updateInviteRecipient(["userUUID": .string(""), "profileID": .string("")])
+            do {
+                let reply = try await chatTransport.request("assistant/candidate-query", payload: ["text": .string(query)])
+                guard latestInviteLookupID == lookupID else { return .object(["ok": .bool(false), "status": .string("superseded")]) }
+                if BindingChatValue.bool(reply["ok"]) == true,
+                   let candidates = BindingChatValue.list(reply["candidates"]), !candidates.isEmpty {
+                    BindingChatValue.set(.list(candidates), for: "assistant.latestSuggestion.candidates", in: &cachedState)
+                    BindingChatValue.set(.string("shared_people"), for: "assistant.latestSuggestion.candidateSource", in: &cachedState)
+                    BindingChatValue.set(.string("Velg personen i trefflisten. Ingen invitasjon er sendt."), for: "assistant.latestSuggestion.explanation", in: &cachedState)
+                    return .object(reply)
+                }
+                // No shared identity match: preserve the existing owner-local
+                // relation lookup and explicit external-invitation preparation.
+            } catch {
+                guard latestInviteLookupID == lookupID else { return .null }
+                return sharedChatFailure((error as? BindingNativeChatConnectionError)?.message ?? "Personsøk kunne ikke fullføres.")
+            }
+        }
         let draft = "inviter " + query
         let classification = BindingChatIntentClassifier.classify(prompt: draft)
-        let lookup = await relationCandidates(for: classification, draft: draft, requester: requester)
+        let lookup = await relationCandidates(for: classification, draft: draft, requester: requester, searchSharedPeople: false)
         // A slower previous lookup cannot replace the user's newer selection.
         guard latestInviteLookupID == lookupID else {
             return response(status: "superseded", message: "Et nyere personsøk er aktivt.")
@@ -8117,7 +8329,35 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         return response(status: "ok", message: lookup.reason ?? "Personsøk oppdatert.")
     }
 
+    private func selectSharedInviteCandidate(_ id: String) async -> ValueType {
+        guard let chatTransport else { return sharedChatFailure("Chattransport mangler.") }
+        let selection = UUID(); latestInviteLookupID = selection
+        do {
+            let reply = try await chatTransport.request("assistant/select-candidate", payload: ["profileID": .string(id)])
+            guard latestInviteLookupID == selection else { return .null }
+            guard BindingChatValue.bool(reply["ok"]) == true, let draft = BindingChatValue.object(reply["inviteDraft"]) else {
+                return sharedChatFailure("Mottakeren kunne ikke bekreftes. Velg på nytt.")
+            }
+            updateInviteRecipient(draft)
+            BindingChatValue.set(BindingChatValue.nested("candidate.displayName", in: reply) ?? .string(id), for: "assistant.selectedRecipientName", in: &cachedState)
+            BindingChatValue.set(.list([]), for: "assistant.contactChoices", in: &cachedState)
+            BindingChatValue.set(.string(id), for: "assistant.latestSuggestion.selectedCandidateProfileID", in: &cachedState)
+            cachedState["status"] = .string("Mottaker valgt. Kontroller navnet og send invitasjonen.")
+            return .object(reply)
+        } catch { return sharedChatFailure((error as? BindingNativeChatConnectionError)?.message ?? "Mottakeren kunne ikke bekreftes.") }
+    }
+
     private func acceptInviteSuggestion(_ suggestion: Object, requester: Identity) async -> ValueType {
+        if chatTransport != nil, BindingChatValue.string(suggestion["candidateSource"]) == "shared_people" {
+            guard let selected = BindingChatValue.string(suggestion["selectedCandidateProfileID"]), !selected.isEmpty else {
+                return sharedChatFailure("Velg mottakeren fra trefflisten først.")
+            }
+            if BindingChatValue.string(BindingChatValue.nested("inviteDraft.profileID", in: cachedState)) != selected {
+                let confirmed = await selectSharedInviteCandidate(selected)
+                guard BindingChatValue.bool(BindingChatValue.object(confirmed)?["ok"]) == true else { return confirmed }
+            }
+            return await createInvite(value: .object([:]), requester: requester)
+        }
         BindingChatValue.set(.null, for: "assistant.lastPreparedInvite", in: &cachedState)
         guard BindingChatValue.string(suggestion["status"]) != "low_confidence" else {
             return response(status: "blocked", message: "Velg hvem du vil invitere fra relasjonene først.")
@@ -8225,8 +8465,9 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             draft["profileID"] = .string("")
             draft["userUUID"] = .string("")
             draft["contactEndpoint"] = .null
+            draft["contactAgreement"] = .null
         }
-        for key in ["title", "profileID", "userUUID"] {
+        for key in ["title", "profileID", "userUUID", "contactAgreement"] {
             if let value = submitted[key] { draft[key] = value }
         }
         let hasEndpoint = ["contactEndpoint", "contactEndpointDescriptor", "contactEndpointID", "contactEndpointId"]
@@ -8242,9 +8483,27 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         let draft = BindingChatValue.object(BindingChatValue.nested("inviteDraft", in: cachedState)) ?? [:]
 
         if chatTransport != nil {
+            var recipients = (BindingChatValue.list(cachedState["inviteRecipients"]) ?? []).compactMap(BindingChatValue.object)
+            let hasSelection = BindingChatValue.string(draft["userUUID"])?.isEmpty == false
+                || BindingChatValue.string(draft["profileID"])?.isEmpty == false
+            guard hasSelection || !recipients.isEmpty else {
+                return sharedChatFailure("Velg en mottaker før du sender invitasjonen. Et navn i søkefeltet er ikke en valgt mottaker.")
+            }
             var payload = draft
+            if !recipients.isEmpty {
+                if hasSelection {
+                    recipients.removeAll { BindingChatValue.string($0["userUUID"]) == BindingChatValue.string(draft["userUUID"]) }
+                    recipients.append(draft)
+                }
+                payload["recipients"] = .list(recipients.map(ValueType.object))
+                payload["threadID"] = cachedState["inviteRetryThreadID"]
+            }
             if let thread = BindingChatValue.object(value)?["threadID"] { payload["threadID"] = thread }
-            return await sharedChatAction("invite", payload: payload)
+            let result = await sharedChatAction("invite", payload: payload)
+            if BindingChatValue.bool(BindingChatValue.object(result)?["ok"]) == true {
+                cachedState["inviteRecipients"] = .list([]); cachedState.removeValue(forKey: "inviteRetryThreadID")
+            }
+            return result
         }
         let inviteID = UUID().uuidString.lowercased()
         let title = BindingChatValue.string(draft["title"])?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
@@ -8975,12 +9234,22 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
     private func relationCandidates(
         for suggestion: BindingChatIntentClassification,
         draft: String,
-        requester: Identity
+        requester: Identity,
+        searchSharedPeople: Bool = true
     ) async -> RelationCandidateLookup {
         guard suggestion.helperID == "invite" else {
             return RelationCandidateLookup(rows: [], status: suggestion.status, reason: nil, source: "none")
         }
         let query = Self.inviteTargetName(in: draft)
+        if searchSharedPeople, !query.isEmpty, let chatTransport,
+           let reply = try? await chatTransport.request("assistant/candidate-query", payload: ["text": .string(query)]),
+           BindingChatValue.bool(reply["ok"]) == true,
+           let rows = BindingChatValue.list(reply["candidates"]), !rows.isEmpty {
+            return RelationCandidateLookup(rows: rows,
+                status: rows.count == 1 ? "suggested" : "needs_candidate_selection",
+                reason: rows.count == 1 ? "Kontroller mottakeren før du sender invitasjonen." : "Flere personer passer. Velg mottakeren i listen.",
+                source: "shared_people")
+        }
         guard let resolver = CellBase.defaultCellResolver as? CellResolver,
               let relations = try? await resolver.cellAtEndpoint(endpoint: "cell:///Relations", requester: requester) as? Meddle else {
             return RelationCandidateLookup(

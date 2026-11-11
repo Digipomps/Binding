@@ -9502,6 +9502,35 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             ]
         )
 
+        let contactLabel = SkeletonTextField(text: nil, sourceKeypath: "chatHub.state.contacts.label",
+            targetKeypath: "chatHub.contacts.setLabel", placeholder: "Navn på din nye kontaktcelle", modifiers: fieldCard)
+        var ownContactCells = SkeletonList(topic: nil, keypath: "chatHub.state.contacts.cells",
+            flowElementSkeleton: SkeletonVStack(elements: [
+                .Text(personalBoundText("label", lineLimit: 1)),
+                .Text(personalBoundText("context", lineLimit: 1))]))
+        ownContactCells.selectionMode = .single
+        ownContactCells.selectionValueKeypath = "id"
+        ownContactCells.selectionStateKeypath = "chatHub.state.contacts.selectedID"
+        ownContactCells.selectionActionKeypath = "chatHub.contacts.select"
+        ownContactCells.selectionPayloadMode = .itemID
+
+        let inviteRecipients = SkeletonList(topic: nil, keypath: "chatHub.state.inviteRecipients",
+            flowElementSkeleton: SkeletonVStack(elements: [.Text(personalBoundText("displayName", lineLimit: 1))]))
+        var recipientContactChoices = SkeletonList(topic: nil, keypath: "chatHub.state.assistant.contactChoices",
+            flowElementSkeleton: SkeletonVStack(elements: [.Text(personalBoundText("title", lineLimit: 1))]))
+        recipientContactChoices.selectionMode = .single
+        recipientContactChoices.selectionValueKeypath = "id"
+        recipientContactChoices.selectionActionKeypath = "chatHub.inviteDraft.contactChoice"
+        recipientContactChoices.selectionPayloadMode = .itemID
+
+        var contactAccess = SkeletonList(topic: nil, keypath: "chatHub.state.contacts.access",
+            flowElementSkeleton: SkeletonVStack(elements: [.Text(personalBoundText("displayName", lineLimit: 1))]))
+        contactAccess.selectionMode = .single
+        contactAccess.selectionValueKeypath = "id"
+        contactAccess.selectionStateKeypath = "chatHub.state.contacts.selectedSubject"
+        contactAccess.selectionActionKeypath = "chatHub.contacts.selectSubject"
+        contactAccess.selectionPayloadMode = .itemID
+
         let inviteHelper = personalSection(
             "Inviter",
             role: "personal-consent-prompt",
@@ -9509,6 +9538,12 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 .Text(personalBoundText("chatHub.state.assistant.latestSuggestion.explanation", lineLimit: 3)),
                 .TextField(candidateField),
                 .List(candidates),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.inviteRecipients.add", "Legg til mottaker", style: .secondary)),
+                    .Button(button("chatHub.inviteRecipients.clear", "Tøm mottakerliste", style: .secondary))
+                ], spacing: 8)),
+                .List(inviteRecipients),
+                .List(recipientContactChoices),
                 .TextField(inviteTitleField),
                 .Text(personalBoundText("chatHub.state.status", lineLimit: 3)),
                 .Text(personalBoundText("chatHub.state.assistant.lastPreparedInvite.link", lineLimit: 4)),
@@ -9516,7 +9551,29 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 .HStack(SkeletonHStack(elements: [
                     .Button(button("chatHub.invite", "Send invitasjon")),
                     .Button(button("chatHub.ui.minimizeComponentSurface", "Skjul", style: .secondary))
-                ], spacing: 8))
+                ], spacing: 8)),
+                .Text(personalLabelText("Mine kontaktceller")),
+                .Text(personalBodyText("Hver celle har egen sendetilgang. Velg personen over før du deler din celle.")),
+                .TextField(contactLabel),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.contacts.create", "Opprett kontaktcelle")),
+                    .Button(button("chatHub.contacts.refresh", "Hent mine celler", style: .secondary))
+                ], spacing: 8)),
+                .List(ownContactCells),
+                .Text(personalBoundText("chatHub.state.contacts.reference", lineLimit: 2)),
+                .Button(button("chatHub.contacts.share", "Gi valgt person postetilgang i 30 dager")),
+                .List(contactAccess),
+                .Button(button("chatHub.contacts.revoke", "Trekk tilbake valgt persons tilgang", style: .warning)),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.contacts.context", "Tilgjengelig", payload: .string("available"), style: .secondary)),
+                    .Button(button("chatHub.contacts.context", "Stille", payload: .string("quiet"), style: .secondary)),
+                    .Button(button("chatHub.contacts.context", "Frakoblet", payload: .string("offline"), style: .secondary))
+                ], spacing: 8)),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.contacts.retire", "Steng valgt kontaktcelle", style: .warning)),
+                    .Button(button("chatHub.contacts.delete", "Slett valgt kontaktcelle", style: .warning))
+                ], spacing: 8)),
+                .Text(personalBoundText("chatHub.state.contacts.status", lineLimit: 3))
             ],
             modifiers: BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-consent-prompt")
         )
@@ -9923,14 +9980,30 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             ]
         )
 
+        var modelChoices = SkeletonList(topic: nil, keypath: "chatHub.state.assistant.providerChoices",
+            flowElementSkeleton: SkeletonVStack(elements: [.Text(personalBoundText("title", lineLimit: 2))]))
+        modelChoices.selectionMode = .single
+        modelChoices.selectionValueKeypath = "id"
+        modelChoices.selectionStateKeypath = "chatHub.state.ui.selectedProviderID"
+        modelChoices.selectionActionKeypath = "chatHub.assistant.provider.select"
+        modelChoices.selectionPayloadMode = .itemID
+
         let aiPanel = personalSection(
             "AI",
             content: [
-                .Text(personalBodyText("Provider velges bare blant provider-celler som finnes i denne chat-scopen.")),
+                .Text(personalBodyText("Velg en modell du har tilgang til. Nøkler oppbevares i din modellcelle.")),
+                .List(modelChoices),
+                .Text(personalBoundText("chatHub.state.ui.selectedProviderTitle", lineLimit: 2)),
+                .Text(personalBoundText("chatHub.state.ui.selectedProviderReview", lineLimit: 5)),
+                .Text(personalBodyText("Siste modellkjøring")),
+                .Text(personalBoundText("chatHub.state.assistant.lastGeneratedAnswer.model", lineLimit: 1)),
+                .Text(personalBoundText("chatHub.state.assistant.lastGeneratedAnswer.receipt", lineLimit: 3)),
+                .Text(personalBoundText("chatHub.state.assistant.lastGeneratedAnswer.message", lineLimit: 3)),
+                .Button(button("chatHub.assistant.provider.confirm", "Godkjenn én sending", payload: .object(["confirm": .bool(true)]))),
                 .Text(personalBoundText("chatHub.state.assistant.providerRecommendation.title", lineLimit: 1)),
                 .Text(personalBoundText("chatHub.state.assistant.providerRecommendation.reason", lineLimit: 3)),
                 .HStack(SkeletonHStack(elements: [
-                    .Button(button("chatHub.assistant.provider.recommend", "Velg beste provider")),
+                    .Button(button("chatHub.assistant.provider.recommend", "Finn tilgjengelige modeller")),
                     .Button(button("chatHub.assistant.queryResource", "Spor tilgjengelig RAG", style: .secondary))
                 ]))
             ]

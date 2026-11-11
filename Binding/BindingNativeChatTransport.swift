@@ -1,6 +1,20 @@
 import Foundation
 import CellBase
 
+nonisolated enum BindingNativeChatConnectionError: Error {
+    case personLinkRequired
+    case personSelectionRequired
+
+    var message: String {
+        switch self {
+        case .personLinkRequired:
+            return "Koble HAVEN-appen til personen din med Min entitet → Utvid min entitet før du bruker delt chat. Utkastet er beholdt."
+        case .personSelectionRequired:
+            return "Velg hvilken person og hvilket sted denne chatten skal bruke før du sender. Utkastet er beholdt."
+        }
+    }
+}
+
 nonisolated protocol BindingChatTransport: Sendable {
     func canRefreshSharedChat() async -> Bool
     func request(_ path: String, payload: Object?) async throws -> Object
@@ -36,7 +50,9 @@ actor BindingNativeChatTransport: BindingChatTransport {
         // silently choose the last receipt belonging to a different person.
         // A renewed receipt for the same person/origin supersedes its predecessor.
         let contexts = Set(entries.map { $0.origin + "|" + $0.record.issuerIdentityUUID })
-        guard contexts.count == 1, let entry = entries.last,
+        guard !entries.isEmpty else { throw BindingNativeChatConnectionError.personLinkRequired }
+        guard contexts.count == 1 else { throw BindingNativeChatConnectionError.personSelectionRequired }
+        guard let entry = entries.last,
               entry.record.approvedDomains.contains(C.domain), IdentityLinkScope.grantsSameEntity(entry.record.approvedScopes),
               let reference = entry.personEvidenceReference,
               let identity = await BindingStartupIdentityVault.shared.identity(forUUID: requesterUUID),
@@ -45,6 +61,10 @@ actor BindingNativeChatTransport: BindingChatTransport {
               identity.homeVaultReference == (await vault.identityVaultReference()) else { throw C.Failure.denied }
         let prefix = "/personal-copilot-v1/chat/api/"
         let allowed = ["state", "identity", "invite", "accept", "decline", "send", "block", "unblock",
+                       "assistant/candidate-query", "assistant/select-candidate",
+                       "contacts/create", "contacts/list", "contacts/delete", "contacts/perform", "contacts/share", "contacts/received",
+                       "assistant/provider/status", "assistant/provider/recommend", "assistant/provider/select",
+                       "assistant/provider/confirm", "assistant/provider/invoke",
                        "collaboration/prepare-external", "collaboration/identity-binding/approve",
                        "collaboration/identity-binding/reject", "collaboration/grant/revoke"]
         guard allowed.contains(path), let origin = URL(string: entry.origin), origin.scheme == "https",
@@ -124,6 +144,7 @@ final class BindingConnectedPersonalChatHubCell: BindingPersonalChatHubCell {
             guard self.sharedRefreshID == refreshID else { return }
             guard ready else {
                 self.discardLocalChatProjection()
+                self.markSharedChatConnectionRequired()
                 return
             }
             _ = await self.refreshSharedChat()
