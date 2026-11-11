@@ -9992,6 +9992,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             "AI",
             content: [
                 .Text(personalBodyText("Velg en modell du har tilgang til. Nøkler oppbevares i din modellcelle.")),
+                .Text(personalBoundText("chatHub.state.status", lineLimit: 4)),
                 .List(modelChoices),
                 .Text(personalBoundText("chatHub.state.ui.selectedProviderTitle", lineLimit: 2)),
                 .Text(personalBoundText("chatHub.state.ui.selectedProviderReview", lineLimit: 5)),

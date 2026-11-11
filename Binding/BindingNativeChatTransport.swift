@@ -4,6 +4,7 @@ import CellBase
 nonisolated enum BindingNativeChatConnectionError: Error {
     case personLinkRequired
     case personSelectionRequired
+    case serverResponse(Int)
 
     var message: String {
         switch self {
@@ -11,6 +12,15 @@ nonisolated enum BindingNativeChatConnectionError: Error {
             return "Koble HAVEN-appen til personen din med Min entitet → Utvid min entitet før du bruker delt chat. Utkastet er beholdt."
         case .personSelectionRequired:
             return "Velg hvilken person og hvilket sted denne chatten skal bruke før du sender. Utkastet er beholdt."
+        case .serverResponse(let status):
+            switch status {
+            case 401, 403:
+                return "Serveren avviste personkoblingens tilgang (HTTP \(status)). Utkastet er beholdt."
+            case 404:
+                return "Denne funksjonen er ikke tilgjengelig i serverversjonen som kjører (HTTP 404). Utkastet er beholdt."
+            default:
+                return "Serveren kunne ikke bekrefte handlingen (HTTP \(status)). Utkastet er beholdt."
+            }
         }
     }
 }
@@ -94,8 +104,9 @@ actor BindingNativeChatTransport: BindingChatTransport {
 
     private static func perform(_ request: URLRequest, session: URLSession) async throws -> Object {
         let (stream, response) = try await session.bytes(for: request)
-        guard let http = response as? HTTPURLResponse, http.url == request.url,
-              http.statusCode == 200, http.mimeType == "application/json" else { throw C.Failure.unavailable }
+        guard let http = response as? HTTPURLResponse, http.url == request.url else { throw C.Failure.unavailable }
+        guard http.statusCode == 200 else { throw BindingNativeChatConnectionError.serverResponse(http.statusCode) }
+        guard http.mimeType == "application/json" else { throw C.Failure.unavailable }
         var bytes = Data()
         for try await byte in stream {
             guard bytes.count < 2 * 1024 * 1024 else { throw C.Failure.capacity }

@@ -5193,8 +5193,13 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             return registerProvider(value)
         case "assistant.provider.recommend":
             if chatTransport != nil {
-                _ = await sharedProviderAction("status", value: .object([:]))
-                return await sharedProviderAction("recommend", value: value)
+                let status = await sharedProviderAction("status", value: .object([:]))
+                let recommendation = await sharedProviderAction("recommend", value: value)
+                if let failure = BindingChatValue.object(status), failure["ok"] == .bool(false),
+                   BindingChatValue.object(recommendation)?["ok"] != .bool(false) {
+                    return sharedChatFailure(BindingChatValue.string(failure["message"]) ?? "Modellstatus kunne ikke bekreftes.")
+                }
+                return recommendation
             }
             return recommendProvider(value)
         case "assistant.provider.status":
@@ -6506,11 +6511,16 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             if let recommendation = result["providerRecommendation"] {
                 BindingChatValue.set(recommendation, for: "assistant.providerRecommendation", in: &cachedState)
             }
+            if result["ok"] == .bool(false) || result["success"] == .bool(false) {
+                return sharedChatFailure(BindingChatValue.string(result["message"])
+                    ?? BindingChatValue.string(result["answer"]) ?? "Modelloppslaget ble avvist.")
+            }
+            cachedState["status"] = .string(BindingChatValue.string(result["message"]) ?? "Modelloppslaget er oppdatert.")
             return .object(result)
         } catch {
             let message = (error as? BindingNativeChatConnectionError)?.message
                 ?? "Modellruten kunne ikke bekreftes. Ingen automatisk omsending ble gjort."
-            return .object(["ok": .bool(false), "success": .bool(false), "message": .string(message)])
+            return sharedChatFailure(message)
         }
     }
 
@@ -8289,7 +8299,8 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
         BindingChatValue.set(.string(query), for: "assistant.candidateQuery", in: &cachedState)
         BindingChatValue.set(.object([
             "helperID": .string("invite"), "status": .string("low_confidence"),
-            "candidates": .list([]), "selectedCandidateProfileID": .null
+            "candidates": .list([]), "selectedCandidateProfileID": .null,
+            "explanation": .string("")
         ]), for: "assistant.latestSuggestion", in: &cachedState)
         BindingChatValue.set(.null, for: "assistant.lastPreparedInvite", in: &cachedState)
         if let chatTransport {
