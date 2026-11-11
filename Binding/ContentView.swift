@@ -718,6 +718,9 @@ struct ContentView: View {
     private var menusHidden: Bool = false
     @State private var rotationAccumulator: Angle = .zero
     @State private var didApplyStoredDemoStart = false
+    /// En lenke («Svar i HAVEN») har bedt om en flate. Da skal ikke oppstartens demo-start
+    /// legge seg over den etterpå (kaldstart 4.11 22:48Z: lenken kom, startflaten vant).
+    @State private var linkRequestedSurface = false
     @State private var didRepairPersistedConferenceLauncher = false
     @State private var didRepairPersistedConferencePortal = false
     @State private var didRepairPersistedConferenceControlTower = false
@@ -1723,18 +1726,23 @@ struct ContentView: View {
     }
 
     private var personalCopilotPlatformCanvasColor: Color {
-#if os(iOS)
+        // PDD haven-visionos steg 2: API-gate med canImport og nøytral #else (auditen §4.1).
+#if canImport(UIKit)
         Color(uiColor: .systemGroupedBackground)
-#else
+#elseif canImport(AppKit)
         Color(nsColor: .windowBackgroundColor)
+#else
+        Color.clear
 #endif
     }
 
     private var personalCopilotPlatformSurfaceColor: Color {
-#if os(iOS)
+#if canImport(UIKit)
         Color(uiColor: .systemBackground)
-#else
+#elseif canImport(AppKit)
         Color(nsColor: .controlBackgroundColor)
+#else
+        Color.clear
 #endif
     }
 
@@ -1756,6 +1764,90 @@ struct ContentView: View {
             provenance: .localTrusted
         )
     }
+
+    /// «Svar i HAVEN» fra HAVEN Agent: «Utvid entiteten» → «Ber om tilgang», med forespørselen
+    /// markert. Lastes på nytt også når flaten alt er åpen, så markeringen vises. Bare navigasjon:
+    /// ingenting godkjennes herfra.
+    @MainActor
+    private func openAccessRequests(markingContract contractID: String?) {
+        BindingAccessRequestFocus.shared.focus(contractID: contractID)
+        if editorMode == .edit && editorState.isDirty {
+            loadErrorMessage = "En forespørsel venter i «Utvid entiteten» → «Ber om tilgang». Lagre eller forkast editor-draften før HAVEN bytter flate."
+            return
+        }
+        if editorMode == .edit {
+            editorMode = .view
+        }
+        linkRequestedSurface = true
+        didApplyStoredDemoStart = true
+        personalCopilotDestination = .extendEntity
+        personalCopilotPhoneTab = BindingPersonalCopilotDestination.extendEntity.phoneTab
+#if os(macOS)
+        bringLinkWindowToFront()
+#endif
+        diagnosticsStore.record(
+            domain: "binding.accessRequestLink",
+            message: "Åpner «Utvid entiteten» → «Ber om tilgang» fra dyplenke."
+        )
+        queueConfigurationLoad(
+            BindingPersonalCopilotDestination.extendEntity.configuration,
+            navigationMode: .reset,
+            provenance: .localTrusted
+        )
+#if os(macOS)
+        // Lenken kommer fra HAVEN Agent, så agenten finnes. Ser sandkassen ikke oppsettet,
+        // ber HAVEN om lov med en gang, her i appen og ikke via cellen: da avhenger ikke
+        // tilgangen av at eierbeviset til flaten er gyldig akkurat nå.
+        if AgentLocalControlBridgeEndpointSupport.agentConfigReadable() == false {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 600_000_000)
+                let granted = AgentLocalControlBridgeEndpointSupport.requestAgentRuntimeAccessFromOwner()
+                diagnosticsStore.record(
+                    domain: "binding.accessRequestLink",
+                    message: granted
+                        ? "HAVEN fikk lese HAVEN Agents oppsett."
+                        : "HAVEN fikk ikke lese HAVEN Agents oppsett (mappevalget ble avbrutt eller feil mappe)."
+                )
+                if granted {
+                    queueConfigurationLoad(
+                        BindingPersonalCopilotDestination.extendEntity.configuration,
+                        navigationMode: .reset,
+                        provenance: .localTrusted
+                    )
+                }
+            }
+        }
+#endif
+    }
+
+#if os(macOS)
+    /// «Svar i HAVEN» skal ende i ett vindu, foran. Startet HAVEN fra lukket (4.11 22:15Z),
+    /// laget SwiftUI ett vindu for oppstarten og ett for lenken, og det første lå øverst med
+    /// en annen flate. Vinduet som tok lenken legges nå foran. De andre lukkes bare når appen
+    /// nettopp startet, for da kan ingen ha arbeid i dem.
+    @MainActor
+    private func bringLinkWindowToFront() {
+        let launchedAt = ProcessInfo.processInfo.systemUptime - BindingProcessStart.uptimeAtLaunch
+        func run() {
+            guard let windowNumber = hostingWindowNumber,
+                  let mine = NSApp.window(withWindowNumber: windowNumber) else { return }
+            NSApp.activate(ignoringOtherApps: true)
+            mine.makeKeyAndOrderFront(nil)
+            guard launchedAt < 30 else { return }
+            for window in NSApp.windows where window !== mine
+                && window.isVisible
+                && window.styleMask.contains(.titled)
+                && window.sheetParent == nil
+                && window.contentViewController != nil
+                && window.title == mine.title {
+                window.close()
+            }
+        }
+        // Vinduet kan være nytt og ikke ferdig lagt ut; gjør det etter at SwiftUI har tegnet.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { run() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { run() }
+    }
+#endif
 
     private func selectPersonalCopilotPhoneTab(_ tab: BindingPersonalCopilotPhoneTab) {
         personalCopilotPhoneTab = tab
@@ -4149,7 +4241,7 @@ struct ContentView: View {
 
     @MainActor
     private func applyStoredDemoStartConfigurationIfNeeded() {
-        guard !didApplyStoredDemoStart else { return }
+        guard !didApplyStoredDemoStart, !linkRequestedSurface else { return }
         didApplyStoredDemoStart = true
         let decodedSelection = decodeStoredDemoStartConfiguration()
         let storedConfiguration = Self.effectiveDemoStartConfiguration(
@@ -4204,7 +4296,7 @@ struct ContentView: View {
 
     @MainActor
     private func ensureDefaultDemoStartVisibleIfNeeded(reason: String) {
-        guard activeConfiguration == nil else { return }
+        guard activeConfiguration == nil, !linkRequestedSurface else { return }
         let decodedSelection = decodeStoredDemoStartConfiguration()
         let storedConfiguration = Self.effectiveDemoStartConfiguration(
             storedConfiguration: decodedSelection?.configuration
@@ -4331,7 +4423,8 @@ struct ContentView: View {
             activeConfiguration?.name == "Conference Demo Launcher"
             || skeletonText?.contains("Conference Demo Launcher") == true
 
-        guard currentlyLooksLikeLauncher else {
+        // En lenke har bedt om en annen flate; da skal ikke reparasjonen legge launcheren over.
+        guard currentlyLooksLikeLauncher, !linkRequestedSurface else {
             return
         }
 
@@ -4622,6 +4715,25 @@ struct ContentView: View {
         if let threadID = BindingChatNotificationRoute.threadID(from: url) {
             await openChatNotificationThread(threadID, execution: execution)
             return
+        }
+        switch BindingAccessRequestDeepLink.parse(url) {
+        case .accepted(let contractID):
+            execution.commit {
+                openAccessRequests(markingContract: contractID)
+            }
+            return
+        case .rejected(let reason):
+            execution.commit {
+                loadErrorMessage = "Lenken til «Ber om tilgang» var ugyldig og ble ikke åpnet."
+                diagnosticsStore.record(
+                    severity: .warning,
+                    domain: "binding.accessRequestLink",
+                    message: "Avviste dyplenke til «Ber om tilgang»: \(reason)."
+                )
+            }
+            return
+        case .notThisRoute:
+            break
         }
         if let hook = Self.conferenceAutomationHook(from: url) {
             guard execution.isActive else { return }

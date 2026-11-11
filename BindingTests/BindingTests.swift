@@ -1358,6 +1358,32 @@ struct BindingTests {
         ])
     }
 
+    /// Debug er eierens eget bygg: der skal «Utvid entiteten» → «Ber om tilgang» være
+    /// synlig, ellers lander «Svar i HAVEN» fra HAVEN Agent på en flate uten forespørselen.
+    @Test func appStoreGateIsOffInDebugUnlessAskedForAndAlwaysOnInRelease() {
+        #if DEBUG
+        #expect(BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled(
+            environment: [:], launchArguments: [], conferenceDemoMenusEnabled: false
+        ) == false)
+        #expect(BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled(
+            environment: [:], launchArguments: ["--app-store-gate"], conferenceDemoMenusEnabled: false
+        ))
+        #expect(BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled(
+            environment: ["BINDING_ENABLE_APP_STORE_GATE": "1"], launchArguments: [], conferenceDemoMenusEnabled: false
+        ))
+        #expect(BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled(
+            environment: [:], launchArguments: ["--app-store-gate"], conferenceDemoMenusEnabled: true
+        ) == false)
+        #expect(BindingPersonalCopilotDestination.visibleDestinations(
+            appStoreCatalogGateEnabled: false
+        ).contains(.extendEntity))
+        #else
+        #expect(BindingPersonalCopilotV1Policy.appStoreCatalogGateEnabled(
+            environment: [:], launchArguments: [], conferenceDemoMenusEnabled: true
+        ))
+        #endif
+    }
+
     @Test func conferenceDemoMenusCanBePersistentlyEnabledInDebugBuilds() {
         #if DEBUG
         #expect(BindingPersonalCopilotV1Policy.conferenceDemoMenusEnabled(

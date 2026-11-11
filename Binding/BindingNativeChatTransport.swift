@@ -1,6 +1,30 @@
 import Foundation
 import CellBase
 
+nonisolated enum BindingNativeChatConnectionError: Error {
+    case personLinkRequired
+    case personSelectionRequired
+    case serverResponse(Int)
+
+    var message: String {
+        switch self {
+        case .personLinkRequired:
+            return "Koble HAVEN-appen til personen din med Min entitet → Utvid min entitet før du bruker delt chat. Utkastet er beholdt."
+        case .personSelectionRequired:
+            return "Velg hvilken person og hvilket sted denne chatten skal bruke før du sender. Utkastet er beholdt."
+        case .serverResponse(let status):
+            switch status {
+            case 401, 403:
+                return "Serveren avviste personkoblingens tilgang (HTTP \(status)). Utkastet er beholdt."
+            case 404:
+                return "Denne funksjonen er ikke tilgjengelig i serverversjonen som kjører (HTTP 404). Utkastet er beholdt."
+            default:
+                return "Serveren kunne ikke bekrefte handlingen (HTTP \(status)). Utkastet er beholdt."
+            }
+        }
+    }
+}
+
 nonisolated protocol BindingChatTransport: Sendable {
     func canRefreshSharedChat() async -> Bool
     func request(_ path: String, payload: Object?) async throws -> Object
@@ -36,7 +60,9 @@ actor BindingNativeChatTransport: BindingChatTransport {
         // silently choose the last receipt belonging to a different person.
         // A renewed receipt for the same person/origin supersedes its predecessor.
         let contexts = Set(entries.map { $0.origin + "|" + $0.record.issuerIdentityUUID })
-        guard contexts.count == 1, let entry = entries.last,
+        guard !entries.isEmpty else { throw BindingNativeChatConnectionError.personLinkRequired }
+        guard contexts.count == 1 else { throw BindingNativeChatConnectionError.personSelectionRequired }
+        guard let entry = entries.last,
               entry.record.approvedDomains.contains(C.domain), IdentityLinkScope.grantsSameEntity(entry.record.approvedScopes),
               let reference = entry.personEvidenceReference,
               let identity = await BindingStartupIdentityVault.shared.identity(forUUID: requesterUUID),
@@ -45,6 +71,10 @@ actor BindingNativeChatTransport: BindingChatTransport {
               identity.homeVaultReference == (await vault.identityVaultReference()) else { throw C.Failure.denied }
         let prefix = "/personal-copilot-v1/chat/api/"
         let allowed = ["state", "identity", "invite", "accept", "decline", "send", "block", "unblock",
+                       "assistant/candidate-query", "assistant/select-candidate",
+                       "contacts/create", "contacts/list", "contacts/delete", "contacts/perform", "contacts/share", "contacts/received",
+                       "assistant/provider/status", "assistant/provider/recommend", "assistant/provider/select",
+                       "assistant/provider/confirm", "assistant/provider/invoke",
                        "collaboration/prepare-external", "collaboration/identity-binding/approve",
                        "collaboration/identity-binding/reject", "collaboration/grant/revoke"]
         guard allowed.contains(path), let origin = URL(string: entry.origin), origin.scheme == "https",
@@ -74,8 +104,9 @@ actor BindingNativeChatTransport: BindingChatTransport {
 
     private static func perform(_ request: URLRequest, session: URLSession) async throws -> Object {
         let (stream, response) = try await session.bytes(for: request)
-        guard let http = response as? HTTPURLResponse, http.url == request.url,
-              http.statusCode == 200, http.mimeType == "application/json" else { throw C.Failure.unavailable }
+        guard let http = response as? HTTPURLResponse, http.url == request.url else { throw C.Failure.unavailable }
+        guard http.statusCode == 200 else { throw BindingNativeChatConnectionError.serverResponse(http.statusCode) }
+        guard http.mimeType == "application/json" else { throw C.Failure.unavailable }
         var bytes = Data()
         for try await byte in stream {
             guard bytes.count < 2 * 1024 * 1024 else { throw C.Failure.capacity }
@@ -124,6 +155,7 @@ final class BindingConnectedPersonalChatHubCell: BindingPersonalChatHubCell {
             guard self.sharedRefreshID == refreshID else { return }
             guard ready else {
                 self.discardLocalChatProjection()
+                self.markSharedChatConnectionRequired()
                 return
             }
             _ = await self.refreshSharedChat()

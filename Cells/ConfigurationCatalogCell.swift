@@ -113,8 +113,35 @@ enum BindingPersonalCopilotV1Policy {
         "chat-helper-tabs-compact"
     ]
 
+    /// Release har alltid App Store-gaten. Et Debug-bygg har den bare når noen ber om
+    /// den (`--app-store-gate` eller `BINDING_ENABLE_APP_STORE_GATE=1`): Debug er bygget
+    /// eieren bruker selv, og der skjulte gaten «Utvid entiteten» → «Ber om tilgang»,
+    /// så «Svar i HAVEN» fra HAVEN Agent landet på en flate uten forespørselen.
     nonisolated static var appStoreCatalogGateEnabled: Bool {
-        !conferenceDemoMenusEnabled
+        appStoreCatalogGateEnabled(
+            environment: ProcessInfo.processInfo.environment,
+            launchArguments: ProcessInfo.processInfo.arguments,
+            conferenceDemoMenusEnabled: conferenceDemoMenusEnabled
+        )
+    }
+
+    nonisolated static let appStoreGateLaunchArgument = "--app-store-gate"
+
+    nonisolated static func appStoreCatalogGateEnabled(
+        environment: [String: String],
+        launchArguments: [String],
+        conferenceDemoMenusEnabled: Bool
+    ) -> Bool {
+        #if DEBUG
+        guard !conferenceDemoMenusEnabled else { return false }
+        return launchArguments.contains(appStoreGateLaunchArgument)
+            || isTruthyFlag(environment["BINDING_ENABLE_APP_STORE_GATE"])
+        #else
+        _ = environment
+        _ = launchArguments
+        _ = conferenceDemoMenusEnabled
+        return true
+        #endif
     }
 
     nonisolated static var stagingSurfaceTestingEnabled: Bool {
@@ -9475,6 +9502,35 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             ]
         )
 
+        let contactLabel = SkeletonTextField(text: nil, sourceKeypath: "chatHub.state.contacts.label",
+            targetKeypath: "chatHub.contacts.setLabel", placeholder: "Navn på din nye kontaktcelle", modifiers: fieldCard)
+        var ownContactCells = SkeletonList(topic: nil, keypath: "chatHub.state.contacts.cells",
+            flowElementSkeleton: SkeletonVStack(elements: [
+                .Text(personalBoundText("label", lineLimit: 1)),
+                .Text(personalBoundText("context", lineLimit: 1))]))
+        ownContactCells.selectionMode = .single
+        ownContactCells.selectionValueKeypath = "id"
+        ownContactCells.selectionStateKeypath = "chatHub.state.contacts.selectedID"
+        ownContactCells.selectionActionKeypath = "chatHub.contacts.select"
+        ownContactCells.selectionPayloadMode = .itemID
+
+        let inviteRecipients = SkeletonList(topic: nil, keypath: "chatHub.state.inviteRecipients",
+            flowElementSkeleton: SkeletonVStack(elements: [.Text(personalBoundText("displayName", lineLimit: 1))]))
+        var recipientContactChoices = SkeletonList(topic: nil, keypath: "chatHub.state.assistant.contactChoices",
+            flowElementSkeleton: SkeletonVStack(elements: [.Text(personalBoundText("title", lineLimit: 1))]))
+        recipientContactChoices.selectionMode = .single
+        recipientContactChoices.selectionValueKeypath = "id"
+        recipientContactChoices.selectionActionKeypath = "chatHub.inviteDraft.contactChoice"
+        recipientContactChoices.selectionPayloadMode = .itemID
+
+        var contactAccess = SkeletonList(topic: nil, keypath: "chatHub.state.contacts.access",
+            flowElementSkeleton: SkeletonVStack(elements: [.Text(personalBoundText("displayName", lineLimit: 1))]))
+        contactAccess.selectionMode = .single
+        contactAccess.selectionValueKeypath = "id"
+        contactAccess.selectionStateKeypath = "chatHub.state.contacts.selectedSubject"
+        contactAccess.selectionActionKeypath = "chatHub.contacts.selectSubject"
+        contactAccess.selectionPayloadMode = .itemID
+
         let inviteHelper = personalSection(
             "Inviter",
             role: "personal-consent-prompt",
@@ -9482,6 +9538,12 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 .Text(personalBoundText("chatHub.state.assistant.latestSuggestion.explanation", lineLimit: 3)),
                 .TextField(candidateField),
                 .List(candidates),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.inviteRecipients.add", "Legg til mottaker", style: .secondary)),
+                    .Button(button("chatHub.inviteRecipients.clear", "Tøm mottakerliste", style: .secondary))
+                ], spacing: 8)),
+                .List(inviteRecipients),
+                .List(recipientContactChoices),
                 .TextField(inviteTitleField),
                 .Text(personalBoundText("chatHub.state.status", lineLimit: 3)),
                 .Text(personalBoundText("chatHub.state.assistant.lastPreparedInvite.link", lineLimit: 4)),
@@ -9489,7 +9551,29 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
                 .HStack(SkeletonHStack(elements: [
                     .Button(button("chatHub.invite", "Send invitasjon")),
                     .Button(button("chatHub.ui.minimizeComponentSurface", "Skjul", style: .secondary))
-                ], spacing: 8))
+                ], spacing: 8)),
+                .Text(personalLabelText("Mine kontaktceller")),
+                .Text(personalBodyText("Hver celle har egen sendetilgang. Velg personen over før du deler din celle.")),
+                .TextField(contactLabel),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.contacts.create", "Opprett kontaktcelle")),
+                    .Button(button("chatHub.contacts.refresh", "Hent mine celler", style: .secondary))
+                ], spacing: 8)),
+                .List(ownContactCells),
+                .Text(personalBoundText("chatHub.state.contacts.reference", lineLimit: 2)),
+                .Button(button("chatHub.contacts.share", "Gi valgt person postetilgang i 30 dager")),
+                .List(contactAccess),
+                .Button(button("chatHub.contacts.revoke", "Trekk tilbake valgt persons tilgang", style: .warning)),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.contacts.context", "Tilgjengelig", payload: .string("available"), style: .secondary)),
+                    .Button(button("chatHub.contacts.context", "Stille", payload: .string("quiet"), style: .secondary)),
+                    .Button(button("chatHub.contacts.context", "Frakoblet", payload: .string("offline"), style: .secondary))
+                ], spacing: 8)),
+                .HStack(SkeletonHStack(elements: [
+                    .Button(button("chatHub.contacts.retire", "Steng valgt kontaktcelle", style: .warning)),
+                    .Button(button("chatHub.contacts.delete", "Slett valgt kontaktcelle", style: .warning))
+                ], spacing: 8)),
+                .Text(personalBoundText("chatHub.state.contacts.status", lineLimit: 3))
             ],
             modifiers: BindingPersonalCopilotDesignSystem.sectionCard(role: "personal-consent-prompt")
         )
@@ -9696,6 +9780,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             )
             tabs.modifiers = modifier {
                 $0.styleRole = compact ? "chat-helper-tabs-compact" : "chat-helper-tabs"
+                $0.foregroundColor = BindingPersonalCopilotDesignSystem.textPrimary
                 $0.styleClasses = compact ? ["chat-helper-tabs", "chat-helper-tabs-compact"] : ["chat-helper-tabs"]
             }
             return tabs
@@ -9896,14 +9981,31 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             ]
         )
 
+        var modelChoices = SkeletonList(topic: nil, keypath: "chatHub.state.assistant.providerChoices",
+            flowElementSkeleton: SkeletonVStack(elements: [.Text(personalBoundText("title", lineLimit: 2))]))
+        modelChoices.selectionMode = .single
+        modelChoices.selectionValueKeypath = "id"
+        modelChoices.selectionStateKeypath = "chatHub.state.ui.selectedProviderID"
+        modelChoices.selectionActionKeypath = "chatHub.assistant.provider.select"
+        modelChoices.selectionPayloadMode = .itemID
+
         let aiPanel = personalSection(
             "AI",
             content: [
-                .Text(personalBodyText("Provider velges bare blant provider-celler som finnes i denne chat-scopen.")),
+                .Text(personalBodyText("Velg en modell du har tilgang til. Nøkler oppbevares i din modellcelle.")),
+                .Text(personalBoundText("chatHub.state.status", lineLimit: 4)),
+                .List(modelChoices),
+                .Text(personalBoundText("chatHub.state.ui.selectedProviderTitle", lineLimit: 2)),
+                .Text(personalBoundText("chatHub.state.ui.selectedProviderReview", lineLimit: 5)),
+                .Text(personalBodyText("Siste modellkjøring")),
+                .Text(personalBoundText("chatHub.state.assistant.lastGeneratedAnswer.model", lineLimit: 1)),
+                .Text(personalBoundText("chatHub.state.assistant.lastGeneratedAnswer.receipt", lineLimit: 3)),
+                .Text(personalBoundText("chatHub.state.assistant.lastGeneratedAnswer.message", lineLimit: 3)),
+                .Button(button("chatHub.assistant.provider.confirm", "Godkjenn én sending", payload: .object(["confirm": .bool(true)]))),
                 .Text(personalBoundText("chatHub.state.assistant.providerRecommendation.title", lineLimit: 1)),
                 .Text(personalBoundText("chatHub.state.assistant.providerRecommendation.reason", lineLimit: 3)),
                 .HStack(SkeletonHStack(elements: [
-                    .Button(button("chatHub.assistant.provider.recommend", "Velg beste provider")),
+                    .Button(button("chatHub.assistant.provider.recommend", "Finn tilgjengelige modeller")),
                     .Button(button("chatHub.assistant.queryResource", "Spor tilgjengelig RAG", style: .secondary))
                 ]))
             ]
@@ -9989,6 +10091,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         )
         moreTabs.modifiers = modifier {
             $0.styleRole = "tabstrip"
+            $0.foregroundColor = BindingPersonalCopilotDesignSystem.textPrimary
         }
 
         let morePanel: [SkeletonElement] = [
@@ -10009,6 +10112,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         )
         tabs.modifiers = modifier {
             $0.styleRole = "tabstrip"
+            $0.foregroundColor = BindingPersonalCopilotDesignSystem.textPrimary
         }
 
         configuration.skeleton = personalChatSurfacePage(

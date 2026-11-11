@@ -796,6 +796,23 @@ struct IdentityLinkFlowView: View {
     @ObservedObject private var nearby = IdentityLinkNearbyModel.shared
     @Environment(\.scenePhase) private var scenePhase
 
+    // Resolve surfaces with the same system appearance as primary/secondary
+    // text. Fixed pale surfaces made the security review unreadable in dark mode.
+    private var surfaceBackground: Color {
+        #if os(macOS)
+        Color(nsColor: .windowBackgroundColor)
+        #else
+        Color(uiColor: .systemGroupedBackground)
+        #endif
+    }
+    private var cardBackground: Color {
+        #if os(macOS)
+        Color(nsColor: .controlBackgroundColor)
+        #else
+        Color(uiColor: .secondarySystemGroupedBackground)
+        #endif
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -821,7 +838,7 @@ struct IdentityLinkFlowView: View {
                 }
                 .padding(20)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .background(Color(red: 0.953, green: 0.965, blue: 0.945).ignoresSafeArea())
+                .background(surfaceBackground.ignoresSafeArea())
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button(cancelTitle) { presenter.dismiss() }
@@ -1006,7 +1023,9 @@ struct IdentityLinkFlowView: View {
     private func header(_ title: String, _ subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.system(size: 26, design: .serif))
+                .fixedSize(horizontal: false, vertical: true)
             Text(subtitle).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -1015,8 +1034,8 @@ struct IdentityLinkFlowView: View {
         VStack(alignment: .leading, spacing: 8) { content() }
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(red: 1, green: 0.996, blue: 0.976))
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(red: 0.847, green: 0.878, blue: 0.847)))
+            .background(cardBackground)
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(.secondary.opacity(0.35)))
             .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
@@ -1041,15 +1060,16 @@ struct IdentityLinkWordsView: View {
     let words: [String]
 
     var body: some View {
-        // Fire ord, to og to på smale skjermer.
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 10)], spacing: 10) {
+        // Keep each security word intact and preserve a predictable 2 × 2 order.
+        LazyVGrid(columns: [GridItem(.flexible(minimum: 0), spacing: 10), GridItem(.flexible(minimum: 0), spacing: 10)], spacing: 10) {
             ForEach(words, id: \.self) { word in
                 Text(word)
                     .font(.system(size: 28, design: .serif))
+                    .lineLimit(1).minimumScaleFactor(0.75)
                     .padding(.vertical, 8).padding(.horizontal, 16)
                     .frame(maxWidth: .infinity)
-                    .background(Color(red: 0.886, green: 0.929, blue: 0.953))
-                    .foregroundStyle(Color(red: 0.192, green: 0.373, blue: 0.486))
+                    .background(Color.accentColor.opacity(0.15))
+                    .foregroundStyle(.primary)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
             }
         }

@@ -30,10 +30,15 @@ struct BindingApp: App {
             }
             #else
             RootView().modifier(BindingPersonalButlerLifecycleModifier())
+                .modifier(BindingExternalEventsInExistingWindow())
             #endif
         }
 #if os(macOS)
         .restorationBehavior(.disabled)
+        // En haven://-lenke (fra HAVEN Agent) skal gå til vinduet som alt er
+        // åpent. Uten dette lager SwiftUI et nytt vindu per lenke; Kjetil fikk
+        // tre vinduer 27.10 og ingen av dem viste siden.
+        .handlesExternalEvents(matching: ["*"])
 #endif
 #if os(macOS)
         .commands {
@@ -165,3 +170,15 @@ private struct DatabaseKeyCustodyCommand: View {
     }
 }
 #endif
+
+/// macOS: la det åpne vinduet ta imot haven://-lenker, i stedet for at hver
+/// lenke åpner et nytt vindu. Gjør ingenting på iOS.
+struct BindingExternalEventsInExistingWindow: ViewModifier {
+    func body(content: Content) -> some View {
+#if os(macOS)
+        content.handlesExternalEvents(preferring: ["*"], allowing: ["*"])
+#else
+        content
+#endif
+    }
+}
