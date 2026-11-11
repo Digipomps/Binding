@@ -9780,6 +9780,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
             )
             tabs.modifiers = modifier {
                 $0.styleRole = compact ? "chat-helper-tabs-compact" : "chat-helper-tabs"
+                $0.foregroundColor = BindingPersonalCopilotDesignSystem.textPrimary
                 $0.styleClasses = compact ? ["chat-helper-tabs", "chat-helper-tabs-compact"] : ["chat-helper-tabs"]
             }
             return tabs
@@ -10090,6 +10091,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         )
         moreTabs.modifiers = modifier {
             $0.styleRole = "tabstrip"
+            $0.foregroundColor = BindingPersonalCopilotDesignSystem.textPrimary
         }
 
         let morePanel: [SkeletonElement] = [
@@ -10110,6 +10112,7 @@ final class ConfigurationCatalogCell: BindingRuntimeBindingCell {
         )
         tabs.modifiers = modifier {
             $0.styleRole = "tabstrip"
+            $0.foregroundColor = BindingPersonalCopilotDesignSystem.textPrimary
         }
 
         configuration.skeleton = personalChatSurfacePage(
