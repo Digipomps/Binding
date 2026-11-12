@@ -22,6 +22,10 @@ struct BindingSkeletonView: View {
 
     @EnvironmentObject private var viewModel: PortholeViewModel
     @Environment(\.bindingRuntimeSurfaceTargetSceneID) private var runtimeSurfaceTargetSceneID
+    /// The width this host actually got, measured once at the host boundary
+    /// (as PortholeView does in CellApple). Until it is known the skeleton sees
+    /// an unknown width and its layout variants fall back to their default.
+    @State private var hostSize: CGSize?
 
     init(element: SkeletonElement, userInfoValue: ValueType? = nil) {
         self.element = element
@@ -54,6 +58,40 @@ struct BindingSkeletonView: View {
             )
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Measure without changing layout: a GeometryReader in the background
+        // takes the host's size and reports it, it does not claim space itself.
+        .background(
+            GeometryReader { geometry in
+                Color.clear
+                    .onAppear { updateHostSize(geometry.size) }
+                    .onChange(of: geometry.size) { _, size in updateHostSize(size) }
+            }
+        )
+        .environment(\.skeletonLayoutContext, BindingSkeletonLayout.context(for: hostSize))
+    }
+
+    private func updateHostSize(_ size: CGSize) {
+        guard size.width > 0, size != hostSize else { return }
+        hostSize = size
+    }
+}
+
+/// The skeleton layout context a Binding host declares (same capabilities as
+/// CellApple's PortholeView). Width nil until the host has been measured.
+enum BindingSkeletonLayout {
+    static func context(for size: CGSize?) -> SkeletonLayoutContext {
+        #if os(macOS)
+        let capabilities: Set<SkeletonCapability> = [.pointer, .hover, .keyboard]
+        #else
+        let capabilities: Set<SkeletonCapability> = [.touch]
+        #endif
+        guard let size, size.width > 0 else {
+            return (try? SkeletonLayoutContext(capabilities: capabilities)) ?? (try! SkeletonLayoutContext())
+        }
+        // Height is only declared when the host bounds it; a host inside a
+        // ScrollView reports its content height, which is not a budget.
+        return (try? SkeletonLayoutContext(availableWidth: Double(size.width), capabilities: capabilities))
+            ?? (try! SkeletonLayoutContext())
     }
 }
 
