@@ -1167,6 +1167,7 @@ struct ContentView: View {
             skeleton: renderedSkeleton,
             isEditing: editorMode == .edit,
             activeConfigurationName: activeConfiguration?.name,
+            onOpenMeeting: { queueConfigurationLoad($0, provenance: .hostPrepared) },
             contentPadding: portholeCanvasContentPadding,
             contentTopAligned: portholeCanvasContentTopAligned,
             selectedNodePath: editorState.selectedNodePath,
@@ -8608,6 +8609,7 @@ private struct PortholeCanvas: View {
     var skeleton: SkeletonElement
     var isEditing: Bool
     var activeConfigurationName: String?
+    var onOpenMeeting: (CellConfiguration) -> Void
     var contentPadding: CGFloat = 16
     var contentTopAligned: Bool = false
     var selectedNodePath: SkeletonNodePath?
@@ -8618,6 +8620,7 @@ private struct PortholeCanvas: View {
     var onCancelComponentPlacement: () -> Void
     var onApplyComponentDrop: (ComponentPaletteItem, DropPlacement) -> Bool
     @EnvironmentObject private var viewModel: PortholeBindingViewModel
+    @Environment(\.scenePhase) private var meetingScenePhase
 
     var body: some View {
         ZStack {
@@ -8705,11 +8708,20 @@ private struct PortholeCanvas: View {
             )
         } else {
             if activeConfigurationName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "entity scanner" {
-                NearbyScannerSurfaceView()
+                NearbyScannerSurfaceView(onOpenMeeting: onOpenMeeting)
             } else if let mode = nativeNearbyRadarMode {
                 nativeNearbyRadarCanvas(mode: mode)
             } else {
                 BindingSkeletonView(element: skeleton)
+                    .task(id: activeConfigurationName == "Privat møte" && meetingScenePhase == .active) {
+                        guard activeConfigurationName == "Privat møte", meetingScenePhase == .active,
+                              let endpoint = viewModel.cellReferences.first?.endpoint else { return }
+                        while !Task.isCancelled {
+                            do { try await MeetingNearbyAppRuntime.shared.visibleMeetingPulse(endpoint: endpoint) }
+                            catch { /* Failed presence cannot renew recording authority. */ }
+                            do { try await Task.sleep(nanoseconds: 700_000_000) } catch { return }
+                        }
+                    }
             }
         }
     }
