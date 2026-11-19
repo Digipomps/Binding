@@ -8716,6 +8716,11 @@ private struct PortholeCanvas: View {
                     .task(id: activeConfigurationName == "Privat møte" && meetingScenePhase == .active) {
                         guard activeConfigurationName == "Privat møte", meetingScenePhase == .active,
                               let endpoint = viewModel.cellReferences.first?.endpoint else { return }
+                        // Recording permission lasts 3 s and is renewed only while every
+                        // participant's meeting surface is visible; an auto-locked screen
+                        // would end the segment. Keep the screen awake while it is shown.
+                        BindingMeetingScreenAwake.begin()
+                        defer { BindingMeetingScreenAwake.end() }
                         while !Task.isCancelled {
                             do { try await MeetingNearbyAppRuntime.shared.visibleMeetingPulse(endpoint: endpoint) }
                             catch { /* Failed presence cannot renew recording authority. */ }
@@ -9269,4 +9274,19 @@ struct BridgeStatusBanner: View {
 // MARK: - Preview
 #Preview {
     ContentView()
+}
+
+/// Keeps the screen awake while a private meeting is open (iOS/iPadOS only).
+/// Released when the app leaves the foreground, where recording stops anyway.
+enum BindingMeetingScreenAwake {
+    @MainActor static func begin() {
+        #if os(iOS)
+        UIApplication.shared.isIdleTimerDisabled = true
+        #endif
+    }
+    @MainActor static func end() {
+        #if os(iOS)
+        UIApplication.shared.isIdleTimerDisabled = false
+        #endif
+    }
 }

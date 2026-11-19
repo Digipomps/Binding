@@ -543,11 +543,11 @@
 				INFOPLIST_KEY_NSContactsUsageDescription = "HAVEN leser kontakter kun etter at du selv har valgt hvem, eller gitt full tilgang, for aa foresla hvem du kan invitere. Kontaktene blir liggende paa enheten din.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "HAVEN bruker Face ID for å låse opp identiteter og signere handlinger med nøkler som brukeren kontrollerer.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HAVEN bruker lokalt nettverk for å oppdage andre HAVEN-enheter og etablere direkte kontakt mellom enheter.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "HAVEN bruker mikrofonen bare når du starter tale-til-tekst i Co-Pilot Chat.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "HAVEN bruker mikrofonen til tale-til-tekst og til møteopptak som du og alle deltakerne har godkjent. Lyden behandles på enheten.";
 				INFOPLIST_KEY_NSNearbyInteractionUsageDescription = "HAVEN bruker Nearby Interaction for å anslå avstand og retning til en nær enhet når maskinvaren støtter det.";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "HAVEN bruker Påminnelser kun etter eksplisitt samtykke for å vise dagens gjøremål i din lokale co-pilot.";
 				INFOPLIST_KEY_NSRemindersUsageDescription = "HAVEN bruker Påminnelser kun etter eksplisitt samtykke for å vise dagens gjøremål i din lokale co-pilot.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "HAVEN bruker talegjenkjenning for å skrive inn diktert tekst i Co-Pilot Chat.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "HAVEN gjør om tale til tekst på enheten, i Co-Pilot Chat og i møter alle har godkjent. Lyden sendes ikke til Apple eller andre.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -621,11 +621,11 @@
 				INFOPLIST_KEY_NSContactsUsageDescription = "HAVEN leser kontakter kun etter at du selv har valgt hvem, eller gitt full tilgang, for aa foresla hvem du kan invitere. Kontaktene blir liggende paa enheten din.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "HAVEN bruker Face ID for å låse opp identiteter og signere handlinger med nøkler som brukeren kontrollerer.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HAVEN bruker lokalt nettverk for å oppdage andre HAVEN-enheter og etablere direkte kontakt mellom enheter.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "HAVEN bruker mikrofonen bare når du starter tale-til-tekst i Co-Pilot Chat.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "HAVEN bruker mikrofonen til tale-til-tekst og til møteopptak som du og alle deltakerne har godkjent. Lyden behandles på enheten.";
 				INFOPLIST_KEY_NSNearbyInteractionUsageDescription = "HAVEN bruker Nearby Interaction for å anslå avstand og retning til en nær enhet når maskinvaren støtter det.";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "HAVEN bruker Påminnelser kun etter eksplisitt samtykke for å vise dagens gjøremål i din lokale co-pilot.";
 				INFOPLIST_KEY_NSRemindersUsageDescription = "HAVEN bruker Påminnelser kun etter eksplisitt samtykke for å vise dagens gjøremål i din lokale co-pilot.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "HAVEN bruker talegjenkjenning for å skrive inn diktert tekst i Co-Pilot Chat.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "HAVEN gjør om tale til tekst på enheten, i Co-Pilot Chat og i møter alle har godkjent. Lyden sendes ikke til Apple eller andre.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
