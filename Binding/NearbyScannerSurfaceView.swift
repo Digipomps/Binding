@@ -32,7 +32,7 @@ final class NearbyScannerSurfaceModel: ObservableObject {
               let resolver = CellBase.defaultCellResolver,
               let vault = CellBase.defaultIdentityVault,
               let identity = await vault.identity(for: "private", makeNewIfNotFound: true) else {
-            error = "Scanneren er ikke tilgjengelig ennå."; return
+            error = "Scanneren kunne ikke starte. Sjekk at Bluetooth og lokalt nettverk er tillatt for HAVEN, og prøv igjen."; return
         }
         do {
             self.identity = identity

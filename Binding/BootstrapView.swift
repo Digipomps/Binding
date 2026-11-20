@@ -4433,13 +4433,13 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             scannerStatus = "started"
             scannerLifecycleStatus = "started"
             requestedScannerStatus = "started"
-            localLifecycleSummary = "Scanner-start ble bedt om lokalt. Live nearby-tjeneste er ikke klar ennå."
+            localLifecycleSummary = "Søk etter enheter i nærheten er startet."
             lastActionSummary = "Starter scanner og lytter etter nearby-signaler."
         case "stop":
             scannerStatus = "stopped"
             scannerLifecycleStatus = "stopped"
             requestedScannerStatus = "stopped"
-            localLifecycleSummary = "Scanner-stopp ble bedt om lokalt. Live nearby-tjeneste er ikke klar ennå."
+            localLifecycleSummary = "Søk etter enheter i nærheten er stoppet."
             lastActionSummary = "Stopper scanner og rydder live nearby-signaler."
         default:
             localLifecycleSummary = nil
@@ -4481,12 +4481,12 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
                 scannerStatus = "started"
                 scannerLifecycleStatus = "started"
                 requestedScannerStatus = "started"
-                lastActionSummary = "Scanner-start ble bedt om lokalt. Live nearby-tjeneste er ikke klar ennå: \(error)"
+                lastActionSummary = "Søket kunne ikke starte: \(error)"
             case "stop":
                 scannerStatus = "stopped"
                 scannerLifecycleStatus = "stopped"
                 requestedScannerStatus = "stopped"
-                lastActionSummary = "Scanner-stopp ble bedt om lokalt. Live nearby-tjeneste er ikke klar ennå: \(error)"
+                lastActionSummary = "Søket kunne ikke stoppe: \(error)"
             default:
                 requestedScannerStatus = nil
                 lastActionSummary = "Nearby-handlingen feilet: \(error)"
@@ -4749,8 +4749,8 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
     private func openFollowUpChat(value: ValueType, requester: Identity) async -> ValueType {
         guard let remoteUUID = normalizedRemoteUUID(string(from: object(from: value)?["remoteUUID"]) ?? string(from: value)),
               let target = followUpTargetsById[remoteUUID] else {
-            lastError = "Nearby-oppfølging er ikke klar ennå. Fullfør signert kontakt først."
-            lastActionSummary = "Nearby-oppfølging er ikke klar ennå. Fullfør signert kontakt først."
+            lastError = "Fullfør den signerte kontakten med personen først, så kan dere fortsette her."
+            lastActionSummary = "Fullfør den signerte kontakten med personen først, så kan dere fortsette her."
             emitSnapshot(requester: requester)
             return .object(snapshotObject())
         }
