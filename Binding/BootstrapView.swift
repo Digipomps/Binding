@@ -4447,9 +4447,14 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
 
         await connectScannerIfNeeded(requester: requester)
         guard let scannerMeddle else {
+            // Do not report a start/stop that did not happen (review 2.1, «ikke klar ennå»):
+            // the optimistic status above is withdrawn when no scanner cell is reachable.
             lastError = "EntityScanner unavailable"
-            if let localLifecycleSummary {
-                lastActionSummary = localLifecycleSummary
+            if localLifecycleSummary != nil {
+                scannerStatus = "unavailable"
+                scannerLifecycleStatus = "unavailable"
+                requestedScannerStatus = nil
+                lastActionSummary = "Scanneren kunne ikke startes på denne enheten. Sjekk at Bluetooth og lokalt nettverk er tillatt for HAVEN."
             }
             emitSnapshot(requester: requester)
             return .object(snapshotObject())
@@ -4478,9 +4483,9 @@ private final class ConferenceNearbyRadarLocalCell: GeneralCell {
             lastError = "Nearby scanner action \(keypath) failed: \(error)"
             switch keypath {
             case "start":
-                scannerStatus = "started"
-                scannerLifecycleStatus = "started"
-                requestedScannerStatus = "started"
+                scannerStatus = "failed"
+                scannerLifecycleStatus = "failed"
+                requestedScannerStatus = nil
                 lastActionSummary = "Søket kunne ikke starte: \(error)"
             case "stop":
                 scannerStatus = "stopped"
