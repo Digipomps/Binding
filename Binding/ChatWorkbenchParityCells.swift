@@ -5038,6 +5038,10 @@ class BindingPersonalChatHubCell: BindingRuntimeBindingCell {
             return BindingChatValue.nested("voice", in: cachedState) ?? .object(Self.initialVoiceState())
         case "history":
             return BindingChatValue.nested("history", in: cachedState) ?? .object(Self.initialHistoryState())
+        case "skeletonConfiguration":
+            // Source-backed navigation must export a renderable configuration,
+            // not the historical name/endpoint summary in cachedState.
+            return .cellConfiguration(ConfigurationCatalogCell.personalInviteChatMenuConfiguration())
         default:
             return BindingChatValue.nested(key, in: cachedState) ?? .null
         }

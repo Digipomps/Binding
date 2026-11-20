@@ -10,6 +10,7 @@ final class NearbyScannerSurfaceModel: ObservableObject {
     @Published var radar: ValueType = .object([:])
     @Published var publication: NearbyAdvertisement?
     @Published var error: String?
+    @Published var meetingOffers: [(id: String, inviter: String)] = []
     private var scanner: Meddle?
     private var identity: Identity?
 
@@ -31,7 +32,7 @@ final class NearbyScannerSurfaceModel: ObservableObject {
               let resolver = CellBase.defaultCellResolver,
               let vault = CellBase.defaultIdentityVault,
               let identity = await vault.identity(for: "private", makeNewIfNotFound: true) else {
-            error = "Scanneren er ikke tilgjengelig ennå."; return
+            error = "Scanneren kunne ikke starte. Sjekk at Bluetooth og lokalt nettverk er tillatt for HAVEN, og prøv igjen."; return
         }
         do {
             self.identity = identity
@@ -49,7 +50,28 @@ final class NearbyScannerSurfaceModel: ObservableObject {
             radar = try await scanner.get(keypath: "radar", requester: identity)
             let value = try await scanner.get(keypath: "advertisement", requester: identity)
             publication = (try? JSONEncoder().encode(value)).flatMap { try? JSONDecoder().decode(NearbyAdvertisement.self, from: $0) }
+            if case let .list(offers) = try await scanner.get(keypath: "meetingOffers", requester: identity) {
+                meetingOffers = offers.compactMap {
+                    guard case let .object(row) = $0, case let .string(id)? = row["id"], case let .string(inviter)? = row["inviter"] else { return nil }
+                    return (id, inviter)
+                }
+            }
         } catch { self.error = "Kunne ikke oppdatere radaren." }
+    }
+
+    func meeting(_ action: String, value: ValueType) async -> CellConfiguration? {
+        guard let scanner, let identity else { return nil }
+        do {
+            guard case let .cellConfiguration(configuration)? = try await scanner.set(keypath: action, value: value, requester: identity) else {
+                error = "Møtet kunne ikke åpnes. Velg en tilkoblet deltaker og prøv igjen."; return nil
+            }
+            error = nil; return configuration
+        } catch { self.error = "Møtekoblingen feilet. Mikrofonen er av."; return nil }
+    }
+    func transcripts() async -> CellConfiguration? {
+        guard let identity else { return nil }
+        do { return try await MeetingNearbyAppRuntime.shared.inboxConfiguration(identity: identity) }
+        catch { self.error = "Transkriptene kunne ikke åpnes."; return nil }
     }
 
     @discardableResult
@@ -75,6 +97,7 @@ final class NearbyScannerSurfaceModel: ObservableObject {
 }
 
 struct NearbyScannerSurfaceView: View {
+    let onOpenMeeting: (CellConfiguration) -> Void
     @StateObject private var model = NearbyScannerSurfaceModel()
     @State private var showingPublication = false
     @State private var showingProof = false
@@ -88,6 +111,20 @@ struct NearbyScannerSurfaceView: View {
                 }
                 NearbyRadarSurface(value: model.radar) { id in
                     Task { await model.action("select", .string(id)) }
+                }
+                Button { Task {
+                    if let configuration = await model.meeting("inviteToMeeting", value: .string("Privat møtedokumentasjon")) { onOpenMeeting(configuration) }
+                } } label: { Label("Inviter til møte", systemImage: "person.badge.plus") }
+                    .buttonStyle(.bordered).accessibilityIdentifier("nearby.meeting.invite")
+                Button { Task {
+                    if let configuration = await model.transcripts() { onOpenMeeting(configuration) }
+                } } label: { Label("Mine transkripter", systemImage: "doc.text") }
+                    .buttonStyle(.bordered).accessibilityIdentifier("nearby.meeting.transcripts")
+                ForEach(model.meetingOffers, id: \.id) { offer in
+                    Button { Task {
+                        if let configuration = await model.meeting("acceptMeeting", value: .string(offer.id)) { onOpenMeeting(configuration) }
+                    } } label: { Label("Bli med i privat møte", systemImage: "person.2") }
+                        .buttonStyle(.borderedProminent).accessibilityIdentifier("nearby.meeting.join")
                 }
                 if let challenge = model.accessChallenge {
                     VStack(alignment: .leading, spacing: 10) {

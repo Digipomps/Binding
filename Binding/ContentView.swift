@@ -1167,6 +1167,7 @@ struct ContentView: View {
             skeleton: renderedSkeleton,
             isEditing: editorMode == .edit,
             activeConfigurationName: activeConfiguration?.name,
+            onOpenMeeting: { queueConfigurationLoad($0, provenance: .hostPrepared) },
             contentPadding: portholeCanvasContentPadding,
             contentTopAligned: portholeCanvasContentTopAligned,
             selectedNodePath: editorState.selectedNodePath,
@@ -8608,6 +8609,7 @@ private struct PortholeCanvas: View {
     var skeleton: SkeletonElement
     var isEditing: Bool
     var activeConfigurationName: String?
+    var onOpenMeeting: (CellConfiguration) -> Void
     var contentPadding: CGFloat = 16
     var contentTopAligned: Bool = false
     var selectedNodePath: SkeletonNodePath?
@@ -8618,6 +8620,7 @@ private struct PortholeCanvas: View {
     var onCancelComponentPlacement: () -> Void
     var onApplyComponentDrop: (ComponentPaletteItem, DropPlacement) -> Bool
     @EnvironmentObject private var viewModel: PortholeBindingViewModel
+    @Environment(\.scenePhase) private var meetingScenePhase
 
     var body: some View {
         ZStack {
@@ -8705,11 +8708,25 @@ private struct PortholeCanvas: View {
             )
         } else {
             if activeConfigurationName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "entity scanner" {
-                NearbyScannerSurfaceView()
+                NearbyScannerSurfaceView(onOpenMeeting: onOpenMeeting)
             } else if let mode = nativeNearbyRadarMode {
                 nativeNearbyRadarCanvas(mode: mode)
             } else {
                 BindingSkeletonView(element: skeleton)
+                    .task(id: activeConfigurationName == "Privat møte" && meetingScenePhase == .active) {
+                        guard activeConfigurationName == "Privat møte", meetingScenePhase == .active,
+                              let endpoint = viewModel.cellReferences.first?.endpoint else { return }
+                        // Recording permission lasts 3 s and is renewed only while every
+                        // participant's meeting surface is visible; an auto-locked screen
+                        // would end the segment. Keep the screen awake while it is shown.
+                        BindingMeetingScreenAwake.begin()
+                        defer { BindingMeetingScreenAwake.end() }
+                        while !Task.isCancelled {
+                            do { try await MeetingNearbyAppRuntime.shared.visibleMeetingPulse(endpoint: endpoint) }
+                            catch { /* Failed presence cannot renew recording authority. */ }
+                            do { try await Task.sleep(nanoseconds: 700_000_000) } catch { return }
+                        }
+                    }
             }
         }
     }
@@ -9257,4 +9274,19 @@ struct BridgeStatusBanner: View {
 // MARK: - Preview
 #Preview {
     ContentView()
+}
+
+/// Keeps the screen awake while a private meeting is open (iOS/iPadOS only).
+/// Released when the app leaves the foreground, where recording stops anyway.
+enum BindingMeetingScreenAwake {
+    @MainActor static func begin() {
+        #if os(iOS)
+        UIApplication.shared.isIdleTimerDisabled = true
+        #endif
+    }
+    @MainActor static func end() {
+        #if os(iOS)
+        UIApplication.shared.isIdleTimerDisabled = false
+        #endif
+    }
 }

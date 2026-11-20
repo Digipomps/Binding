@@ -1,4 +1,6 @@
 import Foundation
+import CellBase
+import CellApple
 
 /// One user-requested authentication attempt, shared by concurrent consumers.
 /// A failed attempt stays stopped until a new explicit user action retries it.
@@ -47,13 +49,22 @@ extension BindingRuntimeBootstrap {
             await ensureBaseline()
             return authenticatedRuntimeIsReady
         },
-        register: { await BindingLocalCellRegistration.shared.ensureRegistered() }
+        register: { await registerAndRestoreMeetings() }
     )
+
+    @MainActor
+    private static func registerAndRestoreMeetings() async -> Bool {
+        guard await BindingLocalCellRegistration.shared.ensureRegistered() else { return false }
+        if let identity = await CellBase.defaultIdentityVault?.identity(for: "private", makeNewIfNotFound: false) {
+            try? await MeetingNearbyAppRuntime.shared.restoreIfPresent(identity: identity)
+        }
+        return true
+    }
 
     @MainActor
     static func requestAuthenticatedRuntime(retryAfterFailure: Bool = false) async -> BindingAuthenticatedRuntimeAttempt.Outcome {
         if authenticatedRuntimeIsReady {
-            return await BindingLocalCellRegistration.shared.ensureRegistered() ? .ready : .registrationUnavailable
+            return await registerAndRestoreMeetings() ? .ready : .registrationUnavailable
         }
         return await authenticatedAttempt.run(retryAfterFailure: retryAfterFailure)
     }
