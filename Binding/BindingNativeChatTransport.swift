@@ -64,7 +64,7 @@ actor BindingNativeChatTransport: BindingChatTransport {
         let signing = try IdentitySigningChallenge.signingData(for: identity, trustedIdentity: identity,
             domain: C.domain, resource: resource, action: "personal-chat.request.v1", audience: entry.origin, nonce: random)
         guard let signature = try await identity.sign(data: signing) else { throw C.Failure.denied }
-        let proof = C.Proof(evidenceReference: reference, linkID: entry.record.linkID, challenge: signing, signature: signature)
+        let proof = BindingNativeChatProof(evidenceReference: reference, linkID: entry.record.linkID, challenge: signing, signature: signature)
         var request = URLRequest(url: actionURL, timeoutInterval: 20)
         request.httpMethod = method; request.httpBody = payload == nil ? nil : bytes
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -87,7 +87,18 @@ actor BindingNativeChatTransport: BindingChatTransport {
 
 private nonisolated struct BindingNativeChatEnvelope: Encodable, Sendable {
     let nonce: String
-    let proof: BindingPersonEntityReadRouteContract.Proof
+    let proof: BindingNativeChatProof
+}
+
+/// Chat request proof. The person read route no longer carries its own proof,
+/// so the chat header keeps the same schema and fields here; with sorted keys
+/// the encoded header is byte-identical to the earlier shared struct.
+private nonisolated struct BindingNativeChatProof: Encodable, Sendable {
+    var schema = "haven.person-entity-read-route-proof.v1"
+    let evidenceReference: String
+    let linkID: String
+    let challenge: Data
+    let signature: Data
 }
 
 private nonisolated final class NativeChatNoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
