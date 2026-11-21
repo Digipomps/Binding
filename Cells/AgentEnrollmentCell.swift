@@ -1384,7 +1384,8 @@ private enum CanonicalJSONValue {
     }
 }
 
-private enum JCSCanonicalizer {
+/// Delt med verktøylenkene (`BindingToolLinkController`): samme JCS som entitetslenken.
+enum JCSCanonicalizer {
     nonisolated static func canonicalizeRemovingTopLevelKeys(_ jsonData: Data, keys: Set<String>) throws -> Data {
         try CanonicalJSONValue.parse(jsonData: jsonData)
             .removingTopLevelKeys(keys)

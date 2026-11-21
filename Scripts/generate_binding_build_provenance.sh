@@ -9,11 +9,20 @@ fi
 root_dir="${SRCROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 cellprotocol_dir="${root_dir}/../CellProtocol"
 if [[ -n "${BUILD_DIR:-}" ]]; then
-  resolved_cellprotocol_dir="${BUILD_DIR}/../../SourcePackages/checkouts/CellProtocol"
-  if [[ -d "${resolved_cellprotocol_dir}/.git" ||
-        -f "${resolved_cellprotocol_dir}/.git" ]]; then
-    cellprotocol_dir="$resolved_cellprotocol_dir"
-  fi
+  # A normal build has BUILD_DIR = <DerivedData>/Build/Products, two levels below
+  # SourcePackages. An archive puts it deeper
+  # (<DerivedData>/Build/Intermediates.noindex/ArchiveIntermediates/<scheme>/BuildProductsPath),
+  # so look upwards a bounded number of levels for the resolved checkout.
+  search_dir="${BUILD_DIR}"
+  for level in 1 2 3 4 5 6; do
+    search_dir="${search_dir:h}"
+    resolved_cellprotocol_dir="${search_dir}/SourcePackages/checkouts/CellProtocol"
+    if [[ -d "${resolved_cellprotocol_dir}/.git" ||
+          -f "${resolved_cellprotocol_dir}/.git" ]]; then
+      cellprotocol_dir="$resolved_cellprotocol_dir"
+      break
+    fi
+  done
 fi
 output_plist="$1"
 output_manifest="$2"
@@ -21,14 +30,20 @@ git_bin="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}/usr/bin/gi
 swiftc_bin="${TOOLCHAIN_DIR:?TOOLCHAIN_DIR is required}/usr/bin/swiftc"
 typeset -a configured_architectures
 configured_architectures=(${=ARCHS:-})
-if [[ ${#configured_architectures[@]} -ne 1 ]]; then
-  print -u2 "build attestation currently requires exactly one architecture; got: ${ARCHS:-none}"
+if [[ ${#configured_architectures[@]} -lt 1 ]]; then
+  print -u2 "build attestation requires at least one architecture; got: ${ARCHS:-none}"
   exit 65
 fi
+# A universal build (ARCHS="arm64 x86_64", e.g. a Developer ID package for an
+# Intel Mac) attests the first architecture in full. Every other architecture
+# must have compiled exactly the same Swift file list, and its module and link
+# list are recorded beside the first one, so no slice goes unattested.
 attested_arch="${configured_architectures[1]}"
+typeset -a additional_architectures
+additional_architectures=("${configured_architectures[@]:1}")
 if [[ -n "${CURRENT_ARCH:-}" && "${CURRENT_ARCH}" != "undefined_arch" &&
-      "${CURRENT_ARCH}" != "$attested_arch" ]]; then
-  print -u2 "CURRENT_ARCH does not match the sole configured architecture"
+      ${configured_architectures[(Ie)${CURRENT_ARCH}]} -eq 0 ]]; then
+  print -u2 "CURRENT_ARCH is not one of the configured architectures"
   exit 65
 fi
 swift_file_list="${OBJECT_FILE_DIR_normal:?OBJECT_FILE_DIR_normal is required}/${attested_arch}/${PRODUCT_NAME:?PRODUCT_NAME is required}.SwiftFileList"
@@ -245,6 +260,23 @@ print -r -- "build-input\tproject-pbxproj\t${project_sha256}" >> "$temporary_uns
 print -r -- "build-input\tpackage-resolved\t${package_resolved_sha256}" >> "$temporary_unsorted"
 print -r -- "build-artifact\tbinding-swiftmodule\t${binding_module_sha256}" >> "$temporary_unsorted"
 print -r -- "link-input-list\tHAVEN.LinkFileList\t${link_file_list_sha256}" >> "$temporary_unsorted"
+for extra_arch in "${additional_architectures[@]}"; do
+  extra_swift_file_list="${OBJECT_FILE_DIR_normal}/${extra_arch}/${PRODUCT_NAME}.SwiftFileList"
+  extra_link_file_list="${OBJECT_FILE_DIR_normal}/${extra_arch}/${PRODUCT_NAME}.LinkFileList"
+  extra_module="${OBJECT_FILE_DIR_normal}/${extra_arch}/${PRODUCT_MODULE_NAME}.swiftmodule"
+  for required in "$extra_swift_file_list" "$extra_link_file_list" "$extra_module"; do
+    if [[ ! -f "$required" ]]; then
+      print -u2 "build attestation input is missing for ${extra_arch}: $required"
+      exit 66
+    fi
+  done
+  if ! /usr/bin/cmp -s "$swift_file_list" "$extra_swift_file_list"; then
+    print -u2 "architecture ${extra_arch} compiled a different Swift file list than ${attested_arch}"
+    exit 65
+  fi
+  print -r -- "build-artifact\tbinding-swiftmodule-${extra_arch}\t$(sha256_file "$extra_module")" >> "$temporary_unsorted"
+  print -r -- "link-input-list\tHAVEN.LinkFileList-${extra_arch}\t$(sha256_file "$extra_link_file_list")" >> "$temporary_unsorted"
+done
 print -r -- "cellprotocol-artifact\tCellBase.o\t${cellbase_sha256}" >> "$temporary_unsorted"
 print -r -- "cellprotocol-artifact\tCellApple.o\t${cellapple_sha256}" >> "$temporary_unsorted"
 
@@ -316,6 +348,7 @@ generated_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
 /usr/bin/plutil -insert codeSigningTeamIdentifier -string "$development_team" "$temporary_plist"
 /usr/bin/plutil -insert codeSigningEntitlementsSHA256 -string "$entitlements_sha256" "$temporary_plist"
 /usr/bin/plutil -insert buildConfiguration -string "${CONFIGURATION:-unknown}" "$temporary_plist"
+/usr/bin/plutil -insert attestedArchitectures -string "${configured_architectures[*]}" "$temporary_plist"
 /usr/bin/plutil -insert sdkName -string "${SDK_NAME:-unknown}" "$temporary_plist"
 /usr/bin/plutil -insert generatedAtUTC -string "$generated_at" "$temporary_plist"
 /bin/mv -f "$temporary_plist" "$output_plist"
