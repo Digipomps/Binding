@@ -276,7 +276,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
         )
 
         let transport = Self.encode(request)
-        let humanCode = HavenInviteLink.humanCode(from: requestID + audience)
+        let humanCode = Self.humanCode(for: request)
 
         stateQueue.sync {
             outgoingRequests.removeAll { $0.request.requestID == requestID }
@@ -363,7 +363,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
             "unknownScopes": .list(unknownScopes.map(ValueType.string)),
             "requestedDomains": .list(request.requestedDomains.map(ValueType.string)),
             "expiresAt": .string(request.expiresAt),
-            "humanCode": .string(HavenInviteLink.humanCode(from: request.requestID + request.audience)),
+            "humanCode": .string(Self.humanCode(for: request)),
             "summaryText": .string(Self.reviewSummary(
                 request: request,
                 signatureValid: signatureValid,
@@ -371,7 +371,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
                 alreadyLinked: alreadyLinked
             )),
             "confirmationQuestion": .string(
-                "Stemmer koden \(HavenInviteLink.humanCode(from: request.requestID + request.audience)) med det som står på den andre skjermen?"
+                "Stemmer koden \(Self.humanCode(for: request)) med det som står på den andre skjermen?"
             ),
             "sideEffect": .bool(false)
         ]
@@ -413,7 +413,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
             ))
         }
 
-        guard let canonicalRequest = try? request.canonicalPayloadData() else {
+        guard let requestHash = try? IdentityLinkProtocolService.requestHash(for: request) else {
             return fail(HavenValue.error(code: "bad_payload", message: "Forespørselen kunne ikke kanoniseres."))
         }
         guard let issuerDescriptor = IdentityPublicKeySignatureVerifier.descriptor(for: storedOwnerIdentity) else {
@@ -442,7 +442,7 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
         let ttlMinutes = min(1440, max(2, HavenValue.int(payload["ttlMinutes"]) ?? 15))
         var approval = IdentityEnrollmentApproval(
             approvalID: "apr-\(UUID().uuidString.lowercased())",
-            requestHash: Data(HavenRelationNormalizer.sha256Hex(canonicalRequest.base64EncodedString()).utf8),
+            requestHash: requestHash,
             entityBinding: request.entityBinding
                 ?? EntityBindingDescriptor(mode: .localEntityAnchor, audience: request.audience),
             subjectIdentity: request.newIdentity,
@@ -504,11 +504,12 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
                 "approvalID": .string(approval.approvalID),
                 "linkID": .string(record.linkID),
                 "payload": .string(Self.encode(approval) ?? ""),
+                "package": .string(Self.encode(ApprovalPackage(approval: approval, issuerIdentity: issuerDescriptor)) ?? ""),
                 "issuerIdentity": Self.encodeValue(issuerDescriptor) ?? .null,
                 "approvedScopes": .list(granted.map(ValueType.string)),
                 "refusedScopes": .list(refused.map(ValueType.string)),
                 "expiresAt": .string(approval.expiresAt),
-                "nextStep": .string("Send denne pakken tilbake til den nye enheten og kjør extension.acceptApproval der."),
+                "nextStep": .string("Send `package` tilbake til den nye enheten og kjør extension.acceptApproval der. Den har godkjennerens offentlige nøkkel med, så signaturen kan sjekkes."),
                 "links": .list(linkRows().map(ValueType.object))
             ]
         )
@@ -521,7 +522,8 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
     /// Run back on the new place. Checks that the approval really covers the
     /// request this device issued, then records the link.
     private func acceptApproval(_ value: ValueType) -> Object {
-        guard let approval = Self.decodeApproval(from: value) else {
+        let package = Self.decodeApprovalPackage(from: value)
+        guard let approval = package?.approval ?? Self.decodeApproval(from: value) else {
             return fail(HavenValue.error(code: "bad_payload", message: "Fant ingen gyldig godkjenning i det du sendte."))
         }
 
@@ -534,10 +536,9 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
             ))
         }
 
-        guard let canonicalRequest = try? pending.request.canonicalPayloadData() else {
+        guard let expectedHash = try? IdentityLinkProtocolService.requestHash(for: pending.request) else {
             return fail(HavenValue.error(code: "bad_request", message: "Den lagrede forespørselen kunne ikke kanoniseres."))
         }
-        let expectedHash = Data(HavenRelationNormalizer.sha256Hex(canonicalRequest.base64EncodedString()).utf8)
         guard approval.requestHash == expectedHash else {
             return fail(HavenValue.error(
                 code: "request_hash_mismatch",
@@ -553,24 +554,25 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
             ))
         }
 
-        // Check the approver's signature when the caller hands over the
-        // approver's public key (`issuerIdentity`), and refuse a bad one.
-        let signaturePresent = approval.proof?.signature != nil
-        var signatureVerified = false
-        if let issuer = Self.decodeIssuerDescriptor(from: value) {
-            if let proof = approval.proof,
-               let signature = proof.signature,
-               issuer.uuid == approval.issuerIdentityUUID,
-               proof.issuerIdentityUUID == approval.issuerIdentityUUID,
-               let canonicalApproval = try? approval.canonicalPayloadData(),
-               IdentityPublicKeySignatureVerifier.verify(signature: signature, messageData: canonicalApproval, descriptor: issuer) {
-                signatureVerified = true
-            } else {
-                return fail(HavenValue.error(
-                    code: "bad_signature",
-                    message: "Signaturen på godkjenningen stemmer ikke med godkjennerens nøkkel. Jeg kobler ingenting."
-                ))
-            }
+        // The approver's signature must hold. The key comes in the package from
+        // extension.approveRequest, or next to the bare approval as `issuerIdentity`.
+        // Without it nothing is linked: a hash match alone proves nothing about who approved.
+        guard let issuer = package?.issuerIdentity ?? Self.decodeIssuerDescriptor(from: value) else {
+            return fail(HavenValue.error(
+                code: "missing_issuer_key",
+                message: "Godkjenningen mangler godkjennerens offentlige nøkkel, så signaturen kan ikke sjekkes. Send hele `package` fra godkjenningen. Jeg kobler ingenting."
+            ))
+        }
+        guard let proof = approval.proof,
+              let signature = proof.signature,
+              issuer.uuid == approval.issuerIdentityUUID,
+              proof.issuerIdentityUUID == approval.issuerIdentityUUID,
+              let canonicalApproval = try? approval.canonicalPayloadData(),
+              IdentityPublicKeySignatureVerifier.verify(signature: signature, messageData: canonicalApproval, descriptor: issuer) else {
+            return fail(HavenValue.error(
+                code: "bad_signature",
+                message: "Signaturen på godkjenningen stemmer ikke med godkjennerens nøkkel. Jeg kobler ingenting."
+            ))
         }
 
         let record = IdentityLinkRecord(
@@ -601,12 +603,9 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
                 "linkID": .string(record.linkID),
                 "approvedScopes": .list(approval.approvedScopes.map(ValueType.string)),
                 "issuerIdentityUUID": .string(approval.issuerIdentityUUID),
-                "signaturePresent": .bool(signaturePresent),
-                "signatureVerified": .bool(signatureVerified),
-                "verificationNote": .string(signatureVerified
-                    ? "Forespørselens hash og godkjennerens signatur stemmer."
-                    : "Forespørselens hash stemmer, og godkjenningen er signert, men denne enheten har ikke godkjennerens offentlige nøkkel og kan derfor ikke sjekke signaturen selv. Bekreft koden muntlig, eller hent nøkkelen fra scaffoldet."
-                ),
+                "signaturePresent": .bool(true),
+                "signatureVerified": .bool(true),
+                "verificationNote": .string("Forespørselens hash og godkjennerens signatur stemmer."),
                 "links": .list(linkRows().map(ValueType.object))
             ]
         )
@@ -810,6 +809,27 @@ final class BindingEntityScaffoldExtensionCell: GeneralCell {
     private static func encodeValue<T: Encodable>(_ value: T) -> ValueType? {
         guard let data = try? JSONEncoder().encode(value) else { return nil }
         return try? JSONDecoder().decode(ValueType.self, from: data)
+    }
+
+    /// What extension.approveRequest hands back: the approval and the key that signed it.
+    private struct ApprovalPackage: Codable {
+        var approval: IdentityEnrollmentApproval
+        var issuerIdentity: IdentityPublicKeyDescriptor
+    }
+
+    private static func decodeApprovalPackage(from value: ValueType) -> ApprovalPackage? {
+        guard let text = HavenValue.string(HavenValue.object(value)?["package"]) ?? HavenValue.string(value),
+              let data = HavenInviteLink.dataFromBase64URL(text) else { return nil }
+        return try? JSONDecoder().decode(ApprovalPackage.self, from: data)
+    }
+
+    /// The code both screens show. Derived from the request hash (SHA-256 of the
+    /// canonical request), so another key or other scopes give another code.
+    /// Same rule in PyCellProtocol and GoCellProtocol; pinned by
+    /// fixtures/interop/v1/extend.request.valid.json `related.humanCode`.
+    static func humanCode(for request: IdentityEnrollmentRequest) -> String {
+        guard let hash = try? IdentityLinkProtocolService.requestHash(for: request) else { return "" }
+        return HavenInviteLink.humanCode(from: hash.map { String(format: "%02x", $0) }.joined())
     }
 
     private static func decodeApproval(from value: ValueType) -> IdentityEnrollmentApproval? {
